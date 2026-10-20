@@ -1,0 +1,2015 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pluma Lab">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head><body>
+<title>Pluma Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#0a503f">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Figtree:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: app de una columna con barra inferior en móvil y pestañas superiores en escritorio; la pista verde es el lienzo protagonista */
+:root {
+  --bg: #eef2ef; --surface: #ffffff; --surface-2: #f6f8f6; --ink: #13211c; --muted: #5a6b64; --line: #d7e0db;
+  --court: #0e6a54; --court-ink: #f2f7f4; --court-line: rgba(255,255,255,.9); --court-deep: #0a503f;
+  --accent: #e8962c; --accent-soft: rgba(232,150,44,.14);
+  --atk: #df4a4f; --neu: #e8962c; --def: #3a7fc2; --srv: #7a8a83;
+  --p0: #e8962c; --p1: #5b6ee1;
+  --good: #1f9d6b; --warn: #d1861b; --bad: #d64545;
+  --shadow: 0 1px 2px rgba(16,40,30,.06), 0 6px 20px rgba(16,40,30,.06);
+  --f-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --f-body: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0b1411; --surface: #12201b; --surface-2: #172822; --ink: #e6efeb; --muted: #92a69d; --line: #243a32;
+  --court: #12775f; --court-ink: #eef6f2; --court-deep: #0c5444; --accent: #f3a948; --accent-soft: rgba(243,169,72,.16);
+  --atk: #ff6b6f; --neu: #f3a948; --def: #5ba3ea; --srv: #93a59d; --p0: #f3a948; --p1: #8592ff;
+  --good: #3cc58c; --warn: #f0a63a; --bad: #ff6b6b; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25); color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0b1411; --surface: #12201b; --surface-2: #172822; --ink: #e6efeb; --muted: #92a69d; --line: #243a32;
+  --court: #12775f; --court-ink: #eef6f2; --court-deep: #0c5444; --accent: #f3a948; --accent-soft: rgba(243,169,72,.16);
+  --atk: #ff6b6f; --neu: #f3a948; --def: #5ba3ea; --srv: #93a59d; --p0: #f3a948; --p1: #8592ff;
+  --good: #3cc58c; --warn: #f0a63a; --bad: #ff6b6b; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25); color-scheme: dark; }
+
+* { box-sizing: border-box; }
+html, body { background: var(--bg); }
+body { color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--court-deep); }
+h1, h2, h3, h4 { font-family: var(--f-display); font-weight: 700; letter-spacing: .01em; line-height: 1.08; margin: 0; text-wrap: balance; }
+h2 { font-size: 30px; } h3 { font-size: 21px; } h4 { font-size: 17px; }
+p { margin: 0; }
+a { color: var(--court); } :root[data-theme="dark"] a { color: var(--accent); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) a { color: var(--accent); } }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; font-weight: 700; color: var(--muted); }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+
+/* ---- Cabecera y navegación ---- */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--court-deep); color: var(--court-ink);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.top-in { max-width: 1120px; margin: 0 auto; display: flex; align-items: center; gap: 16px; padding-block: 10px; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--f-display); font-size: 25px; font-weight: 700; letter-spacing: .02em; }
+.brand svg { width: 30px; height: 30px; }
+.brand small { font-family: var(--f-body); font-size: 11px; font-weight: 600; opacity: .7; letter-spacing: .08em; text-transform: uppercase; display: block; margin-top: -2px; }
+.tabs { display: flex; gap: 4px; margin-left: auto; }
+.tab { border: 0; background: transparent; color: var(--court-ink); opacity: .78; padding: 8px 14px; border-radius: 999px; font-weight: 600; display: flex; gap: 8px; align-items: center; }
+.tab svg { width: 18px; height: 18px; }
+.tab[aria-selected="true"] { background: rgba(255,255,255,.14); opacity: 1; }
+.tab .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+@media (max-width: 760px) {
+  .tabs { position: fixed; inset: auto 0 0 0; margin: 0; background: var(--surface); border-top: 1px solid var(--line); justify-content: space-around; z-index: 25;
+    padding: 6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)); }
+  .tab { flex-direction: column; gap: 2px; font-size: 11px; color: var(--muted); opacity: 1; padding: 6px 4px; flex: 1; border-radius: 10px; }
+  .tab svg { width: 22px; height: 22px; }
+  .tab[aria-selected="true"] { background: var(--accent-soft); color: var(--ink); }
+  main { padding-bottom: calc(86px + env(safe-area-inset-bottom, 0px)) !important; }
+}
+.theme-btn { border: 1px solid rgba(255,255,255,.25); background: transparent; color: var(--court-ink); width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+@media (max-width: 760px) { .theme-btn { margin-left: auto; } }
+
+main { max-width: 1120px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 48px; }
+.view { display: grid; gap: 20px; }
+
+/* ---- Componentes ---- */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; box-shadow: var(--shadow); min-width: 0; }
+.card-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.card-h p { color: var(--muted); font-size: 13px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 20px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 20px; }
+@media (max-width: 900px) { .grid3 { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+@media (max-width: 680px) { .grid2, .grid3 { grid-template-columns: minmax(0,1fr); } }
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 10px 16px; border-radius: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; justify-content: center; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #241503; }
+.btn.court { background: var(--court); border-color: var(--court); color: var(--court-ink); }
+.btn.big { padding: 15px 22px; font-size: 17px; border-radius: 14px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn svg { width: 18px; height: 18px; }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 3px; gap: 2px; }
+.seg button { border: 0; background: transparent; padding: 7px 14px; border-radius: 9px; font-weight: 600; font-size: 14px; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
+.sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.field { display: grid; gap: 6px; }
+.field label { font-size: 13px; font-weight: 600; color: var(--muted); }
+.field input[type=number], .field select { border: 1px solid var(--line); background: var(--surface-2); border-radius: 10px; padding: 9px 10px; width: 100%; }
+.overflow { overflow-x: auto; }
+svg text { font-family: var(--f-body); }
+
+/* ---- Analizar ---- */
+.hero { background: var(--court); color: var(--court-ink); border-radius: 20px; padding: 26px; display: grid; grid-template-columns: minmax(0,1.1fr) minmax(0,1fr); gap: 24px; align-items: center; position: relative; overflow: hidden; }
+.hero h1 { font-size: clamp(34px, 6vw, 56px); text-transform: uppercase; letter-spacing: .01em; }
+.hero h1 em { font-style: normal; color: var(--accent); }
+.hero p { opacity: .88; max-width: 46ch; margin-top: 10px; }
+.hero .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+.hero .btn:not(.primary) { background: rgba(255,255,255,.1); color: var(--court-ink); border-color: rgba(255,255,255,.3); }
+.hero-court { width: 100%; max-width: 440px; justify-self: end; }
+@media (max-width: 760px) { .hero { grid-template-columns: minmax(0,1fr); padding: 20px; } .hero-court { justify-self: center; max-width: 340px; } }
+.check { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.check li { display: flex; gap: 10px; align-items: flex-start; }
+.check li b { display: block; }
+.ok-i { width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; flex: none; font-weight: 800; font-size: 13px; margin-top: 1px; }
+.steps { display: flex; gap: 6px; flex-wrap: wrap; }
+.step { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--muted); padding: 6px 12px 6px 6px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); }
+.step i { font-style: normal; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); border: 1px solid var(--line); font-size: 12px; }
+.step.on { color: var(--ink); border-color: var(--accent); } .step.on i { background: var(--accent); color: #241503; border-color: var(--accent); }
+.step.done i { background: var(--court); color: var(--court-ink); border-color: var(--court); }
+.calib-wrap { position: relative; background: #000; border-radius: 12px; overflow: hidden; touch-action: none; }
+.calib-wrap canvas { display: block; width: 100%; height: auto; }
+.calib-tip { position: absolute; left: 10px; top: 10px; right: 10px; display: flex; gap: 8px; align-items: center; background: rgba(10,20,16,.78); color: #f2f7f4; padding: 8px 12px; border-radius: 10px; font-size: 14px; font-weight: 600; pointer-events: none; }
+.calib-tip .n { width: 24px; height: 24px; border-radius: 50%; background: #e8962c; color: #241503; display: grid; place-items: center; font-size: 13px; flex: none; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.range { width: 100%; accent-color: var(--accent); }
+.progress { height: 12px; background: var(--surface-2); border-radius: 999px; overflow: hidden; border: 1px solid var(--line); }
+.progress > div { height: 100%; width: 0; background: linear-gradient(90deg, var(--court), var(--accent)); border-radius: 999px; transition: width .2s; }
+.err { border-left: 4px solid var(--bad); background: var(--surface-2); padding: 12px 14px; border-radius: 10px; }
+
+/* ---- Resultados ---- */
+.board { background: var(--court); color: var(--court-ink); border-radius: 20px; padding: 20px; display: grid; grid-template-columns: auto minmax(0,1fr); gap: 22px; align-items: center; }
+.board .tiles { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+.tile { background: rgba(0,0,0,.16); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+.tile .v { font-family: var(--f-display); font-size: 32px; font-weight: 700; line-height: 1; }
+.tile .v small { font-size: 15px; opacity: .75; margin-left: 2px; font-family: var(--f-body); font-weight: 600; }
+.tile .l { font-size: 12px; opacity: .8; margin-top: 4px; }
+.tile .vs { font-size: 12px; opacity: .7; }
+@media (max-width: 760px) { .board { grid-template-columns: minmax(0,1fr); justify-items: center; } .board .tiles { grid-template-columns: repeat(2, minmax(0,1fr)); width: 100%; } }
+.res-top { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center; }
+.replay { display: grid; grid-template-columns: minmax(0, 1fr) 180px; gap: 14px; align-items: start; }
+@media (max-width: 760px) { .replay { grid-template-columns: minmax(0,1fr); } .mini-wrap { display: grid; grid-template-columns: 120px minmax(0,1fr); gap: 12px; align-items: center; } }
+.stage { position: relative; border-radius: 12px; overflow: hidden; background: #0a1511; aspect-ratio: 16/9; max-width: 100%; }
+.stage video, .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.stage video { object-fit: contain; }
+.stage .badge { position: absolute; left: 10px; top: 10px; z-index: 2; background: rgba(10,20,16,.75); color: #f2f7f4; border-radius: 8px; padding: 4px 10px; font-size: 12px; font-weight: 700; }
+.stage .shot-pop { position: absolute; right: 10px; top: 10px; z-index: 2; background: rgba(10,20,16,.8); color: #fff; border-radius: 10px; padding: 6px 12px; font-family: var(--f-display); font-size: 20px; font-weight: 700; opacity: 0; transition: opacity .25s; }
+.stage .shot-pop.on { opacity: 1; }
+.ctrls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.icon-btn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; }
+.icon-btn.play { background: var(--accent); border-color: var(--accent); color: #241503; width: 46px; height: 46px; }
+.icon-btn svg { width: 20px; height: 20px; }
+.timeline { margin-top: 10px; cursor: pointer; touch-action: none; }
+.mini canvas { width: 100%; height: auto; display: block; border-radius: 10px; }
+.bars { display: grid; gap: 9px; }
+.bar-row { display: grid; grid-template-columns: 140px minmax(0,1fr) 44px; gap: 10px; align-items: center; font-size: 14px; }
+.bar-row .track { height: 14px; border-radius: 7px; background: var(--surface-2); overflow: hidden; display: flex; }
+.bar-row .track div { height: 100%; }
+@media (max-width: 480px) { .bar-row { grid-template-columns: 110px minmax(0,1fr) 36px; font-size: 13px; } }
+.stack { display: flex; height: 34px; border-radius: 10px; overflow: hidden; }
+.stack div { display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 13px; min-width: 0; overflow: hidden; white-space: nowrap; }
+.metric { display: grid; gap: 4px; padding: 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); min-width: 0; }
+.metric .v { font-family: var(--f-display); font-size: 28px; font-weight: 700; line-height: 1; }
+.metric .v small { font-size: 14px; color: var(--muted); font-family: var(--f-body); font-weight: 600; }
+.metric .l { font-size: 13px; font-weight: 600; }
+.metric .h { font-size: 12px; color: var(--muted); }
+.metrics { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.state { display: inline-block; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; padding: 2px 7px; border-radius: 6px; }
+.state.good { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
+.state.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.state.bad { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
+.tips { display: grid; gap: 10px; }
+.tip { display: grid; grid-template-columns: 6px minmax(0,1fr); gap: 12px; padding: 12px; border-radius: 12px; background: var(--surface-2); }
+.tip i { border-radius: 3px; }
+.tip b { display: block; margin-bottom: 2px; }
+.rallies { display: grid; gap: 6px; }
+.rally { display: grid; grid-template-columns: 54px minmax(0,1fr) 70px; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 10px; border: 1px solid transparent; background: transparent; text-align: left; width: 100%; }
+.rally:hover { background: var(--surface-2); border-color: var(--line); }
+.rally .dots { display: flex; gap: 3px; flex-wrap: wrap; }
+.rally .dots i { width: 10px; height: 10px; border-radius: 50%; display: block; }
+.rally .dots i.p1 { border-radius: 2px; }
+.empty { text-align: center; padding: 40px 16px; display: grid; gap: 14px; justify-items: center; }
+
+/* ---- Aprende ---- */
+.learn-nav { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 56px); z-index: 5; background: var(--bg); padding-block: 8px; overflow-x: auto; scrollbar-width: none; }
+.learn-nav .chips { flex-wrap: nowrap; }
+.learn-sec { scroll-margin-top: 130px; display: grid; gap: 14px; }
+.learn-sec > h2 { display: flex; align-items: center; gap: 10px; }
+.learn-sec > h2 span { font-family: var(--f-mono); font-size: 13px; color: var(--muted); font-weight: 500; }
+.diagram { width: 100%; height: auto; display: block; }
+.shot-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.shot-card { padding: 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); display: grid; gap: 8px; align-content: start; }
+.shot-card ul, .learn-sec ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.kv div { background: var(--surface-2); border-radius: 12px; padding: 12px; }
+.kv b { display: block; font-family: var(--f-display); font-size: 26px; line-height: 1.05; }
+.note { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 10px 14px; border-radius: 10px; }
+table.t { border-collapse: collapse; width: 100%; font-size: 14px; }
+table.t th, table.t td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+
+/* ---- Asistente ---- */
+.chat { display: grid; grid-template-rows: minmax(0,1fr) auto; grid-template-columns: minmax(0,1fr); height: min(72vh, 720px); padding: 0; overflow: hidden; }
+@media (max-width: 760px) { .chat { height: calc(100dvh - 330px); min-height: 360px; } }
+.chat-log { overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.msg { max-width: 82%; padding: 10px 14px; border-radius: 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg.bot { background: var(--surface-2); border: 1px solid var(--line); border-bottom-left-radius: 4px; align-self: flex-start; white-space: normal; }
+.msg.bot p + p, .msg.bot p + ul, .msg.bot ul + p { margin-top: 8px; }
+.msg.bot ul { margin: 6px 0 0; padding-left: 18px; }
+.msg.me { background: var(--court); color: var(--court-ink); border-bottom-right-radius: 4px; align-self: flex-end; }
+.chat-in { border-top: 1px solid var(--line); padding: 12px; display: grid; gap: 10px; background: var(--surface); }
+.chat-in form { display: flex; gap: 8px; }
+.chat-in input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface-2); border-radius: 12px; padding: 11px 14px; }
+.chat-in .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.typing { display: inline-flex; gap: 4px; } .typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: bl 1s infinite; }
+.typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes bl { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* ---- Clases de los diagramas SVG ---- */
+.s-court { fill: var(--court); } .s-hl { fill: rgba(255,255,255,.14); } .s-line { stroke: var(--court-line); } .s-net { stroke: var(--ink); }
+.s-ink { fill: var(--ink); } .s-muted { fill: var(--muted); } .s-court-ink { fill: var(--court-ink); } .s-acc { fill: var(--accent); } .s-p1 { fill: var(--p1); }
+.st-acc { stroke: var(--accent); fill: none; } .st-muted { stroke: var(--muted); } .st-line { stroke: var(--line); } .st-ink { stroke: var(--ink); }
+.s-srv { fill: var(--accent); opacity: .55; } .s-rcv { fill: var(--p1); opacity: .6; }
+.s-atk { fill: var(--atk); } .s-def { fill: var(--def); } .s-neu { fill: var(--neu); }
+.st-atk { stroke: var(--atk); } .st-def { stroke: var(--def); } .st-neu { stroke: var(--neu); }
+.ch-grid { stroke: var(--line); } .ch-txt { fill: var(--muted); font-size: 11px; } .ch-ink { fill: var(--ink); }
+.overflow > svg.wide { min-width: 600px; }
+
+</style>
+
+<header class="top"><div class="top-in">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="24" r="5.5" fill="#e8962c"/><path d="M11.5 21 6 5.5l5 2 2-4 3 3 3-3 2 4 5-2L20.5 21z" fill="#f2f7f4"/><path d="M11.5 21h9" stroke="#0a503f" stroke-width="1.5"/></svg>
+    <div>Pluma Lab<small>Análisis de bádminton con IA</small></div>
+  </div>
+  <nav class="tabs" role="tablist" aria-label="Secciones">
+    <button class="tab" role="tab" data-view="analizar" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg>Analizar</button>
+    <button class="tab" role="tab" data-view="resultados" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Resultados<i class="dot" id="resDot" hidden></i></button>
+    <button class="tab" role="tab" data-view="aprende" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M8 7h7"/></svg>Aprende</button>
+    <button class="tab" role="tab" data-view="asistente" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 10h8M8 13h5"/></svg>Asistente</button>
+  </nav>
+  <button class="theme-btn" id="themeBtn" aria-label="Cambiar tema claro u oscuro"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+</div></header>
+
+<main>
+<!-- ===== ANALIZAR ===== -->
+<section class="view" id="v-analizar">
+  <div class="hero">
+    <div>
+      <div class="eyebrow" style="color:inherit;opacity:.75">Bádminton individual · todo en tu móvil</div>
+      <h1>Graba tu partido.<br><em>Mira cómo juegas.</em></h1>
+      <p>Sube un vídeo grabado desde detrás de la pista. Pluma Lab sigue a los dos jugadores, detecta cada golpe y te enseña tu mapa de calor, tus golpes de ataque y defensa, la velocidad del volante y consejos para mejorar. El vídeo no sale de tu dispositivo.</p>
+      <div class="actions">
+        <label class="btn primary big" for="fileIn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 16V4m0 0-5 5m5-5 5 5M4 20h16"/></svg>Subir vídeo</label>
+        <input type="file" id="fileIn" accept="video/*" hidden>
+        <button class="btn big" id="demoBtn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>Ver partido de demostración</button>
+      </div>
+    </div>
+    <svg class="hero-court" viewBox="0 0 420 300" aria-hidden="true">
+      <g transform="translate(40 20)">
+        <polygon points="70,0 270,0 340,260 0,260" fill="rgba(0,0,0,.18)"/>
+        <g stroke="rgba(255,255,255,.85)" stroke-width="2" fill="none"><polygon points="70,0 270,0 340,260 0,260"/><line x1="78" y1="0" x2="12" y2="260"/><line x1="262" y1="0" x2="328" y2="260"/><line x1="58" y1="70" x2="290" y2="70"/><line x1="25" y1="190" x2="317" y2="190"/><line x1="170" y1="0" x2="170" y2="70"/><line x1="170" y1="190" x2="170" y2="260"/></g>
+        <line x1="40" y1="122" x2="300" y2="122" stroke="#f2f7f4" stroke-width="5"/>
+        <path d="M120 228 Q 190 -40 240 40" stroke="#e8962c" stroke-width="3" fill="none" stroke-dasharray="7 6"/>
+        <circle cx="240" cy="40" r="6" fill="#f2f7f4"/>
+        <g stroke="#e8962c" stroke-width="5" stroke-linecap="round" fill="none"><circle cx="118" cy="200" r="9" fill="#e8962c"/><path d="M118 210v34M118 222l-14 14M118 222l22-24M118 244l-12 20M118 244l12 20"/></g>
+        <g stroke="#9aa8ff" stroke-width="4" stroke-linecap="round" fill="none"><circle cx="214" cy="38" r="6" fill="#9aa8ff"/><path d="M214 44v22M214 52l-10 8M214 52l10 8M214 66l-7 12M214 66l7 12"/></g>
+      </g>
+    </svg>
+  </div>
+
+  <div id="flow" hidden>
+    <div class="card" style="display:grid;gap:16px">
+      <div class="row" style="justify-content:space-between">
+        <div class="steps" id="steps"><span class="step on" data-s="1"><i>1</i>Pista</span><span class="step" data-s="2"><i>2</i>Ajustes</span><span class="step" data-s="3"><i>3</i>Análisis</span></div>
+        <button class="btn" id="cancelFlow">Cerrar</button>
+      </div>
+      <!-- Paso 1: calibración -->
+      <div id="p-calib" style="display:grid;gap:12px">
+        <div><h3>Marca las 4 esquinas exteriores de la pista</h3><p class="muted small">Toca las esquinas en orden. Puedes arrastrar los puntos para afinar; aparecerá la pista dibujada encima para que compruebes que encaja.</p></div>
+        <div class="calib-wrap" id="calibWrap"><canvas id="calibCv" width="1280" height="720"></canvas><div class="calib-tip" id="calibTip"><span class="n">1</span><span>Esquina cercana izquierda</span></div></div>
+        <div class="field"><label for="scrub">Elige un fotograma donde se vean bien las líneas</label><input type="range" id="scrub" class="range" min="0" max="1000" value="0"></div>
+        <div class="row"><button class="btn" id="undoPt">Deshacer punto</button><button class="btn" id="resetPt">Empezar de nuevo</button><span style="flex:1"></span><button class="btn primary" id="toSettings" disabled>Continuar</button></div>
+      </div>
+      <!-- Paso 2: ajustes -->
+      <div id="p-settings" hidden style="display:grid;gap:16px">
+        <h3>Ajustes del análisis</h3>
+        <div class="grid3">
+          <div class="field"><label>¿Dónde juegas tú?</label><div class="seg" id="sideSeg"><button aria-pressed="true" data-v="0">Lado cercano</button><button aria-pressed="false" data-v="1">Lado lejano</button></div></div>
+          <div class="field"><label for="hMe">Tu estatura (cm)</label><input type="number" id="hMe" value="175" min="120" max="220"></div>
+          <div class="field"><label for="hOp">Estatura del rival (cm)</label><input type="number" id="hOp" value="175" min="120" max="220"></div>
+          <div class="field"><label for="handMe">Tu mano de juego</label><select id="handMe"><option value="auto">Detectar sola</option><option value="R">Diestro</option><option value="L">Zurdo</option></select></div>
+          <div class="field"><label>Precisión</label><div class="seg" id="qSeg"><button aria-pressed="false" data-v="fast">Rápida</button><button aria-pressed="true" data-v="normal">Normal</button><button aria-pressed="false" data-v="high">Alta</button></div></div>
+          <div class="field"><label>Duración estimada</label><div class="num" id="etaTxt" style="padding-top:6px">—</div></div>
+        </div>
+        <div class="field"><label>Tramo del vídeo a analizar: <span class="num" id="trimTxt"></span></label>
+          <div class="row" style="flex-wrap:nowrap"><input type="range" id="trimA" class="range" min="0" max="1000" value="0" aria-label="Inicio del tramo"><input type="range" id="trimB" class="range" min="0" max="1000" value="1000" aria-label="Fin del tramo"></div></div>
+        <div class="row"><button class="btn" id="backCalib">Volver a la pista</button><span style="flex:1"></span><button class="btn primary big" id="runBtn">Analizar vídeo</button></div>
+      </div>
+      <!-- Paso 3: procesando -->
+      <div id="p-run" hidden style="display:grid;gap:12px">
+        <div class="row" style="justify-content:space-between"><h3 id="runTitle">Preparando el modelo de IA…</h3><span class="num muted" id="runEta"></span></div>
+        <div class="progress"><div id="runBar"></div></div>
+        <div class="stage"><canvas id="runCv" width="1280" height="720"></canvas><span class="badge" id="runBadge">IA trabajando en tu dispositivo</span></div>
+        <p class="muted small" id="runInfo">El primer análisis descarga el modelo de postura (unos 6 MB). Mantén la pantalla encendida.</p>
+        <div class="row"><button class="btn" id="stopRun">Cancelar</button></div>
+      </div>
+      <div class="err" id="flowErr" hidden></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card"><div class="card-h"><h3>Cómo grabar el vídeo</h3></div>
+      <svg viewBox="0 0 420 210" class="diagram" role="img" aria-label="Coloca el móvil fijo, alto y detrás de la pista">
+        <rect x="150" y="30" width="250" height="150" rx="3" class="s-court"/>
+        <g class="s-line" stroke-width="2" fill="none"><rect x="150" y="30" width="250" height="150"/><line x1="275" y1="22" x2="275" y2="188" stroke-width="4"/><line x1="150" y1="40" x2="400" y2="40"/><line x1="150" y1="170" x2="400" y2="170"/></g>
+        <path d="M60 105 L150 30 M60 105 L150 180" class="st-acc" stroke-width="2" stroke-dasharray="5 5"/>
+        <rect x="40" y="80" width="26" height="46" rx="5" class="s-ink"/><rect x="44" y="86" width="18" height="34" rx="2" class="s-acc"/>
+        <path d="M53 126 L53 196 M53 196 L36 206 M53 196 L70 206" class="st-muted" stroke-width="2.5"/>
+        <text x="20" y="66" font-size="12" font-weight="700" class="s-ink">2-3 m de alto</text>
+        <text x="275" y="204" font-size="12" text-anchor="middle" class="s-muted">Toda la pista dentro de la imagen</text>
+      </svg>
+      <ul class="check" style="margin-top:12px">
+        <li><span class="ok-i">1</span><div><b>Móvil fijo y en horizontal</b><span class="muted small">Con trípode o apoyado. Nada de grabar en mano.</span></div></li>
+        <li><span class="ok-i">2</span><div><b>Detrás de la pista y elevado</b><span class="muted small">Cuanto más alto, mejor se ven los dos jugadores.</span></div></li>
+        <li><span class="ok-i">3</span><div><b>Partido individual, 30 s a 3 min</b><span class="muted small">Los clips cortos se analizan antes. Mejor a 60 fps.</span></div></li>
+        <li><span class="ok-i">4</span><div><b>En iPhone, formato "Más compatible"</b><span class="muted small">Ajustes › Cámara › Formatos. Así cualquier navegador lo lee.</span></div></li>
+      </ul>
+    </div>
+    <div class="card"><div class="card-h"><h3>Qué vas a ver</h3></div>
+      <div class="metrics">
+        <div class="metric"><span class="l">Repetición con esqueletos</span><span class="h">Tu vídeo con la postura y la pista dibujadas encima, y un minimapa en directo.</span></div>
+        <div class="metric"><span class="l">Ataque y defensa</span><span class="h">Cada golpe clasificado por la altura a la que coges el volante.</span></div>
+        <div class="metric"><span class="l">Velocidad del volante</span><span class="h">Estimada por tiempo de vuelo y frenado del aire.</span></div>
+        <div class="metric"><span class="l">Mapa de calor</span><span class="h">Por dónde te mueves, zonas y trayectorias de tus golpes.</span></div>
+        <div class="metric"><span class="l">Técnica</span><span class="h">Brazo en el contacto, rodillas, split step, estocadas y saltos.</span></div>
+        <div class="metric"><span class="l">Físico y táctica</span><span class="h">Distancia, velocidad, recuperación a la base, reacción y cansancio.</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== RESULTADOS ===== -->
+<section class="view" id="v-resultados" hidden></section>
+
+<!-- ===== APRENDE ===== -->
+<section class="view" id="v-aprende" hidden></section>
+
+<!-- ===== ASISTENTE ===== -->
+<section class="view" id="v-asistente" hidden>
+  <div class="res-top"><div><h2>Asistente</h2><p class="muted">Pregunta por las reglas, la técnica o tu análisis.</p></div><span class="pill" id="aiMode">Comprobando…</span></div>
+  <div class="card chat">
+    <div class="chat-log" id="chatLog" aria-live="polite"></div>
+    <div class="chat-in">
+      <div class="chips" id="chatChips"></div>
+      <form id="chatForm"><input id="chatInput" autocomplete="off" placeholder="Escribe tu pregunta…" aria-label="Pregunta"><button class="btn primary" type="submit">Enviar</button></form>
+    </div>
+  </div>
+</section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script>
+/* ===== Motor de análisis (sin dependencias) ===== */
+(function (G) {
+  'use strict';
+  // Medidas oficiales de pista (m)
+  const COURT = { W: 6.1, L: 13.4, NET: 6.7, SW: 5.18, SHORT: 1.98, DLONG: 0.76, SIDE: 0.46 };
+  // Puntos clave guardados (índices de MediaPipe Pose)
+  const MP_IDX = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
+  const K = { nose: 0, lsh: 1, rsh: 2, lel: 3, rel: 4, lwr: 5, rwr: 6, lhip: 7, rhip: 8, lkn: 9, rkn: 10, lan: 11, ran: 12 };
+  const NK = MP_IDX.length;
+  const DRAG_K = 9.81 / (6.8 * 6.8); // volante: velocidad terminal ~6.8 m/s
+
+  /* ---------- Geometría ---------- */
+  function solve(A, b) {
+    const n = b.length;
+    for (let i = 0; i < n; i++) {
+      let p = i;
+      for (let r = i + 1; r < n; r++) if (Math.abs(A[r][i]) > Math.abs(A[p][i])) p = r;
+      [A[i], A[p]] = [A[p], A[i]]; [b[i], b[p]] = [b[p], b[i]];
+      const d = A[i][i] || 1e-12;
+      for (let r = 0; r < n; r++) {
+        if (r === i) continue;
+        const f = A[r][i] / d;
+        if (!f) continue;
+        for (let c = i; c < n; c++) A[r][c] -= f * A[i][c];
+        b[r] -= f * b[i];
+      }
+    }
+    return b.map((v, i) => v / A[i][i]);
+  }
+  // Homografía que lleva src[i] -> dst[i] (4 puntos)
+  function homography(src, dst) {
+    const A = [], b = [];
+    for (let i = 0; i < 4; i++) {
+      const [x, y] = src[i], [u, v] = dst[i];
+      A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); b.push(u);
+      A.push([0, 0, 0, x, y, 1, -v * x, -v * y]); b.push(v);
+    }
+    const h = solve(A, b);
+    return [h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7], 1];
+  }
+  function applyH(H, x, y) {
+    const w = H[6] * x + H[7] * y + H[8];
+    return [(H[0] * x + H[1] * y + H[2]) / w, (H[3] * x + H[4] * y + H[5]) / w];
+  }
+  // Esquinas de pista (dobles) en orden: cerca-izq, cerca-der, lejos-der, lejos-izq
+  const COURT_CORNERS = [[0, 0], [COURT.W, 0], [COURT.W, COURT.L], [0, COURT.L]];
+  function courtHomographies(imgCorners) {
+    return { img2court: homography(imgCorners, COURT_CORNERS), court2img: homography(COURT_CORNERS, imgCorners) };
+  }
+  const angle3 = (a, b, c) => {
+    const u = [a[0] - b[0], a[1] - b[1], a[2] - b[2]], v = [c[0] - b[0], c[1] - b[1], c[2] - b[2]];
+    const d = u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+    const n = Math.hypot(...u) * Math.hypot(...v) || 1;
+    return Math.acos(Math.max(-1, Math.min(1, d / n))) * 180 / Math.PI;
+  };
+  function hull(pts) {
+    if (pts.length < 3) return pts.slice();
+    const p = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const lo = [], up = [];
+    for (const q of p) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
+    for (let i = p.length - 1; i >= 0; i--) { const q = p[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); }
+    up.pop(); lo.pop();
+    return lo.concat(up);
+  }
+  const polyArea = (h) => { let a = 0; for (let i = 0; i < h.length; i++) { const [x1, y1] = h[i], [x2, y2] = h[(i + 1) % h.length]; a += x1 * y2 - x2 * y1; } return Math.abs(a) / 2; };
+
+  /* ---------- Estadística ---------- */
+  const median = (a) => { const s = a.filter(Number.isFinite).sort((x, y) => x - y); if (!s.length) return NaN; const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+  const mean = (a) => { const s = a.filter(Number.isFinite); return s.length ? s.reduce((x, y) => x + y, 0) / s.length : NaN; };
+  const pct = (a, q) => { const s = a.filter(Number.isFinite).sort((x, y) => x - y); if (!s.length) return NaN; return s[Math.min(s.length - 1, Math.max(0, Math.round(q * (s.length - 1))))]; };
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  function medFilt(a, w) {
+    const h = w >> 1, out = a.slice();
+    for (let i = 0; i < a.length; i++) {
+      if (!Number.isFinite(a[i])) continue;
+      const win = [];
+      for (let j = i - h; j <= i + h; j++) if (j >= 0 && j < a.length && Number.isFinite(a[j])) win.push(a[j]);
+      out[i] = median(win);
+    }
+    return out;
+  }
+  function movAvg(a, w) {
+    const h = w >> 1, out = a.slice();
+    for (let i = 0; i < a.length; i++) {
+      if (!Number.isFinite(a[i])) continue;
+      let s = 0, n = 0;
+      for (let j = i - h; j <= i + h; j++) if (j >= 0 && j < a.length && Number.isFinite(a[j])) { s += a[j]; n++; }
+      out[i] = s / n;
+    }
+    return out;
+  }
+  // Rellena huecos cortos por interpolación lineal
+  function fillGaps(a, t, maxGap) {
+    const out = a.slice();
+    let last = -1;
+    for (let i = 0; i < a.length; i++) {
+      if (!Number.isFinite(a[i])) continue;
+      if (last >= 0 && i - last > 1 && t[i] - t[last] <= maxGap) {
+        for (let j = last + 1; j < i; j++) out[j] = a[last] + (a[i] - a[last]) * (t[j] - t[last]) / (t[i] - t[last]);
+      }
+      last = i;
+    }
+    return out;
+  }
+  const mps2kmh = (v) => v * 3.6;
+
+  /* ---------- Acceso a puntos ---------- */
+  const im = (pl, k) => pl && pl.img ? [pl.img[k * 3], pl.img[k * 3 + 1], pl.img[k * 3 + 2]] : null;
+  const wd = (pl, k) => pl && pl.w ? [pl.w[k * 3], pl.w[k * 3 + 1], pl.w[k * 3 + 2]] : null;
+
+  /* ---------- Zonas ---------- */
+  function toHalf(p, x, y) { // coordenadas de la mitad propia: dx desde lateral izq. (visto desde la red no importa), dn = distancia a la red
+    return p === 0 ? { hx: x, dn: COURT.NET - y } : { hx: COURT.W - x, dn: y - COURT.NET };
+  }
+  function zoneOf(p, x, y) {
+    const { hx, dn } = toHalf(p, x, y);
+    const row = dn < 2.2 ? 0 : dn < 4.5 ? 1 : 2; // 0 red, 1 medio, 2 fondo
+    const col = hx < COURT.W / 3 ? 0 : hx < 2 * COURT.W / 3 ? 1 : 2;
+    return { row, col, dn, hx };
+  }
+  const ROW_N = ['red', 'medio campo', 'fondo'];
+  function basePoint(p) { const dn = 2.75; return p === 0 ? [COURT.W / 2, COURT.NET - dn] : [COURT.W / 2, COURT.NET + dn]; }
+
+  /* ---------- Análisis principal ---------- */
+  function analyze(track, opts) {
+    opts = opts || {};
+    const frames = track.frames, n = frames.length;
+    const t = frames.map((f) => f.t);
+    const { img2court } = courtHomographies(track.corners);
+    const dur = n ? t[n - 1] - t[0] : 0;
+    const dt = n > 1 ? dur / (n - 1) : 1 / 12;
+    const P = [0, 1].map((p) => perPlayer(p));
+
+    function perPlayer(p) {
+      const stat = track.stature[p] || 1.75;
+      const rawX = new Array(n).fill(NaN), rawY = new Array(n).fill(NaN);
+      const bodyPx = new Array(n).fill(NaN), ankPx = new Array(n).fill(NaN), hipPx = new Array(n).fill(NaN);
+      const statW = [];
+      for (let i = 0; i < n; i++) {
+        const pl = frames[i].p[p];
+        if (!pl) continue;
+        const la = im(pl, K.lan), ra = im(pl, K.ran), no = im(pl, K.nose), lh = im(pl, K.lhip), rh = im(pl, K.rhip);
+        if (la[2] < 0.2 && ra[2] < 0.2) continue;
+        const ax = (la[0] + ra[0]) / 2, ay = Math.max(la[1], ra[1]);
+        const [cx, cy] = applyH(img2court, ax, ay);
+        // Descarta detecciones fuera de su media pista (con margen)
+        const own = p === 0 ? cy > -2 && cy < COURT.NET + 0.8 : cy < COURT.L + 2 && cy > COURT.NET - 0.8;
+        if (!own || cx < -2 || cx > COURT.W + 2) continue;
+        rawX[i] = cx; rawY[i] = cy;
+        bodyPx[i] = Math.hypot(no[0] - ax, no[1] - ay);
+        ankPx[i] = ay; hipPx[i] = (lh[1] + rh[1]) / 2;
+        const w = pl.w;
+        if (w) { const fl = Math.max(w[K.lan * 3 + 1], w[K.ran * 3 + 1]); statW.push(fl - w[K.nose * 3 + 1] + 0.18); }
+      }
+      const scale = stat / (median(statW) || stat);
+      const bPx = median(bodyPx) || 100;
+      // Saltos: en el suelo, la altura del tobillo en la imagen depende de la escala
+      // aparente del tronco (perspectiva). Ajustamos esa relación y medimos cuánto
+      // queda el tobillo por encima de lo esperado.
+      const torsoPx = new Array(n).fill(NaN), torsoW = [];
+      for (let i = 0; i < n; i++) {
+        const pl = frames[i].p[p];
+        if (!pl || !Number.isFinite(ankPx[i])) continue;
+        const s = [(pl.img[K.lsh * 3] + pl.img[K.rsh * 3]) / 2, (pl.img[K.lsh * 3 + 1] + pl.img[K.rsh * 3 + 1]) / 2];
+        const hh = [(pl.img[K.lhip * 3] + pl.img[K.rhip * 3]) / 2, (pl.img[K.lhip * 3 + 1] + pl.img[K.rhip * 3 + 1]) / 2];
+        torsoPx[i] = Math.hypot(s[0] - hh[0], s[1] - hh[1]);
+        if (pl.w) torsoW.push(Math.hypot(pl.w[K.lsh * 3] / 2 + pl.w[K.rsh * 3] / 2 - pl.w[K.lhip * 3] / 2 - pl.w[K.rhip * 3] / 2, pl.w[K.lsh * 3 + 1] / 2 + pl.w[K.rsh * 3 + 1] / 2 - pl.w[K.lhip * 3 + 1] / 2 - pl.w[K.rhip * 3 + 1] / 2));
+      }
+      const tW = (median(torsoW) || 0.5) * scaleGuess();
+      function scaleGuess() { const sw = median(statW); return sw ? stat / sw : 1; }
+      let use = []; for (let i = 0; i < n; i++) if (Number.isFinite(torsoPx[i]) && Number.isFinite(ankPx[i])) use.push(i);
+      let fa = 0, fb = 0;
+      for (let it = 0; it < 3 && use.length > 8; it++) {
+        const mx = mean(use.map((i) => torsoPx[i])), my = mean(use.map((i) => ankPx[i]));
+        let sxy = 0, sxx = 0; for (const i of use) { sxy += (torsoPx[i] - mx) * (ankPx[i] - my); sxx += (torsoPx[i] - mx) ** 2; }
+        fb = sxx ? sxy / sxx : 0; fa = my - fb * mx;
+        const res = use.map((i) => (fa + fb * torsoPx[i] - ankPx[i]) / torsoPx[i]);
+        const cut = pct(res, 0.75);
+        use = use.filter((i, j) => res[j] <= cut + 0.02);
+      }
+      const rise = new Array(n).fill(0);
+      for (let i = 0; i < n; i++) {
+        if (!Number.isFinite(torsoPx[i])) continue;
+        const r = (fa + fb * torsoPx[i] - ankPx[i]) / torsoPx[i] * tW; // metros
+        rise[i] = Math.max(0, r - 0.015);
+      }
+      const air = rise.map((r) => r > 0.1);
+      // Posición: no usar los fotogramas en el aire (la proyección engaña)
+      const ax0 = rawX.map((v, i) => air[i] ? NaN : v), ay0 = rawY.map((v, i) => air[i] ? NaN : v);
+      let X = movAvg(medFilt(fillGaps(ax0, t, 0.8), 5), 3), Y = movAvg(medFilt(fillGaps(ay0, t, 0.8), 5), 3);
+      X = fillGaps(X, t, 0.8); Y = fillGaps(Y, t, 0.8);
+      const spd = new Array(n).fill(NaN);
+      for (let i = 1; i < n - 1; i++) {
+        if ([X[i - 1], X[i + 1], Y[i - 1], Y[i + 1]].every(Number.isFinite)) {
+          const v = Math.hypot(X[i + 1] - X[i - 1], Y[i + 1] - Y[i - 1]) / (t[i + 1] - t[i - 1]);
+          spd[i] = v > 8 ? NaN : v;
+        }
+      }
+      const spdS = movAvg(spd, 3);
+      let dist = 0;
+      for (let i = 1; i < n; i++) if ([X[i - 1], X[i], Y[i - 1], Y[i]].every(Number.isFinite)) { const d = Math.hypot(X[i] - X[i - 1], Y[i] - Y[i - 1]); if (d > 0.03 && d < 8 * dt * 1.5) dist += d; }
+      // Mano de la raqueta: la muñeca que más se mueve respecto a la cadera
+      const wSpd = [[], []];
+      for (let s = 0; s < 2; s++) {
+        const k = s === 0 ? K.lwr : K.rwr;
+        for (let i = 0; i < n; i++) {
+          const a = frames[i - 1] && frames[i - 1].p[p], b = frames[i + 1] && frames[i + 1].p[p];
+          if (!a || !b) { wSpd[s].push(NaN); continue; }
+          const wa = im(a, k), wb = im(b, k);
+          const ha = [(a.img[K.lhip * 3] + a.img[K.rhip * 3]) / 2, (a.img[K.lhip * 3 + 1] + a.img[K.rhip * 3 + 1]) / 2];
+          const hb = [(b.img[K.lhip * 3] + b.img[K.rhip * 3]) / 2, (b.img[K.lhip * 3 + 1] + b.img[K.rhip * 3 + 1]) / 2];
+          const v = Math.hypot((wb[0] - hb[0]) - (wa[0] - ha[0]), (wb[1] - hb[1]) - (wa[1] - ha[1])) / ((t[i + 1] - t[i - 1]) || dt) / (bodyPx[i] || bPx);
+          wSpd[s].push(Math.min(v, 25));
+        }
+      }
+      const handPref = track.hand && track.hand[p];
+      let side = handPref === 'L' ? 0 : handPref === 'R' ? 1 : null;
+      if (side === null) { const sl = wSpd[0].filter(Number.isFinite).reduce((a, b) => a + b, 0), sr = wSpd[1].filter(Number.isFinite).reduce((a, b) => a + b, 0); side = sr >= sl ? 1 : 0; }
+      const ws = wSpd[side];
+      const kW = side ? K.rwr : K.lwr, kE = side ? K.rel : K.lel, kS = side ? K.rsh : K.lsh;
+      return { p, stat, scale, bPx, X, Y, spd: spdS, dist, rise, air, ws, side, kW, kE, kS, rawX, rawY };
+    }
+
+    // Altura de contacto (m) en el fotograma i
+    function contactH(pp, i) {
+      const pl = frames[i] && frames[i].p[pp.p];
+      if (!pl || !pl.w) return NaN;
+      const w = (k) => [pl.w[k * 3], pl.w[k * 3 + 1], pl.w[k * 3 + 2]];
+      const fl = Math.max(w(K.lan)[1], w(K.ran)[1]) + 0.07;
+      const wr = w(pp.kW), el = w(pp.kE);
+      const fx = [wr[0] - el[0], wr[1] - el[1], wr[2] - el[2]], fn = Math.hypot(...fx) || 1;
+      const up = -fx[1] / fn; // componente vertical del antebrazo (hacia arriba +)
+      const jump = pp.rise[i];
+      return (fl - wr[1]) * pp.scale + 0.55 * Math.max(-0.4, up) + jump;
+    }
+    function elbowAt(pp, i) { const pl = frames[i] && frames[i].p[pp.p]; if (!pl || !pl.w) return NaN; return angle3(wd(pl, pp.kS), wd(pl, pp.kE), wd(pl, pp.kW)); }
+    function kneeAt(p, i) { const pl = frames[i] && frames[i].p[p]; if (!pl || !pl.w) return NaN; return Math.min(angle3(wd(pl, K.lhip), wd(pl, K.lkn), wd(pl, K.lan)), angle3(wd(pl, K.rhip), wd(pl, K.rkn), wd(pl, K.ran))); }
+    function stanceAt(p, i) { const pl = frames[i] && frames[i].p[p]; if (!pl || !pl.w) return NaN; const a = wd(pl, K.lan), b = wd(pl, K.ran), s1 = wd(pl, K.lsh), s2 = wd(pl, K.rsh); return Math.hypot(a[0] - b[0], a[2] - b[2]) / (Math.hypot(s1[0] - s2[0], s1[2] - s2[2]) || 0.35); }
+
+    /* ---- Detección de golpes ---- */
+    let cands = [];
+    for (const pp of P) {
+      const ws = pp.ws;
+      const v = ws.filter(Number.isFinite);
+      const med = median(v), mad = median(v.map((x) => Math.abs(x - med)));
+      const thr = Math.max(opts.minSwing || 1.6, med + 4 * mad);
+      const sep = Math.round(0.45 / dt);
+      for (let i = 1; i < n - 1; i++) {
+        if (!(ws[i] > thr)) continue;
+        let isMax = true;
+        for (let j = Math.max(0, i - sep); j <= Math.min(n - 1, i + sep); j++) if (j !== i && ws[j] > ws[i]) { isMax = false; break; }
+        if (isMax) cands.push({ p: pp.p, i, t: t[i], peak: ws[i] });
+      }
+    }
+    cands.sort((a, b) => a.t - b.t);
+    // Alternancia: dos golpes seguidos del mismo jugador muy juntos -> quedarse con el más fuerte
+    const hits = [];
+    for (const c of cands) {
+      const last = hits[hits.length - 1];
+      if (last && last.p === c.p && c.t - last.t < 1.0) { if (c.peak > last.peak) hits[hits.length - 1] = c; continue; }
+      if (last && last.p !== c.p && c.t - last.t < 0.2) { if (c.peak > last.peak) hits[hits.length - 1] = c; continue; }
+      hits.push(c);
+    }
+    // Afinar el instante de contacto: altura máxima de la muñeca cerca del pico
+    for (const h of hits) {
+      const pp = P[h.p];
+      let best = h.i, bh = contactH(pp, h.i);
+      if (bh > pp.stat * 0.9) for (let j = Math.max(0, h.i - 2); j <= Math.min(n - 1, h.i + 1); j++) { const ch = contactH(pp, j); if (ch > bh) { bh = ch; best = j; } }
+      h.i = best; h.t = t[best];
+      h.h = bh;
+      const xs = pp.X[best], ys = pp.Y[best];
+      h.x = Number.isFinite(xs) ? xs : pp.rawX[best]; h.y = Number.isFinite(ys) ? ys : pp.rawY[best];
+      h.jump = pp.rise[best] > 0.12 ? Math.round(pp.rise[best] * 100) : 0; // cm
+      h.elbow = elbowAt(pp, best);
+      const S = pp.stat;
+      h.cat = h.h > S * 1.02 ? 'alto' : h.h < S * 0.55 ? 'bajo' : 'medio';
+      h.role = h.cat === 'alto' ? 'ataque' : h.cat === 'bajo' ? 'defensa' : 'neutral';
+      const z = zoneOf(h.p, h.x, h.y); h.zone = z;
+    }
+    // Puntos (rallies)
+    const rallies = [];
+    hits.forEach((h, k) => {
+      const prev = hits[k - 1];
+      if (!prev || h.t - prev.t > 2.8) rallies.push({ hits: [] });
+      const r = rallies[rallies.length - 1]; h.rally = rallies.length - 1; h.nIn = r.hits.length; r.hits.push(h);
+    });
+    rallies.forEach((r) => { r.start = r.hits[0].t; r.end = r.hits[r.hits.length - 1].t; r.dur = r.end - r.start; r.n = r.hits.length; r.server = r.hits[0].p; });
+    // Vuelo del volante y tipo de golpe
+    const peaks = hits.map((h) => h.peak);
+    const strong = pct(peaks, 0.7);
+    hits.forEach((h, k) => {
+      const nx = hits[k + 1];
+      if (nx && nx.rally === h.rally && nx.p !== h.p) {
+        h.next = k + 1; h.T = nx.t - h.t;
+        const d = Math.hypot(nx.x - h.x, nx.y - h.y, (nx.h || 1) - (h.h || 1));
+        h.d = d; h.vAvg = d / h.T;
+        h.v0 = clamp((Math.exp(DRAG_K * d) - 1) / (DRAG_K * h.T), 0, 117); // m/s, tope ~420 km/h
+        h.recvDn = toHalf(nx.p, nx.x, nx.y).dn; h.recvCat = nx.cat;
+      }
+    });
+    hits.forEach((h, k) => {
+      const prev = hits[k - 1] && hits[k - 1].rally === h.rally ? hits[k - 1] : null;
+      const dn = h.zone.dn, rf = h.recvDn; // rf: distancia a la red del rival cuando la recibe
+      let ty;
+      if (h.nIn === 0) ty = rf !== undefined && rf < 2.9 ? 'Saque corto' : 'Saque largo';
+      else if (h.cat === 'alto') {
+        const fast = h.v0 ? mps2kmh(h.v0) > 150 && h.T < 0.8 : h.peak >= strong;
+        if (dn < 2.2) ty = 'Remate en la red';
+        else if (fast || (h.T === undefined && h.peak >= strong)) ty = h.jump ? 'Remate en salto' : 'Remate';
+        else if (rf !== undefined && rf < 2.6) ty = 'Dejada desde el fondo';
+        else ty = 'Clear';
+      } else if (prev && /Remate/.test(prev.type)) ty = rf !== undefined && rf < 2.6 ? 'Bloqueo' : 'Defensa larga';
+      else if (h.cat === 'medio') ty = dn < 2.2 && rf !== undefined && rf < 2.6 ? 'Dejada de red' : (rf !== undefined && rf > 4.5 && h.T > 1.0 ? 'Lob' : 'Drive');
+      else ty = rf !== undefined && rf > 3.8 ? 'Lob' : 'Dejada de red';
+      h.type = ty;
+      h.role = /Saque/.test(ty) ? 'saque' : /Remate/.test(ty) ? 'ataque' : /Bloqueo|Defensa larga|Lob/.test(ty) ? 'defensa' : 'neutral';
+    });
+
+    /* ---- Métricas por jugador ---- */
+    const players = P.map((pp) => {
+      const p = pp.p, my = hits.filter((h) => h.p === p), opp = hits.filter((h) => h.p !== p);
+      const pos = [];
+      for (let i = 0; i < n; i++) if (Number.isFinite(pp.X[i]) && Number.isFinite(pp.Y[i])) pos.push([pp.X[i], pp.Y[i], t[i]]);
+      // Mapa de calor (rejilla 0,2 m)
+      const GX = 31, GY = 67, heat = new Float32Array(GX * GY);
+      for (const [x, y] of pos) {
+        const gx = x / COURT.W * (GX - 1), gy = y / COURT.L * (GY - 1);
+        for (let a = -4; a <= 4; a++) for (let b = -4; b <= 4; b++) {
+          const ix = Math.round(gx) + a, iy = Math.round(gy) + b;
+          if (ix < 0 || iy < 0 || ix >= GX || iy >= GY) continue;
+          const dd = ((ix - gx) ** 2 + (iy - gy) ** 2) * 0.04;
+          heat[iy * GX + ix] += Math.exp(-dd / (2 * 0.3 * 0.3));
+        }
+      }
+      let hm = 0; for (const v of heat) hm = Math.max(hm, v);
+      if (hm) for (let i = 0; i < heat.length; i++) heat[i] /= hm;
+      // Zonas 3x3
+      const zones = Array.from({ length: 3 }, () => [0, 0, 0]);
+      for (const [x, y] of pos) { const z = zoneOf(p, x, y); zones[z.row][z.col]++; }
+      const zt = pos.length || 1; zones.forEach((r) => r.forEach((v, c) => (r[c] = v / zt)));
+      const h0 = hull(pos.map((q) => [q[0], q[1]]));
+      const coverage = clamp(polyArea(h0) / (COURT.SW * COURT.NET), 0, 1);
+      const sp = pp.spd.filter(Number.isFinite);
+      const moving = sp.filter((v) => v > 0.6);
+      // Altura de contacto / ataque-defensa
+      const cats = { alto: 0, medio: 0, bajo: 0 };
+      my.forEach((h) => { if (h.nIn > 0) cats[h.cat]++; });
+      const types = {}; my.forEach((h) => (types[h.type] = (types[h.type] || 0) + 1));
+      const v0s = my.filter((h) => h.v0).map((h) => mps2kmh(h.v0));
+      const smashes = my.filter((h) => /Remate/.test(h.type));
+      const smashV = smashes.filter((h) => h.v0).map((h) => mps2kmh(h.v0));
+      // Recuperación a la base tras golpear
+      const [bx, by] = basePoint(p);
+      let recOk = 0, recN = 0; const recT = [];
+      my.forEach((h) => {
+        const nx = hits.find((q) => q.t > h.t && q.p !== p && q.rally === h.rally);
+        if (!nx) return;
+        recN++;
+        let reached = null;
+        for (let i = h.i; i <= nx.i && i < n; i++) if (Math.hypot(pp.X[i] - bx, pp.Y[i] - by) < 1.3) { reached = t[i] - h.t; break; }
+        if (reached !== null) { recOk++; recT.push(reached); }
+      });
+      // Reacción: tiempo desde el golpe rival hasta empezar a moverse
+      const react = [];
+      opp.forEach((h) => {
+        for (let i = h.i; i < Math.min(n, h.i + Math.round(1.0 / dt)); i++) if (pp.spd[i] > 1.0) { react.push(t[i] - h.t); break; }
+      });
+      // Split step: pequeño salto justo antes del golpe rival
+      let split = 0, splitN = 0;
+      opp.forEach((h) => {
+        splitN++;
+        for (let i = Math.max(0, h.i - Math.round(0.4 / dt)); i <= Math.min(n - 1, h.i + 1); i++) if (pp.rise[i] > 0.025 && pp.rise[i] < 0.11) { split++; break; }
+      });
+      // Postura de espera (cuando golpea el rival)
+      const knees = opp.map((h) => kneeAt(p, h.i)).filter(Number.isFinite);
+      const stances = opp.map((h) => stanceAt(p, h.i)).filter(Number.isFinite);
+      // Estocadas en la red
+      let lunges = 0; const lungeK = []; let lastL = -9;
+      for (let i = 0; i < n; i++) {
+        if (!Number.isFinite(pp.X[i])) continue;
+        const z = zoneOf(p, pp.X[i], pp.Y[i]); const kn = kneeAt(p, i), st = stanceAt(p, i);
+        if (z.dn < 2.6 && kn < 118 && st > 1.6 && t[i] - lastL > 0.9) { lunges++; lungeK.push(kn); lastL = t[i]; }
+      }
+      const jumps = my.filter((h) => h.jump > 0);
+      const overhead = my.filter((h) => h.cat === 'alto' && Number.isFinite(h.elbow));
+      const elbowOk = overhead.length ? overhead.filter((h) => h.elbow >= 145).length / overhead.length : NaN;
+      const nonServe = my.filter((h) => h.nIn > 0).length || 1;
+      const totalH = my.length;
+      // Velocidad por punto (fatiga)
+      const perRally = rallies.map((r) => { const s = []; for (let i = 0; i < n; i++) if (t[i] >= r.start - 0.5 && t[i] <= r.end + 0.5 && Number.isFinite(pp.spd[i])) s.push(pp.spd[i]); return mean(s); });
+      const contactHs = my.filter((h) => h.nIn > 0).map((h) => h.h).filter(Number.isFinite);
+      const ent = (() => { const v = Object.values(types), s = v.reduce((a, b) => a + b, 0); if (!s) return 0; let e = 0; v.forEach((c) => { const q = c / s; e -= q * Math.log(q); }); return e / Math.log(8); })();
+      const m = {
+        p, name: track.names ? track.names[p] : (p ? 'Rival' : 'Tú'), stature: pp.stat, hand: pp.side ? 'diestro' : 'zurdo',
+        dist: pp.dist, distPerMin: dur ? pp.dist / (dur / 60) : 0,
+        avgSpeed: mean(moving), maxSpeed: pct(sp, 0.98) || 0,
+        heat, GX, GY, zones, coverage, hull: h0, pos,
+        hits: totalH, cats, attackShare: cats.alto / nonServe, defShare: cats.bajo / nonServe, types,
+        v0Avg: mean(v0s), smashN: smashes.length, smashMax: smashV.length ? Math.max(...smashV) : NaN, smashAvg: mean(smashV),
+        recovery: recN ? recOk / recN : NaN, recTime: mean(recT),
+        reaction: mean(react.filter((x) => x > 0)),
+        split: splitN ? split / splitN : NaN,
+        readyKnee: mean(knees), stance: mean(stances),
+        lunges, lungeKnee: mean(lungeK), jumps: jumps.length, jumpMax: jumps.length ? Math.max(...jumps.map((h) => h.jump)) : 0,
+        elbowOk, elbowAvg: mean(overhead.map((h) => h.elbow)),
+        perRally, contactHs, variety: ent,
+        hitsPerMin: dur ? totalH / (dur / 60) : 0,
+      };
+      return m;
+    });
+    // Puntuaciones 0-100
+    players.forEach((m) => {
+      const f = (v, d) => (Number.isFinite(v) ? v : d);
+      m.scores = {
+        Ataque: Math.round(clamp(100 * (f(m.attackShare, 0) * 1.15 + (m.smashN / Math.max(1, m.hits)) * 1.2), 0, 100)),
+        Movilidad: Math.round(clamp(f(m.avgSpeed, 0) / 2.0 * 60 + m.coverage * 45, 0, 100)),
+        Recuperación: Math.round(clamp(f(m.recovery, 0.5) * 100, 0, 100)),
+        Técnica: Math.round(clamp(100 * (f(m.elbowOk, 0.5) * 0.45 + f(m.split, 0.3) * 0.25 + (m.readyKnee ? clamp((175 - m.readyKnee) / 35, 0, 1) : 0.4) * 0.3), 0, 100)),
+        Variedad: Math.round(clamp(m.variety * 120, 0, 100)),
+        Intensidad: Math.round(clamp(m.distPerMin / 70 * 60 + m.hitsPerMin / 20 * 40, 0, 100)),
+      };
+      m.overall = Math.round(Object.values(m.scores).reduce((a, b) => a + b, 0) / 6);
+      m.tips = tipsFor(m);
+    });
+    const allV = hits.filter((h) => h.v0);
+    const fastest = allV.length ? allV.reduce((a, b) => (b.v0 > a.v0 ? b : a)) : null;
+    const longest = rallies.length ? rallies.reduce((a, b) => (b.n > a.n ? b : a)) : null;
+    const highestJump = hits.filter((h) => h.jump).reduce((a, b) => (!a || b.jump > a.jump ? b : a), null);
+    return {
+      version: 1, duration: dur, nFrames: n, dt, fps: 1 / dt, hits, rallies, players,
+      highlights: { fastest, longest, highestJump },
+      series: { t, X: P.map((q) => q.X), Y: P.map((q) => q.Y), spd: P.map((q) => q.spd), ws: P.map((q) => q.ws) },
+    };
+  }
+
+  /* ---------- Consejos ---------- */
+  function tipsFor(m) {
+    const T = [];
+    const add = (lvl, title, body) => T.push({ lvl, title, body });
+    if (Number.isFinite(m.elbowOk) && m.elbowOk < 0.6) add('mejora', 'Estira más el brazo arriba', `Solo el ${Math.round(m.elbowOk * 100)} % de tus golpes por encima de la cabeza llegan con el brazo casi estirado (codo ≥ 145°). Golpea en el punto más alto, algo por delante de la cabeza.`);
+    else if (Number.isFinite(m.elbowOk)) add('bien', 'Buen punto de contacto arriba', `El ${Math.round(m.elbowOk * 100)} % de tus golpes altos los haces con el brazo extendido. Sigue así.`);
+    if (m.attackShare < 0.3 && m.hits > 6) add('mejora', 'Coge el volante más alto', `Solo el ${Math.round(m.attackShare * 100)} % de tus golpes son por encima de la cabeza. Muévete antes para llegar detrás del volante y atacar en vez de defender.`);
+    if (m.defShare > 0.4) add('aviso', 'Juegas mucho a la defensiva', `El ${Math.round(m.defShare * 100)} % de tus contactos son por debajo de la cintura. Intenta levantar menos y jugar más dejadas o drives.`);
+    if (Number.isFinite(m.recovery) && m.recovery < 0.6) add('mejora', 'Vuelve al centro después de golpear', `Solo vuelves a la zona base en el ${Math.round(m.recovery * 100)} % de los golpes antes de que responda el rival. Recupera con pasos cortos justo después de cada golpe.`);
+    else if (Number.isFinite(m.recovery)) add('bien', 'Buena recuperación', `Vuelves a la base en el ${Math.round(m.recovery * 100)} % de los golpes${Number.isFinite(m.recTime) ? `, en ${m.recTime.toFixed(1)} s de media` : ''}.`);
+    if (Number.isFinite(m.split) && m.split < 0.4) add('mejora', 'Haz el split step', `Solo detectamos el pequeño salto de preparación en el ${Math.round(m.split * 100)} % de los golpes del rival. Hazlo justo cuando el rival golpea: te ayuda a salir más rápido.`);
+    if (Number.isFinite(m.readyKnee) && m.readyKnee > 160) add('mejora', 'Flexiona más las rodillas', `En la posición de espera tus rodillas están casi rectas (${Math.round(m.readyKnee)}°). Bajar el centro de gravedad te da más equilibrio y explosividad.`);
+    if (Number.isFinite(m.reaction) && m.reaction > 0.45) add('aviso', 'Reacciona antes', `Tardas ${m.reaction.toFixed(2)} s de media en empezar a moverte tras el golpe rival. Mira siempre el volante y mantén el peso en la parte delantera de los pies.`);
+    if (m.coverage < 0.3 && m.pos.length > 30) add('aviso', 'Cubres poca pista', `Tu zona de movimiento ocupa el ${Math.round(m.coverage * 100)} % de tu media pista. Puede que el rival no te esté moviendo, o que llegues tarde a las esquinas.`);
+    if (m.variety < 0.45 && m.hits > 8) add('mejora', 'Varía tus golpes', 'Usas pocos tipos de golpe. Combina clears con dejadas para mover al rival delante y detrás.');
+    if (m.smashN && Number.isFinite(m.smashAvg)) add('dato', 'Tu remate', `Velocidad de salida estimada media: ${Math.round(m.smashAvg)} km/h (máx. ${Math.round(m.smashMax)} km/h).`);
+    const r = m.perRally.filter(Number.isFinite);
+    if (r.length >= 6) { const a = mean(r.slice(0, Math.floor(r.length / 2))), b = mean(r.slice(Math.floor(r.length / 2))); if (b < a * 0.85) add('aviso', 'Signos de cansancio', `Tu velocidad media baja un ${Math.round((1 - b / a) * 100)} % en la segunda mitad. Trabaja la resistencia o dosifica el esfuerzo.`); }
+    const order = { mejora: 0, aviso: 1, dato: 2, bien: 3 };
+    return T.sort((a, b) => order[a.lvl] - order[b.lvl]);
+  }
+
+  G.BA = { COURT, MP_IDX, K, NK, homography, applyH, courtHomographies, analyze, zoneOf, toHalf, basePoint, ROW_N, mean, median, pct, clamp, mps2kmh, DRAG_K };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* ===== Partido de demostración simulado ===== */
+(function (G) {
+  'use strict';
+  const { COURT, NK } = G.BA;
+  function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  const sstep = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+  const lerp = (a, b, u) => a + (b - a) * u;
+  const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const mul = (a, s) => [a[0] * s, a[1] * s, a[2] * s];
+  const len = (a) => Math.hypot(a[0], a[1], a[2]);
+  const nrm = (a) => mul(a, 1 / (len(a) || 1));
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+
+  function makeCamera(W, H) {
+    const C = [COURT.W / 2, -4.6, 3.8], target = [COURT.W / 2, 5.6, 0];
+    const f = nrm(sub(target, C)), r = nrm(cross(f, [0, 0, 1])), u = cross(r, f);
+    const foc = W * 0.6;
+    return { W, H, C, f, r, u, foc, project(P) { const d = sub(P, C); const z = dot(d, f); return [W / 2 + foc * dot(d, r) / z, H / 2 - foc * dot(d, u) / z, z]; } };
+  }
+  // Dos huesos (IK): devuelve la articulación intermedia
+  function ik(a, c, L1, L2, bend) {
+    const d = sub(c, a); let D = len(d);
+    if (D > L1 + L2 - 1e-3) { c = add(a, mul(nrm(d), L1 + L2 - 1e-3)); D = L1 + L2 - 1e-3; }
+    const x = (L1 * L1 - L2 * L2 + D * D) / (2 * D), h = Math.sqrt(Math.max(0, L1 * L1 - x * x));
+    const dn = nrm(d); let b = sub(bend, mul(dn, dot(bend, dn))); b = nrm(b);
+    return add(add(a, mul(dn, x)), mul(b, h));
+  }
+
+  const FLIGHT = { 'Saque largo': 1.45, 'Saque corto': 0.9, Clear: 1.35, 'Dejada desde el fondo': 0.95, Remate: 0.42, 'Remate en salto': 0.4, Lob: 1.3, 'Dejada de red': 0.9, Bloqueo: 0.75, 'Defensa larga': 1.15, Drive: 0.55 };
+  const APEX = { 'Saque largo': 3.6, 'Saque corto': 0.35, Clear: 4.0, 'Dejada desde el fondo': 0.6, Remate: 0, 'Remate en salto': 0, Lob: 3.6, 'Dejada de red': 0.35, Bloqueo: 0.4, 'Defensa larga': 3.0, Drive: 0.15 };
+  const CAT = { 'Saque largo': 'bajo', 'Saque corto': 'medio', Clear: 'alto', 'Dejada desde el fondo': 'alto', Remate: 'alto', 'Remate en salto': 'alto', Lob: 'bajo', 'Dejada de red': 'bajo', Bloqueo: 'medio', 'Defensa larga': 'bajo', Drive: 'medio' };
+  const DEST = { 'Saque largo': 'fondo', 'Saque corto': 'red', Clear: 'fondo', 'Dejada desde el fondo': 'red', Remate: 'medio', 'Remate en salto': 'medio', Lob: 'fondo', 'Dejada de red': 'red', Bloqueo: 'red', 'Defensa larga': 'fondo', Drive: 'medio' };
+
+  function makeDemo(seed) {
+    const R = rng(seed || 7);
+    const W = 1280, H = 720, cam = makeCamera(W, H);
+    const pl = [{ S: 1.76, ext: 0.62, rec: 0.75, split: 1 }, { S: 1.80, ext: 0.5, rec: 1.25, split: 0.35 }];
+    // Estrategias: probabilidades por situación
+    const choose = (p, incoming) => {
+      const r = R();
+      const dest = DEST[incoming];
+      if (dest === 'fondo') return p === 0 ? (r < 0.3 ? 'Clear' : r < 0.6 ? 'Dejada desde el fondo' : r < 0.85 ? 'Remate' : 'Remate en salto') : (r < 0.55 ? 'Clear' : r < 0.8 ? 'Dejada desde el fondo' : 'Remate');
+      if (dest === 'red') return r < (p === 0 ? 0.5 : 0.7) ? 'Lob' : 'Dejada de red';
+      if (/Remate/.test(incoming)) return r < 0.5 ? 'Bloqueo' : 'Defensa larga';
+      return r < 0.5 ? 'Drive' : 'Lob';
+    };
+    const toCourt = (p, hx, dn) => (p === 0 ? [hx, COURT.NET - dn] : [COURT.W - hx, COURT.NET + dn]);
+    const target = (p, kind) => {
+      const side = R() < 0.5 ? 0.75 + R() * 0.6 : 4.75 - R() * 0.6, mid = 1.2 + R() * 3.6;
+      if (kind === 'fondo') return toCourt(p, R() < 0.8 ? side : mid, 5.0 + R() * 0.9);
+      if (kind === 'red') return toCourt(p, R() < 0.7 ? side : mid, 1.0 + R() * 0.9);
+      return toCourt(p, R() < 0.6 ? side : mid, 3.1 + R() * 1.4);
+    };
+    const contactZ = (p, type, jump) => {
+      const S = pl[p].S, c = CAT[type];
+      return c === 'alto' ? S * 1.32 + (jump ? 0.3 : 0) + (p === 1 ? -0.12 : 0) : c === 'medio' ? S * 0.78 : S * 0.38;
+    };
+    // Generar puntos
+    const hits = []; let t = 1.0; const NR = 13;
+    for (let r = 0; r < NR; r++) {
+      const server = r % 3 === 2 ? 1 : 0;
+      const L = 3 + Math.floor(R() * 12);
+      let p = server, type = R() < 0.8 ? 'Saque largo' : 'Saque corto';
+      let pos = toCourt(p, r % 2 ? 1.6 : 4.5, 3.6);
+      for (let k = 0; k < L; k++) {
+        const jump = type === 'Remate en salto';
+        hits.push({ p, t, type, x: pos[0], y: pos[1], z: contactZ(p, type, jump), jump, rally: r, last: k === L - 1 });
+        const T = FLIGHT[type] * (0.88 + R() * 0.24);
+        const q = 1 - p, dest = target(q, DEST[type]);
+        t += T; const inc = type; p = q; pos = dest; type = choose(p, inc);
+      }
+      t += 5 + R() * 3;
+    }
+    const dur = t;
+    // Trayectorias de los jugadores (fotogramas clave)
+    const keys = [[], []];
+    const base = (p) => G.BA.basePoint(p);
+    for (const p of [0, 1]) {
+      keys[p].push({ t: 0, x: base(p)[0], y: base(p)[1] });
+      hits.forEach((h, i) => {
+        if (h.p === p) {
+          keys[p].push({ t: h.t, x: h.x, y: h.y });
+          const nx = hits[i + 1];
+          const back = h.t + pl[p].rec;
+          const [bx, by] = base(p);
+          if (nx && nx.rally === h.rally) {
+            const nn = hits[i + 2];
+            const tOpp = nx.t;
+            const u = Math.min(1, (tOpp - h.t) / pl[p].rec);
+            keys[p].push({ t: Math.min(back, tOpp), x: lerp(h.x, bx, u), y: lerp(h.y, by, u) });
+            if (nn && nn.p === p) keys[p].push({ t: tOpp + 0.12, x: lerp(h.x, bx, u), y: lerp(h.y, by, u) });
+          } else {
+            keys[p].push({ t: h.t + 2.5, x: bx, y: by });
+          }
+        }
+      });
+      keys[p].sort((a, b) => a.t - b.t);
+    }
+    function posAt(p, tt) {
+      const k = keys[p];
+      let i = 0; while (i < k.length - 1 && k[i + 1].t < tt) i++;
+      const a = k[i], b = k[i + 1] || a;
+      const u = b.t > a.t ? sstep((tt - a.t) / (b.t - a.t)) : 0;
+      return [lerp(a.x, b.x, u), lerp(a.y, b.y, u)];
+    }
+    const myHits = [hits.filter((h) => h.p === 0), hits.filter((h) => h.p === 1)];
+    function skeleton(p, tt) {
+      const P = pl[p], f = P.S / 1.75;
+      const [x, y] = posAt(p, tt);
+      const fwd = p === 0 ? [0, 1, 0] : [0, -1, 0], side = p === 0 ? [1, 0, 0] : [-1, 0, 0];
+      // acción más cercana
+      let act = null, s = 0;
+      for (const h of myHits[p]) { const d = tt - h.t; if (d > -0.4 && d < 0.5) { act = h; s = d < 0 ? d / 0.2 : d / 0.28; break; } }
+      const oppHit = myHits[1 - p].find((h) => tt - h.t > -0.25 && tt - h.t < 0.05);
+      let jump = 0, lunge = 0, crouch = oppHit ? 0.75 : 0.35;
+      if (oppHit && P.split > ((oppHit.t * 7.31) % 1)) { const d = (tt - oppHit.t + 0.25) / 0.25; jump += 0.06 * Math.sin(Math.PI * Math.max(0, Math.min(1, d))); }
+      if (act) {
+        if (act.jump) jump += 0.32 * Math.max(0, Math.cos(Math.PI / 2 * Math.max(-1, Math.min(1, (tt - act.t + 0.04) / 0.3))));
+        if (CAT[act.type] === 'bajo' && G.BA.toHalf(p, act.x, act.y).dn < 2.6) lunge = sstep(1 - Math.abs(tt - act.t) / 0.45);
+      }
+      const hipZ = 0.93 * f - 0.11 * crouch - 0.28 * lunge + jump;
+      const hipC = [x, y, hipZ];
+      const shC = add(hipC, [0, 0, 0.5 * f]);
+      const lsh = add(shC, mul(side, -0.19 * f)), rsh = add(shC, mul(side, 0.19 * f));
+      const lhip = add(hipC, mul(side, -0.12 * f)), rhip = add(hipC, mul(side, 0.12 * f));
+      const nose = add(add(shC, [0, 0, 0.22 * f]), mul(fwd, 0.08));
+      const stw = 0.22 * f + 0.12 * crouch;
+      let lan = [x - side[0] * stw, y, 0.08 + jump], ran = [x + side[0] * stw, y, 0.08 + jump];
+      if (lunge) { ran = add(ran, mul(fwd, 0.85 * lunge)); lan = add(lan, mul(fwd, -0.35 * lunge)); }
+      const lkn = ik(lhip, lan, 0.45 * f, 0.43 * f, fwd), rkn = ik(rhip, ran, 0.45 * f, 0.43 * f, fwd);
+      // brazo de raqueta (derecho)
+      let wr;
+      const rest = add(add(rsh, mul(fwd, 0.32)), [0, 0, -0.35]);
+      if (act) {
+        const c = CAT[act.type];
+        let A, B, C;
+        if (c === 'alto') { A = add(add(rsh, mul(fwd, -0.28)), [0, 0, 0.05]); B = add(add(add(rsh, mul(fwd, 0.15)), mul(side, 0.05)), [0, 0, P.ext * f]); C = add(add(add(hipC, mul(fwd, 0.35)), mul(side, -0.25)), [0, 0, 0.15]); }
+        else if (c === 'medio') { A = add(add(rsh, mul(side, 0.45)), mul(fwd, -0.25)); B = add(add(add(rsh, mul(side, 0.42)), mul(fwd, 0.38)), [0, 0, -0.05]); C = add(add(rsh, mul(side, -0.15)), mul(fwd, 0.4)); }
+        else { A = add(add(add(rsh, mul(side, 0.3)), mul(fwd, 0.15)), [0, 0, -0.55]); B = add(add(add(rsh, mul(side, 0.22)), mul(fwd, 0.62)), [0, 0, -0.95 * f + (hipZ - 0.93 * f) * 0.2]); C = add(add(rsh, mul(fwd, 0.45)), [0, 0, 0.1]); }
+        if (s < -0.999) wr = rest; else if (s < 0) wr = s < -0.5 ? lerpV(rest, A, sstep((s + 1) * 2)) : lerpV(A, B, sstep((s + 0.5) * 2)); else wr = s < 1 ? lerpV(B, C, sstep(s)) : lerpV(C, rest, sstep((s - 1)));
+      } else wr = rest;
+      const rel = ik(rsh, wr, 0.3 * f, 0.28 * f, [0, 0, -1]);
+      const lwr = act && CAT[act.type] === 'alto' && s < 0.2 ? add(add(lsh, mul(fwd, 0.25)), [0, 0, 0.45]) : add(add(lsh, mul(fwd, 0.25)), [0, 0, -0.3]);
+      const lel = ik(lsh, lwr, 0.3 * f, 0.28 * f, [0, 0, -1]);
+      return [nose, lsh, rsh, lel, rel, lwr, rwr(wr), lhip, rhip, lkn, rkn, lan, ran];
+    }
+    function rwr(w) { return w; }
+    function lerpV(a, b, u) { return [lerp(a[0], b[0], u), lerp(a[1], b[1], u), lerp(a[2], b[2], u)]; }
+    function playerFrame(p, tt, noise) {
+      const J = skeleton(p, tt);
+      const img = new Float32Array(NK * 3), w = new Float32Array(NK * 3);
+      const hx = (J[7][0] + J[8][0]) / 2, hy = (J[7][1] + J[8][1]) / 2, hz = (J[7][2] + J[8][2]) / 2;
+      J.forEach((P, k) => {
+        const q = cam.project(P);
+        img[k * 3] = q[0] + (noise ? (R() - 0.5) * 2.5 : 0); img[k * 3 + 1] = q[1] + (noise ? (R() - 0.5) * 2.5 : 0); img[k * 3 + 2] = 0.95;
+        w[k * 3] = P[0] - hx; w[k * 3 + 1] = -(P[2] - hz) + (noise ? (R() - 0.5) * 0.02 : 0); w[k * 3 + 2] = P[1] - hy;
+      });
+      return { img, w };
+    }
+    function shuttleAt(tt) {
+      for (let i = 0; i < hits.length; i++) {
+        const h = hits[i], nx = hits[i + 1];
+        const end = nx && nx.rally === h.rally ? nx : null;
+        const T = end ? end.t - h.t : 0.9;
+        if (tt < h.t || tt > h.t + T) continue;
+        const a = [h.x + (h.p === 0 ? 0.25 : -0.25), h.y + (h.p === 0 ? 0.25 : -0.25), h.z];
+        let b;
+        if (end) b = [end.x + (end.p === 0 ? 0.25 : -0.25), end.y + (end.p === 0 ? 0.25 : -0.25), end.z];
+        else { const q = 1 - h.p; const d = q === 0 ? [h.x > 3 ? 1.0 : 5.0, 1.2, 0] : [h.x > 3 ? 1.0 : 5.0, 12.2, 0]; b = [d[0], d[1], 0.02]; }
+        const tau = (tt - h.t) / T, u = 1 - Math.pow(1 - tau, 1.5);
+        return [lerp(a[0], b[0], u), lerp(a[1], b[1], u), lerp(a[2], b[2], u) + (APEX[h.type] || 0) * 4 * u * (1 - u), h];
+      }
+      return null;
+    }
+    // Fotogramas muestreados para el análisis
+    const fps = 12, frames = [];
+    for (let tt = 0; tt <= dur; tt += 1 / fps) frames.push({ t: +tt.toFixed(4), p: [playerFrame(0, tt, true), playerFrame(1, tt, true)] });
+    const corners = [[0, 0, 0], [COURT.W, 0, 0], [COURT.W, COURT.L, 0], [0, COURT.L, 0]].map((P) => cam.project(P).slice(0, 2));
+    const track = { demo: true, width: W, height: H, duration: dur, corners, frames, stature: [pl[0].S, pl[1].S], hand: ['auto', 'auto'], names: ['Tú', 'Rival'] };
+    return { track, cam, truth: hits, skeletonAt: (p, tt) => playerFrame(p, tt, false), shuttleAt };
+  }
+  G.BD = { makeDemo, makeCamera };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* ===== Contenido de "Aprende" y base de conocimiento del asistente ===== */
+(function (G) {
+  'use strict';
+  const SC = 50; // px por metro en los diagramas
+  // Pista horizontal (largo en x). Devuelve líneas SVG.
+  function courtSVG(x0, y0, s, o) {
+    o = o || {};
+    const L = 13.4 * s, W = 6.1 * s, sw = 0.46 * s, ss = 1.98 * s, dl = 0.76 * s, cx = x0 + L / 2;
+    let g = `<rect x="${x0}" y="${y0}" width="${L}" height="${W}" class="s-court" rx="2"/>`;
+    if (o.hl === 'single') g += `<rect x="${x0}" y="${y0 + sw}" width="${L}" height="${W - 2 * sw}" class="s-hl"/>`;
+    if (o.hl === 'double') g += `<rect x="${x0}" y="${y0}" width="${L}" height="${W}" class="s-hl"/>`;
+    const ln = (a, b, c, d) => `<line x1="${a}" y1="${b}" x2="${c}" y2="${d}"/>`;
+    g += `<g class="s-line" stroke-width="2">` +
+      `<rect x="${x0}" y="${y0}" width="${L}" height="${W}" fill="none"/>` +
+      ln(x0, y0 + sw, x0 + L, y0 + sw) + ln(x0, y0 + W - sw, x0 + L, y0 + W - sw) +
+      ln(cx - ss, y0, cx - ss, y0 + W) + ln(cx + ss, y0, cx + ss, y0 + W) +
+      ln(x0 + dl, y0, x0 + dl, y0 + W) + ln(x0 + L - dl, y0, x0 + L - dl, y0 + W) +
+      ln(x0, y0 + W / 2, cx - ss, y0 + W / 2) + ln(cx + ss, y0 + W / 2, x0 + L, y0 + W / 2) + `</g>` +
+      `<line x1="${cx}" y1="${y0 - 8}" x2="${cx}" y2="${y0 + W + 8}" class="s-net" stroke-width="4"/>` +
+      `<circle cx="${cx}" cy="${y0 - 8}" r="4" class="s-ink"/><circle cx="${cx}" cy="${y0 + W + 8}" r="4" class="s-ink"/>`;
+    return g;
+  }
+  function dimTxt(x, y, t, a) { return `<text x="${x}" y="${y}" class="s-muted" font-size="13" text-anchor="${a || 'middle'}">${t}</text>`; }
+  const arrowDefs = (id, cls) => `<marker id="${id}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="${cls}"/></marker>`;
+
+  function courtDiagram(mode) {
+    const x0 = 46, y0 = 46, s = SC, L = 13.4 * s, W = 6.1 * s, cx = x0 + L / 2;
+    let g = `<svg viewBox="0 0 762 410" class="diagram" role="img" aria-label="Medidas de la pista de bádminton">`;
+    g += courtSVG(x0, y0, s, { hl: mode });
+    g += dimTxt(x0 + L / 2, 26, '13,40 m de largo');
+    g += `<text x="20" y="${y0 + W / 2}" class="s-muted" font-size="13" text-anchor="middle" transform="rotate(-90 20 ${y0 + W / 2})">6,10 m (dobles)</text>`;
+    g += dimTxt(cx - 1.98 * s - 6, y0 + W + 28, 'Saque corto · 1,98 m de la red', 'end') + dimTxt(cx + 1.98 * s + 6, y0 + W + 28, '1,98 m · Saque corto', 'start');
+    g += dimTxt(x0, y0 + W + 48, 'Saque largo de dobles: 0,76 m del fondo', 'start');
+    g += `<g font-size="12" class="s-court-ink" font-weight="600">` +
+      `<text x="${cx + 10}" y="${y0 + W / 2 + 4}">Red</text>` +
+      `<text x="${x0 + L - 8}" y="${y0 + 0.46 * s - 8}" text-anchor="end">Lateral dobles</text>` +
+      `<text x="${x0 + L - 8}" y="${y0 + 0.46 * s + 18}" text-anchor="end">Lateral individual</text></g>`;
+    g += dimTxt(x0 + L, y0 + W + 48, 'Red: 1,55 m en los postes · 1,524 m en el centro', 'end');
+    return g + `</svg>`;
+  }
+  function serviceDiagram() {
+    const s = 26, w = 13.4 * s, h = 6.1 * s;
+    const panel = (x0, y0, kind) => {
+      const L = 13.4 * s, W = 6.1 * s, sw = 0.46 * s, ss = 1.98 * s, dl = 0.76 * s, cx = x0 + L / 2;
+      let g = courtSVG(x0, y0, s);
+      // servidor: lado derecho (izquierda del dibujo); receptor en diagonal
+      const top = kind === 'single' ? y0 + sw : y0, bot = y0 + W / 2;
+      const back = kind === 'single' ? x0 : x0 + dl;
+      g += `<rect x="${back}" y="${top}" width="${cx - ss - back}" height="${bot - top}" class="s-srv"/>`;
+      const rtop = y0 + W / 2, rbot = kind === 'single' ? y0 + W - sw : y0 + W;
+      const rback = kind === 'single' ? x0 + L : x0 + L - dl;
+      g += `<rect x="${cx + ss}" y="${rtop}" width="${rback - cx - ss}" height="${rbot - rtop}" class="s-rcv"/>`;
+      g += `<circle cx="${x0 + (cx - ss - x0) * 0.6}" cy="${(top + bot) / 2}" r="7" class="s-acc"/>`;
+      g += `<path d="M${x0 + (cx - ss - x0) * 0.6 + 8} ${(top + bot) / 2} Q ${cx} ${y0 + W / 2 - 30} ${cx + ss + (rback - cx - ss) * 0.5} ${(rtop + rbot) / 2}" class="st-acc" stroke-width="2.5" stroke-dasharray="6 5" marker-end="url(#sv-a)"/>`;
+      return g;
+    };
+    return `<svg viewBox="0 0 760 452" class="diagram" role="img" aria-label="Zonas de saque en individual y dobles"><defs>${arrowDefs('sv-a', 's-acc')}</defs>` +
+      `<text x="30" y="26" class="s-ink" font-size="16" font-weight="700">Individual: zona de saque larga y estrecha</text>` + panel(30, 40, 'single') +
+      `<text x="30" y="250" class="s-ink" font-size="16" font-weight="700">Dobles: zona de saque corta y ancha</text>` + panel(30, 264, 'double') +
+      `<g font-size="12.5"><rect x="${30 + w + 20}" y="60" width="14" height="14" class="s-srv"/><text x="${30 + w + 40}" y="72" class="s-ink">Desde aquí sacas</text>` +
+      `<rect x="${30 + w + 20}" y="86" width="14" height="14" class="s-rcv"/><text x="${30 + w + 40}" y="98" class="s-ink">Aquí debe caer</text>` +
+      `<text x="${30 + w + 20}" y="130" class="s-muted">Marcador par:</text><text x="${30 + w + 20}" y="147" class="s-muted">sacas desde la derecha.</text>` +
+      `<text x="${30 + w + 20}" y="172" class="s-muted">Marcador impar:</text><text x="${30 + w + 20}" y="189" class="s-muted">desde la izquierda.</text></g>` + `<text x="${30 + w + 20}" y="${264 + h / 2}" class="s-muted" font-size="12.5">Sin pasar la línea</text><text x="${30 + w + 20}" y="${264 + h / 2 + 17}" class="s-muted" font-size="12.5">de saque largo</text><text x="${30 + w + 20}" y="${264 + h / 2 + 34}" class="s-muted" font-size="12.5">de dobles.</text>` +
+      `</svg>`;
+  }
+  function trajectoryDiagram() {
+    const gy = 300, nx = 380, sx = 30, ex = 730;
+    const P = (d, cls, lab, lx, ly) => `<path d="${d}" class="${cls}" stroke-width="3" fill="none" marker-end="url(#tr-${cls})"/><text x="${lx}" y="${ly}" font-size="13" font-weight="700" class="${cls.replace('st-', 's-')}">${lab}</text>`;
+    return `<svg viewBox="0 0 760 340" class="diagram" role="img" aria-label="Trayectorias de los golpes vistas de lado"><defs>${arrowDefs('tr-st-atk', 's-atk')}${arrowDefs('tr-st-def', 's-def')}${arrowDefs('tr-st-neu', 's-neu')}</defs>` +
+      `<line x1="${sx}" y1="${gy}" x2="${ex}" y2="${gy}" class="st-muted" stroke-width="2"/>` +
+      `<rect x="${nx - 3}" y="${gy - 78}" width="6" height="78" class="s-ink"/><text x="${nx}" y="${gy + 22}" text-anchor="middle" class="s-muted" font-size="12">red 1,55 m</text>` +
+      `<text x="${sx}" y="${gy + 22}" class="s-muted" font-size="12">tu fondo</text><text x="${ex}" y="${gy + 22}" class="s-muted" font-size="12" text-anchor="end">fondo rival</text>` +
+      P(`M70 120 Q 380 -60 700 ${gy - 6}`, 'st-def', 'Clear', 520, 40) +
+      P(`M70 120 Q 330 120 ${nx + 50} ${gy - 6}`, 'st-neu', 'Drop', 300, 128) +
+      P(`M90 112 L ${nx + 170} ${gy - 6}`, 'st-atk', 'Remate', 200, 190) +
+      P(`M${nx - 40} ${gy - 30} Q ${nx + 120} -40 ${ex - 20} ${gy - 6}`, 'st-def', 'Lob', 600, 110) +
+      P(`M${nx - 50} ${gy - 40} Q ${nx} ${gy - 120} ${nx + 30} ${gy - 6}`, 'st-neu', 'Dejada de red', nx - 175, gy - 62) +
+      P(`M120 ${gy - 175} L ${ex - 60} ${gy - 150}`, 'st-neu', 'Drive', 120, gy - 186) +
+      `</svg>`;
+  }
+  function cornersDiagram() {
+    // media pista vista desde arriba, red arriba
+    const x0 = 160, y0 = 30, s = 52, W = 6.1 * s, D = 6.7 * s;
+    const cx = x0 + W / 2, cy = y0 + D * 0.42;
+    let g = `<svg viewBox="0 0 640 400" class="diagram" role="img" aria-label="Las seis esquinas de la pista"><defs>${arrowDefs('cr-a', 's-acc')}</defs>`;
+    g += `<rect x="${x0}" y="${y0}" width="${W}" height="${D}" class="s-court" rx="2"/>`;
+    g += `<g class="s-line" stroke-width="2"><rect x="${x0}" y="${y0}" width="${W}" height="${D}" fill="none"/><line x1="${x0 + 0.46 * s}" y1="${y0}" x2="${x0 + 0.46 * s}" y2="${y0 + D}"/><line x1="${x0 + W - 0.46 * s}" y1="${y0}" x2="${x0 + W - 0.46 * s}" y2="${y0 + D}"/><line x1="${x0}" y1="${y0 + 1.98 * s}" x2="${x0 + W}" y2="${y0 + 1.98 * s}"/><line x1="${cx}" y1="${y0 + 1.98 * s}" x2="${cx}" y2="${y0 + D}"/></g>`;
+    g += `<line x1="${x0 - 10}" y1="${y0}" x2="${x0 + W + 10}" y2="${y0}" class="s-net" stroke-width="5"/>`;
+    const pts = [[x0 + 30, y0 + 28, '1 Red derecha'], [x0 + W - 30, y0 + 28, '2 Red izquierda'], [x0 + 22, y0 + D * 0.5, '3 Lateral'], [x0 + W - 22, y0 + D * 0.5, '4 Lateral'], [x0 + 30, y0 + D - 26, '5 Fondo derecha'], [x0 + W - 30, y0 + D - 26, '6 Fondo izquierda']];
+    pts.forEach(([x, y]) => { const dx = x - cx, dy = y - cy, l = Math.hypot(dx, dy); g += `<line x1="${cx + dx / l * 18}" y1="${cy + dy / l * 18}" x2="${x - dx / l * 12}" y2="${y - dy / l * 12}" class="st-acc" stroke-width="2.5" marker-end="url(#cr-a)"/>`; });
+    g += `<circle cx="${cx}" cy="${cy}" r="15" class="s-acc"/><text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="11" font-weight="800" fill="#241503">BASE</text>`;
+    g += `<g font-size="13" font-weight="600" class="s-ink">` +
+      `<text x="${x0 - 14}" y="${y0 + 32}" text-anchor="end">1 Red (derecha)</text><text x="${x0 + W + 14}" y="${y0 + 32}">2 Red (revés)</text>` +
+      `<text x="${x0 - 14}" y="${y0 + D * 0.5 + 4}" text-anchor="end">3 Lateral derecha</text><text x="${x0 + W + 14}" y="${y0 + D * 0.5 + 4}">4 Lateral revés</text>` +
+      `<text x="${x0 - 14}" y="${y0 + D - 22}" text-anchor="end">5 Fondo derecha</text><text x="${x0 + W + 14}" y="${y0 + D - 22}">6 Fondo revés</text></g>`;
+    g += `<text x="${cx}" y="${y0 + D + 26}" text-anchor="middle" class="s-muted" font-size="12.5">Para un diestro visto desde su campo, con la red arriba. Siempre vuelves a la base.</text>`;
+    return g + `</svg>`;
+  }
+  function doublesDiagram() {
+    const s = 34, W = 6.1 * s, D = 6.7 * s;
+    const half = (x0, y0, pa, pb, title, sub) => {
+      let g = `<text x="${x0}" y="${y0 - 34}" class="s-ink" font-size="16" font-weight="700">${title}</text><text x="${x0}" y="${y0 - 16}" class="s-muted" font-size="12.5">${sub}</text>`;
+      g += `<rect x="${x0}" y="${y0}" width="${W}" height="${D}" class="s-court"/>`;
+      g += `<g class="s-line" stroke-width="2"><rect x="${x0}" y="${y0}" width="${W}" height="${D}" fill="none"/><line x1="${x0}" y1="${y0 + 1.98 * s}" x2="${x0 + W}" y2="${y0 + 1.98 * s}"/><line x1="${x0}" y1="${y0 + D - 0.76 * s}" x2="${x0 + W}" y2="${y0 + D - 0.76 * s}"/><line x1="${x0 + W / 2}" y1="${y0 + 1.98 * s}" x2="${x0 + W / 2}" y2="${y0 + D}"/></g>`;
+      g += `<line x1="${x0 - 8}" y1="${y0}" x2="${x0 + W + 8}" y2="${y0}" class="s-net" stroke-width="5"/>`;
+      g += `<circle cx="${x0 + pa[0] * s}" cy="${y0 + pa[1] * s}" r="12" class="s-acc"/><text x="${x0 + pa[0] * s}" y="${y0 + pa[1] * s + 4}" text-anchor="middle" font-size="12" font-weight="800" fill="#241503">A</text>`;
+      g += `<circle cx="${x0 + pb[0] * s}" cy="${y0 + pb[1] * s}" r="12" class="s-p1"/><text x="${x0 + pb[0] * s}" y="${y0 + pb[1] * s + 4}" text-anchor="middle" font-size="12" font-weight="800" fill="#fff">B</text>`;
+      return g;
+    };
+    return `<svg viewBox="0 0 640 330" class="diagram" role="img" aria-label="Formaciones de dobles: ataque y defensa">` +
+      half(40, 70, [3.05, 1.6], [3.05, 4.9], 'Ataque: delante y detrás', 'Uno cierra la red; el otro remata.') +
+      half(360, 70, [1.5, 3.6], [4.6, 3.6], 'Defensa: lado a lado', 'Cada uno cubre su mitad.') + `</svg>`;
+  }
+
+  const SHOTS = [
+    { n: 'Saque corto', h: 'Medio', r: 'neu', para: 'Empezar el punto sin dar ventaja. Es el saque básico de dobles.', k: ['De revés, con la raqueta delante del cuerpo', 'Empuja suave: que pase rozando la red', 'Que caiga justo detrás de la línea de saque corto'] },
+    { n: 'Saque largo', h: 'Bajo', r: 'srv', para: 'Mandar al rival al fondo. Es el saque típico de individual.', k: ['De lado, pie contrario a la raqueta delante', 'Suelta el volante y golpea de abajo arriba', 'Alto y profundo, hasta la línea de fondo'] },
+    { n: 'Clear', h: 'Arriba', r: 'def', para: 'Ganar tiempo y llevar al rival a su fondo.', k: ['Colócate detrás del volante, de lado a la red', 'Brazo libre arriba apuntando al volante', 'Golpea en el punto más alto con el brazo estirado', 'Apunta alto: mejor largo que corto'] },
+    { n: 'Drop (dejada desde el fondo)', h: 'Arriba', r: 'neu', para: 'Obligar al rival a correr hacia la red.', k: ['Prepárala igual que un clear o un remate para engañar', 'Frena la raqueta justo antes del contacto', 'Que caiga cerca de la red, no a media pista'] },
+    { n: 'Remate', h: 'Arriba', r: 'atk', para: 'Ganar el punto con un golpe rápido hacia abajo.', k: ['Mejor desde media pista que desde el fondo', 'Contacto delante de la cabeza y hacia abajo', 'La potencia sale del giro del cuerpo y del antebrazo', 'Apunta al cuerpo o a los laterales'] },
+    { n: 'Lob (levantada)', h: 'Abajo', r: 'def', para: 'Salir de apuros desde la red mandando el volante al fondo.', k: ['Estocada con el pie de la raqueta delante', 'Golpe corto de muñeca y antebrazo, de abajo arriba', 'Alto y al fondo para tener tiempo de volver'] },
+    { n: 'Dejada de red', h: 'Abajo', r: 'neu', para: 'Obligar al rival a levantar el volante.', k: ['Llega pronto: contacta lo más alto posible', 'Agarre suave, casi sin fuerza', 'Que pase rozando la red'] },
+    { n: 'Bloqueo', h: 'Medio', r: 'def', para: 'Devolver un remate dejándolo corto junto a la red.', k: ['Raqueta delante, quieta, no hagas swing', 'Aprovecha la velocidad del remate', 'Relaja la mano en el contacto'] },
+    { n: 'Drive', h: 'Medio', r: 'neu', para: 'Juego plano y rápido a la altura de la red, sobre todo en dobles.', k: ['Golpe corto y compacto, delante del cuerpo', 'Trayectoria plana, rozando la red', 'Recupera la posición de la raqueta arriba enseguida'] },
+    { n: 'Remate en la red (kill)', h: 'Arriba', r: 'atk', para: 'Rematar un volante que queda alto cerca de la red.', k: ['Raqueta arriba, siempre lista', 'Golpe corto, sin swing grande, para no tocar la red', 'Hacia abajo y a los pies del rival'] },
+  ];
+  const ROLE_N = { atk: 'Ataque', neu: 'Neutral', def: 'Defensa', srv: 'Saque' };
+
+  function learnHTML() {
+    const shotCards = SHOTS.map((s) => `<div class="shot-card"><div class="row" style="justify-content:space-between"><h4>${s.n}</h4><span class="pill"><i class="sw" style="background:var(--${s.r})"></i>${s.h} · ${ROLE_N[s.r]}</span></div><p class="small muted">${s.para}</p><ul class="small">${s.k.map((x) => `<li>${x}</li>`).join('')}</ul></div>`).join('');
+    return `
+<div class="learn-nav"><div class="chips" id="learnNav">
+  <button class="chip" data-go="l-pista">Pista</button><button class="chip" data-go="l-reglas">Reglas</button><button class="chip" data-go="l-saque">Saque</button><button class="chip" data-go="l-golpes">Golpes</button><button class="chip" data-go="l-agarre">Agarre</button><button class="chip" data-go="l-mov">Desplazamientos</button><button class="chip" data-go="l-tactica">Táctica</button><button class="chip" data-go="l-errores">Errores</button><button class="chip" data-go="l-glosario">Glosario</button><button class="chip" data-go="l-links">Enlaces</button>
+</div></div>
+
+<section class="learn-sec card" id="l-pista"><h2><span>01</span>La pista</h2>
+  <div class="row" style="justify-content:space-between"><p class="muted">La misma pista sirve para individual y dobles: cambian las líneas que cuentan.</p>
+  <div class="seg" id="courtMode"><button aria-pressed="true" data-m="single">Individual</button><button aria-pressed="false" data-m="double">Dobles</button></div></div>
+  <div class="overflow" id="courtDia">${courtDiagram('single')}</div>
+  <div class="kv"><div><b>13,40 m</b>Largo total</div><div><b>5,18 m</b>Ancho en individual</div><div><b>6,10 m</b>Ancho en dobles</div><div><b>1,55 m</b>Altura de la red en los postes</div></div>
+</section>
+
+<section class="learn-sec card" id="l-reglas"><h2><span>02</span>Reglas y puntuación</h2>
+  <div class="kv"><div><b>21</b>Puntos para ganar un juego</div><div><b>+2</b>Hay que ganar por 2 puntos</div><div><b>30</b>Tope: a 29 iguales, el siguiente gana</div><div><b>2 de 3</b>Gana quien se lleve dos juegos</div><div><b>11</b>Descanso de 60 s al llegar a 11</div><div><b>Cada punto</b>Todo peloteo suma, saques o no</div></div>
+  <p class="note"><b>Cambio en 2027:</b> la BWF aprobó en abril de 2026 pasar a juegos a 15 puntos (al mejor de 3) a partir de enero de 2027, con un tope de 21 si el juego se iguala. Hasta entonces, se juega a 21.</p>
+  <h3>Es falta si…</h3>
+  <ul><li>El volante cae fuera de las líneas, no pasa la red o pasa por debajo.</li><li>Tocas la red o los postes con la raqueta, el cuerpo o la ropa mientras el volante está en juego.</li><li>Invades el campo rival por debajo de la red o molestas al rival.</li><li>Golpeas el volante dos veces seguidas, o lo golpean los dos jugadores de una pareja seguidos.</li><li>El volante te toca el cuerpo o la ropa.</li><li>El saque no cumple las reglas (mira el apartado siguiente).</li></ul>
+  <p class="muted small">Se cambia de campo al acabar cada juego y en el tercer juego cuando alguien llega a 11.</p>
+</section>
+
+<section class="learn-sec card" id="l-saque"><h2><span>03</span>El saque</h2>
+  <div class="overflow">${serviceDiagram()}</div>
+  <div class="grid2"><div><h4>Reglas del saque</h4><ul><li>Se saca en diagonal, al cuadro contrario.</li><li>El volante se golpea por debajo de 1,15 m del suelo.</li><li>Los dos pies tocan el suelo y no se mueven hasta golpear.</li><li>Primero se golpea la base (el corcho) del volante.</li><li>Si el volante toca la línea, es bueno.</li></ul></div>
+  <div><h4>Quién saca</h4><ul><li><b>Individual:</b> si tu marcador es par, sacas desde la derecha; si es impar, desde la izquierda.</li><li><b>Dobles:</b> si ganáis el punto, el mismo jugador vuelve a sacar cambiando de cuadro. Si lo perdéis, el saque pasa a la otra pareja.</li><li>En dobles solo se cambia de cuadro cuando se gana un punto sacando.</li></ul></div></div>
+</section>
+
+<section class="learn-sec card" id="l-golpes"><h2><span>04</span>Golpes</h2>
+  <p class="muted">Los golpes se agrupan por la altura a la que coges el volante, igual que en el análisis de vídeo: arriba ataca, abajo defiende.</p>
+  <div class="overflow">${trajectoryDiagram()}</div>
+  <div class="legend"><span><i class="sw" style="background:var(--atk)"></i>Ataque</span><span><i class="sw" style="background:var(--neu)"></i>Neutral / preparación</span><span><i class="sw" style="background:var(--def)"></i>Defensa / ganar tiempo</span></div>
+  <div class="shot-cards">${shotCards}</div>
+</section>
+
+<section class="learn-sec card" id="l-agarre"><h2><span>05</span>Agarre de la raqueta</h2>
+  <div class="grid3"><div><h4>De derecha</h4><p class="small">Como si dieras la mano a la raqueta. Entre el pulgar y el índice se forma una V sobre el borde del mango.</p></div>
+  <div><h4>De revés</h4><p class="small">Gira un poco la raqueta y apoya el pulgar en la parte ancha del mango para empujar.</p></div>
+  <div><h4>En la red</h4><p class="small">Para dejadas y remates en la red, un agarre más plano ("de sartén") ayuda a controlar.</p></div></div>
+  <p class="note">El agarre va <b>relajado</b> y solo se aprieta en el instante del golpe. Agarrar fuerte todo el rato quita velocidad y cansa el antebrazo.</p>
+</section>
+
+<section class="learn-sec card" id="l-mov"><h2><span>06</span>Desplazamientos</h2>
+  <div class="grid2"><div class="overflow">${cornersDiagram()}</div>
+  <div style="display:grid;gap:12px;align-content:start"><h4>Posición base</h4>
+  <table class="t"><tr><th>Parte</th><th>Cómo</th></tr><tr><td>Pies</td><td>A la anchura de los hombros, peso en la parte delantera.</td></tr><tr><td>Rodillas</td><td>Flexionadas: baja el centro de gravedad.</td></tr><tr><td>Raqueta</td><td>Arriba, delante del cuerpo.</td></tr><tr><td>Mirada</td><td>Siempre en el volante.</td></tr></table>
+  <h4>Split step</h4><p class="small">Un pequeño salto justo cuando el rival golpea. Caes con las piernas cargadas y sales más rápido hacia el volante. El análisis de vídeo intenta detectarlo.</p>
+  <h4>Estocada</h4><p class="small">En la red, da un paso largo con el pie de la raqueta. Entra con el talón, rodilla sobre el pie (no por delante) y tronco recto. Empuja con esa pierna para volver.</p></div></div>
+</section>
+
+<section class="learn-sec card" id="l-tactica"><h2><span>07</span>Táctica</h2>
+  <div class="grid2"><div><h4>Individual</h4><ul><li>Mueve al rival en diagonal: fondo de un lado y red del otro.</li><li>Combina clears y drops para hacerle correr delante y detrás.</li><li>Ataca su fondo de revés: suele ser su golpe más débil.</li><li>Saca largo y alto para alejarlo de la red.</li><li>Después de cada golpe, vuelve a la base.</li><li>Remata cuando el volante esté alto y no demasiado lejos.</li></ul></div>
+  <div><h4>Dobles</h4><ul><li>Atacad delante-detrás y defended lado a lado.</li><li>Quien remata se queda atrás; su compañero cierra la red.</li><li>Saca corto: un saque largo regala un remate.</li><li>Atacad al centro, entre los dos rivales.</li><li>Mantened la raqueta arriba: el juego es muy rápido.</li></ul></div></div>
+  <div class="overflow">${doublesDiagram()}</div>
+</section>
+
+<section class="learn-sec card" id="l-errores"><h2><span>08</span>Errores frecuentes</h2>
+  <table class="t"><tr><th>Error</th><th>Qué hacer</th></tr>
+  <tr><td>Golpear con el volante detrás de la cabeza</td><td>Muévete antes y colócate detrás del volante.</td></tr>
+  <tr><td>Quedarse mirando el golpe</td><td>Vuelve a la base justo después de golpear.</td></tr>
+  <tr><td>Piernas rectas en la espera</td><td>Flexiona las rodillas y apóyate en la parte delantera de los pies.</td></tr>
+  <tr><td>Agarre apretado todo el rato</td><td>Relaja la mano y aprieta solo al golpear.</td></tr>
+  <tr><td>Rematar desde el fondo de pista</td><td>Desde atrás, mejor clear o drop; remata desde media pista.</td></tr>
+  <tr><td>Levantar siempre desde la red</td><td>Prueba la dejada para obligar al rival a levantar.</td></tr></table>
+</section>
+
+<section class="learn-sec card" id="l-glosario"><h2><span>09</span>Glosario</h2>
+  <table class="t"><tr><th>Término</th><th>Significado</th></tr>
+  <tr><td>Rally / peloteo</td><td>Intercambio de golpes desde el saque hasta que se gana el punto.</td></tr>
+  <tr><td>Base</td><td>Zona central desde la que llegas antes a cualquier esquina.</td></tr>
+  <tr><td>Split step</td><td>Pequeño salto de preparación cuando golpea el rival.</td></tr>
+  <tr><td>Estocada</td><td>Paso largo hacia delante para llegar a la red.</td></tr>
+  <tr><td>Cruzado / paralelo</td><td>Golpe en diagonal / golpe recto por el lateral.</td></tr>
+  <tr><td>Kill</td><td>Remate corto en la red.</td></tr>
+  <tr><td>Let</td><td>Punto que se repite (por ejemplo, si un volante de otra pista entra en la tuya).</td></tr></table>
+</section>
+
+<section class="learn-sec card" id="l-links"><h2><span>10</span>Enlaces de interés</h2>
+  <ul><li><a href="https://corporate.bwfbadminton.com/statutes/" target="_blank" rel="noopener">Reglamento oficial de la BWF (Statutes)</a></li><li><a href="https://bwfbadminton.com/" target="_blank" rel="noopener">Federación Mundial de Bádminton (BWF)</a></li><li><a href="https://www.badminton.es/" target="_blank" rel="noopener">Federación Española de Bádminton</a></li><li><a href="https://www.youtube.com/@BWFTV" target="_blank" rel="noopener">BWF TV en YouTube: partidos y jugadas</a></li></ul>
+</section>`;
+  }
+
+  // Base de conocimiento para el asistente sin conexión
+  const KB = [
+    { k: 'puntos puntuacion contar cuenta marcador gana juego 21 set', a: '<p>Se juega <b>al mejor de 3 juegos a 21 puntos</b>. Cada peloteo suma un punto, saque quien saque.</p><ul><li>Hay que ganar por 2 puntos de diferencia.</li><li>Si se llega a 29-29, quien gane el siguiente punto se lleva el juego (tope 30).</li><li>Hay un descanso de 60 s al llegar a 11.</li></ul><p>Desde enero de 2027 la BWF pasará a juegos a 15 puntos, con tope de 21.</p>' },
+    { k: '15 puntos nueva regla 2027 cambio reglamento', a: '<p>En abril de 2026 la BWF aprobó cambiar a <b>juegos a 15 puntos</b> (al mejor de 3) a partir de <b>enero de 2027</b>. Si el juego se iguala, puede alargarse hasta un tope de 21.</p>' },
+    { k: 'saque sacar reglas servicio altura 115 pies diagonal', a: '<p>Reglas del saque:</p><ul><li>Se saca en diagonal.</li><li>El volante se golpea por debajo de <b>1,15 m</b> del suelo.</li><li>Los dos pies quietos y en el suelo hasta golpear.</li><li>Primero se golpea el corcho del volante.</li></ul>' },
+    { k: 'derecha izquierda lado cuadro par impar donde saco', a: '<p>En individual: si tu marcador es <b>par</b>, sacas desde la <b>derecha</b>; si es <b>impar</b>, desde la <b>izquierda</b>. En dobles es igual, mirando la puntuación de tu pareja.</p>' },
+    { k: 'dobles saque rotacion quien saca pareja', a: '<p>En dobles, si la pareja que saca gana el punto, <b>el mismo jugador</b> vuelve a sacar cambiando de cuadro. Si lo pierde, el saque pasa a la otra pareja. Los jugadores solo cambian de cuadro al ganar un punto con su saque.</p>' },
+    { k: 'pista medidas tamaño largo ancho dimensiones', a: '<p>La pista mide <b>13,40 m</b> de largo y <b>6,10 m</b> de ancho en dobles (<b>5,18 m</b> en individual). La línea de saque corto está a 1,98 m de la red y la red mide 1,55 m en los postes.</p>' },
+    { k: 'lineas individual dobles fuera dentro cuenta linea', a: '<p>En <b>individual</b> la pista es larga y estrecha: cuentan las líneas laterales interiores y la de fondo. En <b>dobles</b> es ancha: cuentan las laterales exteriores; en el saque de dobles, la línea de fondo que cuenta es la de saque largo (0,76 m antes del fondo). Un volante que toca la línea es bueno.</p>' },
+    { k: 'falta faltas tocar red invadir dos veces cuerpo', a: '<p>Es falta si el volante cae fuera o no pasa la red, si tocas la red con la raqueta o el cuerpo, si invades el campo rival por debajo de la red, si golpeas dos veces seguidas o si el volante te toca el cuerpo.</p>' },
+    { k: 'clear despeje fondo alto', a: '<p>El <b>clear</b> es un golpe por encima de la cabeza, alto y al fondo rival. Sirve para ganar tiempo y llevar al rival atrás.</p><ul><li>Colócate detrás del volante, de lado.</li><li>Brazo libre apuntando al volante.</li><li>Contacto en el punto más alto, brazo estirado.</li></ul>' },
+    { k: 'drop dejada fondo cortada', a: '<p>El <b>drop</b> se golpea desde el fondo, por arriba, para que caiga cerca de la red. Prepáralo igual que un clear o un remate y frena la raqueta justo antes del contacto.</p>' },
+    { k: 'remate smash potencia fuerte velocidad mejorar rematar', a: '<p>Para un buen <b>remate</b>:</p><ul><li>Llega pronto y colócate detrás del volante.</li><li>Contacto alto y por delante de la cabeza, brazo estirado.</li><li>La potencia sale del giro de cadera y hombros y de la rotación del antebrazo, no de apretar.</li><li>Remata mejor desde media pista; desde el fondo pierde velocidad.</li><li>Apunta al cuerpo o a los laterales.</li></ul>' },
+    { k: 'lob levantada levantar red defender', a: '<p>El <b>lob</b> se golpea por debajo, desde la red, mandando el volante alto al fondo. Haz la estocada con el pie de la raqueta y usa un golpe corto de muñeca y antebrazo.</p>' },
+    { k: 'dejada red net shot amortiguar', a: '<p>La <b>dejada de red</b> pasa rozando la red y cae cerca. Llega pronto para golpear alto, agarra la raqueta suave y acompaña el volante.</p>' },
+    { k: 'bloqueo bloquear defender remate defensa', a: '<p>Para <b>defender un remate</b>: raqueta delante y abajo, rodillas flexionadas y peso delante. Con un <b>bloqueo</b> (raqueta quieta, mano relajada) el volante cae corto junto a la red. Si tienes tiempo, levanta alto al fondo.</p>' },
+    { k: 'drive plano rapido', a: '<p>El <b>drive</b> es un golpe plano y rápido a la altura de la red, delante del cuerpo y con un swing corto. Muy usado en dobles.</p>' },
+    { k: 'agarre empuñadura coger raqueta grip', a: '<p>De <b>derecha</b>, como si dieras la mano a la raqueta. De <b>revés</b>, apoya el pulgar en la parte ancha del mango. Lleva el agarre relajado y aprieta solo al golpear.</p>' },
+    { k: 'base posicion espera centro colocarse', a: '<p>La <b>posición base</b> está en el centro de tu media pista, algo por delante de la mitad. Pies a la anchura de los hombros, rodillas flexionadas, peso delante y raqueta arriba. Vuelve a ella después de cada golpe.</p>' },
+    { k: 'split step salto preparacion reaccion', a: '<p>El <b>split step</b> es un pequeño salto justo cuando el rival golpea. Caes con las piernas cargadas y puedes salir enseguida hacia donde va el volante.</p>' },
+    { k: 'estocada lunge red rodilla pierna', a: '<p>En la <b>estocada</b> das un paso largo con el pie de la raqueta, entras con el talón, mantienes la rodilla encima del pie y el tronco recto. Luego empujas con esa pierna para volver a la base.</p>' },
+    { k: 'esquinas desplazamiento moverse pies pasos footwork', a: '<p>Hay <b>6 esquinas</b>: dos en la red, dos laterales y dos en el fondo. Desde la base, usa pasos cortos y laterales (chassé) hacia el fondo y una estocada a la red. Entrenar los desplazamientos a las 6 esquinas es de lo que más mejora el juego.</p>' },
+    { k: 'tactica individual estrategia ganar puntos jugar contra', a: '<p>En individual:</p><ul><li>Mueve al rival en diagonal y de delante a atrás.</li><li>Combina clears y drops.</li><li>Busca su fondo de revés.</li><li>Saca largo.</li><li>Ataca cuando el volante esté alto y cerca.</li></ul>' },
+    { k: 'tactica dobles pareja formacion rotacion ataque defensa', a: '<p>En dobles se <b>ataca delante-detrás</b> (uno cierra la red y el otro remata) y se <b>defiende lado a lado</b>. Sacad corto, atacad al centro entre los dos rivales y mantened la raqueta arriba.</p>' },
+    { k: 'calentar calentamiento lesiones estirar', a: '<p>Antes de jugar, 5-10 minutos de movilidad (tobillos, rodillas, cadera, hombros y muñeca), desplazamientos suaves y golpes a medio ritmo. Después, estiramientos suaves. Unas buenas zapatillas de pista protegen los tobillos.</p>' },
+    { k: 'volante pluma plumas nylon velocidad mas rapido record', a: '<p>Hay volantes de <b>pluma</b> (los de competición) y de <b>nylon</b> (más duraderos, para entrenar). El remate es el golpe más rápido del deporte: los profesionales superan los 400 km/h a la salida, aunque el volante frena muchísimo por el aire.</p>' },
+    { k: 'grabar video camara movil como colocar analisis', a: '<p>Para grabar bien: móvil en horizontal y <b>fijo</b> (trípode), detrás de la pista y <b>lo más alto posible</b> (2-3 m), con <b>toda la pista</b> a la vista. Mejor a 60 fps si tu móvil lo permite y con buena luz. En iPhone, graba en formato "Más compatible".</p>' },
+    { k: 'como funciona app analisis precision fiable', a: '<p>La app detecta la postura de cada jugador con un modelo de IA (MediaPipe Pose) que se ejecuta en tu propio móvil. Con las 4 esquinas que marcas, convierte la imagen en un plano de la pista. Los golpes se detectan por el movimiento rápido de la muñeca, y la altura de contacto por la posición del brazo. La velocidad del volante se estima con el tiempo de vuelo y un modelo físico de frenado. Son estimaciones: úsalas para ver tendencias.</p>' },
+  ];
+  G.BK = { learnHTML, courtDiagram, KB, SHOTS };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* ===== Pluma Lab: aplicación ===== */
+(function () {
+  'use strict';
+  const { COURT, K, NK, courtHomographies, applyH, analyze, mean, clamp } = BA;
+  const $ = (s, r) => (r || document).querySelector(s);
+  const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const fmt = (v, d) => (Number.isFinite(v) ? v.toLocaleString('es-ES', { maximumFractionDigits: d || 0, minimumFractionDigits: d || 0 }) : '—');
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const mmss = (t) => { t = Math.max(0, t || 0); return `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`; };
+  const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+
+  const S = { view: 'analizar', file: null, url: null, video: null, corners: [], track: null, res: null, demo: null, me: 0, sel: 0, heatMode: 'heat', settings: { side: 0, q: 'normal' }, chat: [] };
+  const ROLE_COL = { ataque: '--atk', neutral: '--neu', defensa: '--def', saque: '--srv' };
+  const ROLE_N = { ataque: 'Ataque', neutral: 'Neutral', defensa: 'Defensa', saque: 'Saque' };
+  const roleOf = (h) => h.role;
+  const pcol = (p) => css(p === 0 ? '--p0' : '--p1');
+
+  /* ---------- Tema ---------- */
+  const savedTheme = store.get('pl-theme'); if (savedTheme) document.documentElement.dataset.theme = savedTheme;
+  $('#themeBtn').onclick = () => {
+    const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    document.documentElement.dataset.theme = dark ? 'light' : 'dark'; store.set('pl-theme', document.documentElement.dataset.theme);
+    if (S.res && S.view === 'resultados') drawResultCanvases();
+  };
+
+  /* ---------- Navegación ---------- */
+  const VIEWS = ['analizar', 'resultados', 'aprende', 'asistente'];
+  function go(v) {
+    if (!VIEWS.includes(v)) v = 'analizar';
+    S.view = v;
+    $$('.tab').forEach((b) => b.setAttribute('aria-selected', b.dataset.view === v));
+    VIEWS.forEach((x) => ($('#v-' + x).hidden = x !== v));
+    if (v === 'resultados') renderResults();
+    if (v === 'aprende' && !$('#v-aprende').innerHTML) renderLearn();
+    if (v === 'asistente') initChat();
+    if (v !== 'resultados' && S.replay) S.replay.pause();
+    try { history.replaceState(null, '', '#' + v); } catch (e) {}
+    window.scrollTo(0, 0);
+  }
+  $$('.tab').forEach((b) => (b.onclick = () => go(b.dataset.view)));
+
+  /* ---------- Flujo de vídeo ---------- */
+  $('#fileIn').onchange = (e) => { const f = e.target.files[0]; if (f) openVideo(f); e.target.value = ''; };
+  $('#demoBtn').onclick = () => runDemo();
+  $('#cancelFlow').onclick = () => { $('#flow').hidden = true; S.cancel = true; };
+  function showErr(msg) { const e = $('#flowErr'); e.innerHTML = msg; e.hidden = !msg; }
+  function setStep(n) {
+    $$('#steps .step').forEach((s) => { const k = +s.dataset.s; s.classList.toggle('on', k === n); s.classList.toggle('done', k < n); });
+    $('#p-calib').hidden = n !== 1; $('#p-settings').hidden = n !== 2; $('#p-run').hidden = n !== 3;
+  }
+  function openVideo(file) {
+    showErr('');
+    if (S.url) URL.revokeObjectURL(S.url);
+    S.file = file; S.url = URL.createObjectURL(file); S.corners = [];
+    const v = document.createElement('video');
+    v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = S.url; v.crossOrigin = 'anonymous';
+    S.video = v;
+    $('#flow').hidden = false; setStep(1);
+    $('#flow').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    v.onerror = () => showErr('<b>No se puede leer este vídeo.</b> Prueba con un vídeo MP4 (H.264). En iPhone: Ajustes › Cámara › Formatos › "Más compatible".');
+    v.onloadedmetadata = async () => {
+      if (!v.videoWidth) { v.onerror(); return; }
+      $('#calibCv').width = Math.min(1280, v.videoWidth); $('#calibCv').height = Math.round($('#calibCv').width * v.videoHeight / v.videoWidth);
+      await seek(v, Math.min(1, v.duration / 3)); drawCalib();
+      $('#scrub').value = Math.round(Math.min(1, v.duration / 3) / v.duration * 1000);
+      updateTrim();
+    };
+  }
+  function seek(v, t) {
+    return new Promise((ok) => {
+      let done = false; const fin = () => { if (done) return; done = true; v.removeEventListener('seeked', fin); ok(); };
+      v.addEventListener('seeked', fin); try { const d = Number.isFinite(v.duration) ? v.duration : t + 1; v.currentTime = Math.max(0, Math.min(d - 0.01, t)); } catch (e) { fin(); }
+      setTimeout(fin, 2000);
+    });
+  }
+  // --- calibración ---
+  const CORNER_N = ['Esquina cercana izquierda', 'Esquina cercana derecha', 'Esquina lejana derecha', 'Esquina lejana izquierda'];
+  const COURT_SEGS = (() => {
+    const W = COURT.W, L = COURT.L, n = COURT.NET, s = COURT.SHORT, sd = COURT.SIDE, dl = COURT.DLONG;
+    return [[[0, 0], [W, 0]], [[W, 0], [W, L]], [[W, L], [0, L]], [[0, L], [0, 0]], [[sd, 0], [sd, L]], [[W - sd, 0], [W - sd, L]], [[0, n - s], [W, n - s]], [[0, n + s], [W, n + s]], [[0, dl], [W, dl]], [[0, L - dl], [W, L - dl]], [[W / 2, 0], [W / 2, n - s]], [[W / 2, n + s], [W / 2, L]]];
+  })();
+  let drag = -1, loupe = null;
+  function calibScale() { const cv = $('#calibCv'); return cv.width / S.video.videoWidth; }
+  function drawCalib() {
+    const cv = $('#calibCv'), c = cv.getContext('2d'), v = S.video; if (!v) return;
+    c.drawImage(v, 0, 0, cv.width, cv.height);
+    const k = calibScale(), pts = S.corners.map(([x, y]) => [x * k, y * k]);
+    const lw = Math.max(2, cv.width / 500);
+    if (pts.length === 4) {
+      const { court2img } = courtHomographies(pts);
+      c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = lw;
+      c.fillStyle = 'rgba(14,106,84,.28)'; c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(...p) : c.moveTo(...p))); c.closePath(); c.fill();
+      for (const [a, b] of COURT_SEGS) { const A = applyH(court2img, ...a), B = applyH(court2img, ...b); c.beginPath(); c.moveTo(...A); c.lineTo(...B); c.stroke(); }
+      const n1 = applyH(court2img, -0.3, COURT.NET), n2 = applyH(court2img, COURT.W + 0.3, COURT.NET);
+      c.strokeStyle = '#e8962c'; c.lineWidth = lw * 2; c.beginPath(); c.moveTo(...n1); c.lineTo(...n2); c.stroke();
+    } else if (pts.length > 1) {
+      c.strokeStyle = '#e8962c'; c.lineWidth = lw; c.setLineDash([8, 6]); c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(...p) : c.moveTo(...p))); c.stroke(); c.setLineDash([]);
+    }
+    pts.forEach(([x, y], i) => {
+      c.fillStyle = '#e8962c'; c.strokeStyle = '#241503'; c.lineWidth = 2;
+      c.beginPath(); c.arc(x, y, cv.width / 70, 0, 7); c.fill(); c.stroke();
+      c.fillStyle = '#241503'; c.font = `800 ${Math.round(cv.width / 80)}px Figtree, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(i + 1, x, y + 1);
+    });
+    if (loupe) { // lupa al arrastrar
+      const R = cv.width / 9, zx = R + 12, zy = cv.height - R - 12, Z = 3;
+      c.save(); c.beginPath(); c.arc(zx, zy, R, 0, 7); c.clip();
+      c.drawImage(v, loupe[0] / k - R / Z / k, loupe[1] / k - R / Z / k, 2 * R / Z / k, 2 * R / Z / k, zx - R, zy - R, 2 * R, 2 * R);
+      c.strokeStyle = '#e8962c'; c.lineWidth = 2; c.beginPath(); c.moveTo(zx - 14, zy); c.lineTo(zx + 14, zy); c.moveTo(zx, zy - 14); c.lineTo(zx, zy + 14); c.stroke(); c.restore();
+      c.strokeStyle = '#fff'; c.lineWidth = 3; c.beginPath(); c.arc(zx, zy, R, 0, 7); c.stroke();
+    }
+    const tip = $('#calibTip');
+    if (S.corners.length < 4) tip.innerHTML = `<span class="n">${S.corners.length + 1}</span><span>Toca la ${CORNER_N[S.corners.length].toLowerCase()} (línea exterior de dobles)</span>`;
+    else tip.innerHTML = `<span class="n">✓</span><span>¿Encajan las líneas? Arrastra un punto para afinar.</span>`;
+    $('#toSettings').disabled = S.corners.length < 4;
+  }
+  function evPt(e) { const cv = $('#calibCv'), r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * cv.width, (e.clientY - r.top) / r.height * cv.height]; }
+  const cvc = $('#calibCv');
+  cvc.addEventListener('pointerdown', (e) => {
+    if (!S.video) return; const p = evPt(e), k = calibScale();
+    let best = -1, bd = cvc.width / 25;
+    S.corners.forEach(([x, y], i) => { const d = Math.hypot(x * k - p[0], y * k - p[1]); if (d < bd) { bd = d; best = i; } });
+    if (best >= 0) drag = best; else if (S.corners.length < 4) { S.corners.push([p[0] / k, p[1] / k]); drag = S.corners.length - 1; }
+    if (drag >= 0) { cvc.setPointerCapture(e.pointerId); loupe = p; }
+    drawCalib();
+  });
+  cvc.addEventListener('pointermove', (e) => { if (drag < 0) return; const p = evPt(e), k = calibScale(); S.corners[drag] = [p[0] / k, p[1] / k]; loupe = p; drawCalib(); });
+  const endDrag = () => { drag = -1; loupe = null; drawCalib(); };
+  cvc.addEventListener('pointerup', endDrag); cvc.addEventListener('pointercancel', endDrag);
+  $('#undoPt').onclick = () => { S.corners.pop(); drawCalib(); };
+  $('#resetPt').onclick = () => { S.corners = []; drawCalib(); };
+  $('#scrub').oninput = async (e) => { if (!S.video) return; await seek(S.video, e.target.value / 1000 * S.video.duration); drawCalib(); };
+  $('#toSettings').onclick = () => { setStep(2); updateTrim(); };
+  $('#backCalib').onclick = () => setStep(1);
+  // --- ajustes ---
+  function segBind(id, key) { $$('#' + id + ' button').forEach((b) => (b.onclick = () => { $$('#' + id + ' button').forEach((x) => x.setAttribute('aria-pressed', x === b)); S.settings[key] = b.dataset.v; updateTrim(); })); }
+  segBind('sideSeg', 'side'); segBind('qSeg', 'q');
+  const QUAL = { fast: { fps: 8, mc: 0, n: 'Rápida' }, normal: { fps: 12, mc: 0, n: 'Normal' }, high: { fps: 15, mc: 1, n: 'Alta' } };
+  function trimRange() { const d = S.video ? S.video.duration : 0; let a = $('#trimA').value / 1000 * d, b = $('#trimB').value / 1000 * d; if (b < a) [a, b] = [b, a]; return [a, b]; }
+  function updateTrim() {
+    if (!S.video || !Number.isFinite(S.video.duration)) return;
+    const [a, b] = trimRange(), q = QUAL[S.settings.q];
+    $('#trimTxt').textContent = `${mmss(a)} – ${mmss(b)} (${Math.round(b - a)} s)`;
+    const secs = (b - a) * q.fps * (q.mc ? 0.26 : 0.16);
+    $('#etaTxt').textContent = `≈ ${secs < 60 ? Math.max(5, Math.round(secs)) + ' s' : Math.round(secs / 60) + ' min'} en un móvil actual`;
+  }
+  $('#trimA').oninput = updateTrim; $('#trimB').oninput = updateTrim;
+  $('#runBtn').onclick = () => runVideo().catch((e) => { console.error(e); showErr(`<b>No se pudo completar el análisis.</b> ${esc(e.message || e)}<br><span class="small muted">Puedes probar el partido de demostración para ver cómo funciona.</span>`); setStep(2); });
+  $('#stopRun').onclick = () => { S.cancel = true; };
+
+  /* ---------- Modelo de pose (MediaPipe, en el navegador) ---------- */
+  function loadScript(src) { return new Promise((ok, ko) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => ko(new Error('No se pudo cargar ' + src)); document.head.appendChild(s); }); }
+  // Una instancia por jugador: cada una sigue a "su" jugador fotograma a fotograma.
+  const poseP = {};
+  function makePose(slot, mc) {
+    if (!poseP[slot]) poseP[slot] = (async () => {
+      if (!window.Pose) await loadScript('mp/pose.js');
+      const pose = new window.Pose({ locateFile: (f) => 'mp/' + f + (/\.(data|tflite|binarypb)$/.test(f) ? '.wasm' : '') });
+      let last = null; pose.onResults((r) => (last = r));
+      pose.setOptions({ modelComplexity: mc, smoothLandmarks: true, enableSegmentation: false, minDetectionConfidence: 0.35, minTrackingConfidence: 0.35 });
+      await pose.initialize();
+      return { pose, mc, async run(img) { last = null; await pose.send({ image: img }); return last; } };
+    })();
+    return poseP[slot].then((P) => { if (P.mc !== mc) { P.pose.setOptions({ modelComplexity: mc }); P.mc = mc; } return P; });
+  }
+  async function getPose(mc) { const a = await makePose(0, mc), b = await makePose(1, mc); return [a, b]; }
+
+  async function runVideo() {
+    showErr(''); setStep(3); S.cancel = false;
+    const v = S.video, q = QUAL[S.settings.q];
+    const me = +S.settings.side;
+    const W = Math.min(1280, v.videoWidth), H = Math.round(W * v.videoHeight / v.videoWidth), k = W / v.videoWidth;
+    const corners = S.corners.map(([x, y]) => [x * k, y * k]);
+    const { court2img } = courtHomographies(corners);
+    // Recortes por media pista (con altura de persona)
+    const crop = (p) => {
+      const y0 = p === 0 ? -1.2 : COURT.NET - 0.6, y1 = p === 0 ? COURT.NET + 0.6 : COURT.L + 1.2;
+      const pts = [];
+      for (const [x, y] of [[-1.2, y0], [COURT.W + 1.2, y0], [COURT.W + 1.2, y1], [-1.2, y1]]) {
+        const g = applyH(court2img, x, y);
+        const a = applyH(court2img, x - 0.5, y), b = applyH(court2img, x + 0.5, y);
+        const pxm = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        pts.push(g, [g[0], g[1] - 2.7 * pxm]);
+      }
+      let x0 = Math.max(0, Math.min(...pts.map((q) => q[0]))), x1 = Math.min(W, Math.max(...pts.map((q) => q[0])));
+      let yA = Math.max(0, Math.min(...pts.map((q) => q[1]))), yB = Math.min(H, Math.max(...pts.map((q) => q[1])));
+      return { x: x0, y: yA, w: Math.max(32, x1 - x0), h: Math.max(32, yB - yA) };
+    };
+    const crops = [crop(0), crop(1)];
+    const work = document.createElement('canvas'); work.width = W; work.height = H; const wc = work.getContext('2d', { willReadFrequently: false });
+    const ccs = [document.createElement('canvas'), document.createElement('canvas')];
+    const rcv = $('#runCv'); rcv.width = W; rcv.height = H; const rc = rcv.getContext('2d');
+    $('#runTitle').textContent = 'Preparando el modelo de IA…'; $('#runBar').style.width = '2%';
+    let wake = null; try { wake = await navigator.wakeLock.request('screen'); } catch (e) {}
+    let P;
+    try { P = await getPose(q.mc); } catch (e) { throw new Error('El modelo de postura no se ha podido iniciar en este navegador (' + (e.message || e) + ').'); }
+    const [a, b] = trimRange(); const step = 1 / q.fps; const times = []; for (let t = a; t <= b; t += step) times.push(t);
+    const frames = []; const t0 = performance.now(); let found = [0, 0];
+    $('#runTitle').textContent = 'Analizando jugadas…';
+    for (let i = 0; i < times.length; i++) {
+      if (S.cancel) { if (wake) wake.release().catch(() => {}); setStep(2); return; }
+      await seek(v, times[i]);
+      wc.drawImage(v, 0, 0, W, H);
+      const fr = { t: +(times[i] - a).toFixed(4), p: [null, null] };
+      for (let p = 0; p < 2; p++) {
+        const c = crops[p], up = clamp(640 / Math.max(c.w, c.h), 1, 3);
+        const cc = ccs[p], ccx = cc.getContext('2d'); if (cc.width !== Math.round(c.w * up)) { cc.width = Math.round(c.w * up); cc.height = Math.round(c.h * up); }
+        ccx.drawImage(work, c.x, c.y, c.w, c.h, 0, 0, cc.width, cc.height);
+        const r = await P[p].run(cc);
+        if (r && r.poseLandmarks && r.poseWorldLandmarks) {
+          const img = new Float32Array(NK * 3), w = new Float32Array(NK * 3);
+          BA.MP_IDX.forEach((m, j) => {
+            const L = r.poseLandmarks[m], Wl = r.poseWorldLandmarks[m];
+            img[j * 3] = c.x + L.x * c.w; img[j * 3 + 1] = c.y + L.y * c.h; img[j * 3 + 2] = L.visibility == null ? 0.9 : L.visibility;
+            w[j * 3] = Wl.x; w[j * 3 + 1] = Wl.y; w[j * 3 + 2] = Wl.z;
+          });
+          fr.p[p] = { img, w }; found[p]++;
+        }
+      }
+      frames.push(fr);
+      if (i % 3 === 0 || i === times.length - 1) {
+        rc.drawImage(work, 0, 0);
+        drawCourtLines(rc, court2img, 1, 'rgba(255,255,255,.5)', Math.max(1.5, W / 700));
+        fr.p.forEach((pl, p) => pl && drawSkeleton(rc, pl.img, 1, p === me ? '#e8962c' : '#8592ff', Math.max(2, W / 400)));
+        const el = (performance.now() - t0) / 1000, per = el / (i + 1), rest = per * (times.length - i - 1);
+        $('#runBar').style.width = `${Math.round((i + 1) / times.length * 100)}%`;
+        $('#runEta').textContent = `${i + 1}/${times.length} · quedan ${rest < 60 ? Math.round(rest) + ' s' : Math.round(rest / 60) + ' min'}`;
+        $('#runInfo').textContent = `Jugador cercano visto en ${Math.round(found[0] / (i + 1) * 100)} % de los fotogramas · jugador lejano en ${Math.round(found[1] / (i + 1) * 100)} %.`;
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    }
+    if (wake) wake.release().catch(() => {});
+    if (found[0] < frames.length * 0.15 && found[1] < frames.length * 0.15) throw new Error('Casi no se han detectado jugadores. Revisa que las esquinas estén bien marcadas y que la pista se vea entera.');
+    const hMe = (+$('#hMe').value || 175) / 100, hOp = (+$('#hOp').value || 175) / 100;
+    const stature = me === 0 ? [hMe, hOp] : [hOp, hMe];
+    const hand = me === 0 ? [$('#handMe').value, 'auto'] : ['auto', $('#handMe').value];
+    const names = me === 0 ? ['Tú', 'Rival'] : ['Rival', 'Tú'];
+    S.track = { demo: false, width: W, height: H, duration: b - a, offset: a, corners, frames, stature, hand, names };
+    S.me = me; S.sel = me; S.demo = null;
+    finish();
+  }
+  function runDemo() {
+    const btn = $('#demoBtn'); btn.disabled = true; btn.lastChild.textContent = 'Generando partido…';
+    setTimeout(() => {
+      S.demo = BD.makeDemo(7); S.track = S.demo.track; S.me = 0; S.sel = 0;
+      btn.disabled = false; btn.lastChild.textContent = 'Ver partido de demostración';
+      finish();
+    }, 30);
+  }
+  function finish() {
+    S.res = analyze(S.track);
+    $('#flow').hidden = true; $('#resDot').hidden = false;
+    S.replay && S.replay.destroy(); S.replay = null;
+    $('#v-resultados').innerHTML = '';
+    go('resultados');
+  }
+
+  /* ---------- Dibujo común ---------- */
+  const BONES = [[K.lsh, K.rsh], [K.lsh, K.lel], [K.lel, K.lwr], [K.rsh, K.rel], [K.rel, K.rwr], [K.lsh, K.lhip], [K.rsh, K.rhip], [K.lhip, K.rhip], [K.lhip, K.lkn], [K.lkn, K.lan], [K.rhip, K.rkn], [K.rkn, K.ran]];
+  function drawSkeleton(c, img, s, col, lw, ox, oy) {
+    ox = ox || 0; oy = oy || 0;
+    const P = (k) => [ox + img[k * 3] * s, oy + img[k * 3 + 1] * s];
+    c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round';
+    for (const [a, b] of BONES) { c.beginPath(); c.moveTo(...P(a)); c.lineTo(...P(b)); c.stroke(); }
+    const sh = [(P(K.lsh)[0] + P(K.rsh)[0]) / 2, (P(K.lsh)[1] + P(K.rsh)[1]) / 2], no = P(K.nose);
+    const hr = Math.max(lw * 1.6, Math.hypot(P(K.lsh)[0] - P(K.rsh)[0], P(K.lsh)[1] - P(K.rsh)[1]) * 0.42);
+    c.beginPath(); c.moveTo(...sh); c.lineTo(no[0], no[1] + hr * 0.6); c.stroke();
+    c.fillStyle = col; c.beginPath(); c.arc(no[0], no[1], hr, 0, 7); c.fill();
+  }
+  function drawCourtLines(c, H, s, col, lw, ox, oy) {
+    ox = ox || 0; oy = oy || 0;
+    c.strokeStyle = col; c.lineWidth = lw;
+    for (const [a, b] of COURT_SEGS) { const A = applyH(H, ...a), B = applyH(H, ...b); c.beginPath(); c.moveTo(ox + A[0] * s, oy + A[1] * s); c.lineTo(ox + B[0] * s, oy + B[1] * s); c.stroke(); }
+  }
+  function frameAt(track, t) { const f = track.frames; let lo = 0, hi = f.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (f[m].t <= t) lo = m; else hi = m - 1; } return lo; }
+
+  /* ---------- Repetición ---------- */
+  function Replay(root) {
+    const track = S.track, res = S.res, demo = S.demo;
+    const stage = $('.stage', root), cv = $('canvas.ov', root), ctx = cv.getContext('2d');
+    const mini = $('.mini canvas', root), mc = mini.getContext('2d');
+    const tl = $('.timeline', root), pop = $('.shot-pop', root);
+    const opt = { skel: true, court: true, trail: true };
+    let video = null, playing = false, t = 0, rate = 1, last = 0, raf = 0, popUntil = 0, lastHitShown = -1;
+    const dur = track.duration;
+    const { court2img } = courtHomographies(track.corners);
+    if (!demo) {
+      video = document.createElement('video'); video.src = S.url; video.muted = true; video.playsInline = true; video.preload = 'auto';
+      stage.insertBefore(video, cv); video.currentTime = track.offset || 0;
+    }
+    function size() { const r = stage.getBoundingClientRect(); const d = Math.min(2, devicePixelRatio || 1); cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d); }
+    size(); const ro = new ResizeObserver(() => { size(); draw(); }); ro.observe(stage);
+    // Transformación imagen -> lienzo (object-fit: contain)
+    function fit() { const s = Math.min(cv.width / track.width, cv.height / track.height); return { s, ox: (cv.width - track.width * s) / 2, oy: (cv.height - track.height * s) / 2 }; }
+    function drawDemoScene(tt) {
+      const { s, ox, oy } = fit(), cam = demo.cam;
+      const pr = (P) => { const q = cam.project(P); return [ox + q[0] * s, oy + q[1] * s]; };
+      const g = ctx.createLinearGradient(0, 0, 0, cv.height); g.addColorStop(0, '#1a2420'); g.addColorStop(1, '#2b2a24');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, cv.width, cv.height);
+      // suelo de pabellón
+      ctx.fillStyle = '#3a3226'; const fl = [[-3, -3, 0], [9.1, -3, 0], [9.1, 17, 0], [-3, 17, 0]].map(pr); ctx.beginPath(); fl.forEach((p, i) => (i ? ctx.lineTo(...p) : ctx.moveTo(...p))); ctx.fill();
+      ctx.fillStyle = '#126b55'; const co = [[-0.6, -0.8, 0], [6.7, -0.8, 0], [6.7, 14.2, 0], [-0.6, 14.2, 0]].map(pr); ctx.beginPath(); co.forEach((p, i) => (i ? ctx.lineTo(...p) : ctx.moveTo(...p))); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.92)'; ctx.lineWidth = Math.max(1.5, 2.2 * s);
+      for (const [a, b] of COURT_SEGS) { const A = pr([a[0], a[1], 0]), B = pr([b[0], b[1], 0]); ctx.beginPath(); ctx.moveTo(...A); ctx.lineTo(...B); ctx.stroke(); }
+      const skel = [demo.skeletonAt(1, tt), demo.skeletonAt(0, tt)];
+      const shadow = (pl) => { const a = [(pl.img[K.lan * 3] + pl.img[K.ran * 3]) / 2, Math.max(pl.img[K.lan * 3 + 1], pl.img[K.ran * 3 + 1])]; ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(ox + a[0] * s, oy + a[1] * s + 2, 26 * s * (a[1] / track.height + 0.2), 7 * s * (a[1] / track.height + 0.2), 0, 0, 7); ctx.fill(); };
+      const sh = demo.shuttleAt(tt);
+      const drawSh = () => { if (!sh) return; const g0 = pr([sh[0], sh[1], 0]); ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(...g0, 5 * s, 2 * s, 0, 0, 7); ctx.fill(); for (let j = 6; j >= 0; j--) { const q = demo.shuttleAt(tt - j * 0.02); if (!q) continue; const p = pr(q); ctx.fillStyle = j ? `rgba(255,255,255,${0.12 * (7 - j) / 7})` : '#fff'; ctx.beginPath(); ctx.arc(...p, (j ? 3 : 4.5) * s, 0, 7); ctx.fill(); } };
+      // rival (lejos)
+      shadow(skel[0]); drawSkeleton(ctx, skel[0].img, s, '#8592ff', Math.max(2.5, 5 * s), ox, oy);
+      if (sh && sh[1] > COURT.NET) drawSh();
+      // red
+      const p1 = pr([-0.15, COURT.NET, 1.55]), p2 = pr([COURT.W + 0.15, COURT.NET, 1.55]), b1 = pr([-0.15, COURT.NET, 0]), b2 = pr([COURT.W + 0.15, COURT.NET, 0]), m1 = pr([-0.15, COURT.NET, 0.79]), m2 = pr([COURT.W + 0.15, COURT.NET, 0.79]);
+      ctx.fillStyle = 'rgba(20,20,20,.35)'; ctx.beginPath(); ctx.moveTo(...p1); ctx.lineTo(...p2); ctx.lineTo(...m2); ctx.lineTo(...m1); ctx.fill();
+      ctx.strokeStyle = '#ddd'; ctx.lineWidth = Math.max(2, 4 * s); ctx.beginPath(); ctx.moveTo(...p1); ctx.lineTo(...p2); ctx.stroke();
+      ctx.strokeStyle = '#999'; ctx.lineWidth = Math.max(2, 5 * s); ctx.beginPath(); ctx.moveTo(...b1); ctx.lineTo(...p1); ctx.moveTo(...b2); ctx.lineTo(...p2); ctx.stroke();
+      shadow(skel[1]); drawSkeleton(ctx, skel[1].img, s, '#e8962c', Math.max(3, 6.5 * s), ox, oy);
+      if (sh && sh[1] <= COURT.NET) drawSh();
+    }
+    function draw() {
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      if (demo) drawDemoScene(t);
+      else if (opt.court || opt.skel) {
+        const { s, ox, oy } = fit();
+        if (opt.court) drawCourtLines(ctx, court2img, s, 'rgba(255,255,255,.55)', Math.max(1.5, 2 * s), ox, oy);
+        if (opt.skel) { const f = track.frames[frameAt(track, t)]; if (f && Math.abs(f.t - t) < 0.3) f.p.forEach((pl, p) => pl && drawSkeleton(ctx, pl.img, s, p === S.me ? '#e8962c' : '#8592ff', Math.max(2.5, 3.5 * s), ox, oy)); }
+      }
+      drawMini(); drawPlayhead();
+      // golpe actual
+      const hs = res.hits; let cur = -1; for (let i = 0; i < hs.length; i++) { if (hs[i].t <= t + 0.02) cur = i; else break; }
+      if (cur >= 0 && cur !== lastHitShown && t - hs[cur].t < 0.25 && playing) { const h = hs[cur]; pop.textContent = `${track.names[h.p]} · ${h.type}${h.v0 ? ' · ' + Math.round(h.v0 * 3.6) + ' km/h' : ''}`; pop.classList.add('on'); popUntil = performance.now() + 1300; lastHitShown = cur; }
+      if (performance.now() > popUntil) pop.classList.remove('on');
+    }
+    function drawMini() {
+      const W = mini.width, H = mini.height, m = 14, sx = (W - 2 * m) / COURT.W, sy = (H - 2 * m) / COURT.L;
+      const P = (x, y) => [m + x * sx, H - m - y * sy];
+      mc.clearRect(0, 0, W, H);
+      mc.fillStyle = css('--court'); roundRect(mc, 0, 0, W, H, 12); mc.fill();
+      mc.strokeStyle = 'rgba(255,255,255,.85)'; mc.lineWidth = 1.5;
+      for (const [a, b] of COURT_SEGS) { mc.beginPath(); mc.moveTo(...P(...a)); mc.lineTo(...P(...b)); mc.stroke(); }
+      mc.strokeStyle = '#f2f7f4'; mc.lineWidth = 3; mc.beginPath(); mc.moveTo(...P(-0.2, COURT.NET)); mc.lineTo(...P(COURT.W + 0.2, COURT.NET)); mc.stroke();
+      const i = frameAt(track, t), se = res.series;
+      // golpe en vuelo
+      const hs = res.hits; let cur = null; for (const h of hs) { if (h.t <= t && h.next !== undefined && hs[h.next].t >= t) { cur = h; break; } }
+      if (cur) { const nx = hs[cur.next]; const u = (t - cur.t) / (nx.t - cur.t); mc.strokeStyle = css(ROLE_COL[cur.role]); mc.lineWidth = 2.5; mc.setLineDash([5, 4]); mc.beginPath(); mc.moveTo(...P(cur.x, cur.y)); mc.lineTo(...P(nx.x, nx.y)); mc.stroke(); mc.setLineDash([]); const q = P(cur.x + (nx.x - cur.x) * u, cur.y + (nx.y - cur.y) * u); mc.fillStyle = '#fff'; mc.beginPath(); mc.arc(...q, 4, 0, 7); mc.fill(); }
+      for (const p of [0, 1]) {
+        const col = p === S.me ? '#e8962c' : '#8592ff';
+        if (opt.trail) { mc.strokeStyle = col; mc.globalAlpha = 0.5; mc.lineWidth = 2; mc.beginPath(); let st = false; for (let j = Math.max(0, i - Math.round(1.5 / res.dt)); j <= i; j++) { const x = se.X[p][j], y = se.Y[p][j]; if (!Number.isFinite(x)) { st = false; continue; } const q = P(x, y); if (st) mc.lineTo(...q); else { mc.moveTo(...q); st = true; } } mc.stroke(); mc.globalAlpha = 1; }
+        const x = se.X[p][i], y = se.Y[p][i]; if (!Number.isFinite(x)) continue;
+        const q = P(x, y); mc.fillStyle = col; mc.strokeStyle = '#fff'; mc.lineWidth = 2; mc.beginPath(); mc.arc(...q, 7, 0, 7); mc.fill(); mc.stroke();
+      }
+    }
+    function drawPlayhead() { const ph = $('.ph', tl); if (ph) ph.setAttribute('transform', `translate(${(t / dur) * 1000} 0)`); const tt = $('.tm', root); if (tt) tt.textContent = `${mmss(t)} / ${mmss(dur)}`; }
+    function loop(now) {
+      if (!playing) return;
+      if (video) { t = video.currentTime - (track.offset || 0); if (t >= dur) { pause(); t = dur; } }
+      else { t += (now - last) / 1000 * rate; last = now; if (t >= dur) { t = dur; pause(); } }
+      draw(); raf = requestAnimationFrame(loop);
+    }
+    function play() { if (t >= dur - 0.05) seekT(0); playing = true; last = performance.now(); if (video) { video.playbackRate = rate; video.play().catch(() => {}); } raf = requestAnimationFrame(loop); $('.play', root).innerHTML = ICON.pause; $('.play', root).setAttribute('aria-label', 'Pausa'); }
+    function pause() { playing = false; cancelAnimationFrame(raf); if (video) video.pause(); const b = $('.play', root); if (b) { b.innerHTML = ICON.play; b.setAttribute('aria-label', 'Reproducir'); } }
+    function seekT(x) { t = clamp(x, 0, dur); if (video) { video.currentTime = t + (track.offset || 0); video.addEventListener('seeked', draw, { once: true }); } lastHitShown = -1; draw(); }
+    $('.play', root).onclick = () => (playing ? pause() : play());
+    $$('[data-rate]', root).forEach((b) => (b.onclick = () => { rate = +b.dataset.rate; $$('[data-rate]', root).forEach((x) => x.setAttribute('aria-pressed', x === b)); if (video) video.playbackRate = rate; }));
+    $$('[data-opt]', root).forEach((b) => (b.onclick = () => { opt[b.dataset.opt] = !opt[b.dataset.opt]; b.setAttribute('aria-pressed', opt[b.dataset.opt]); draw(); }));
+    $('.prevHit', root).onclick = () => { const h = [...res.hits].reverse().find((h) => h.t < t - 0.3); seekT(h ? h.t - 0.6 : 0); };
+    $('.nextHit', root).onclick = () => { const h = res.hits.find((h) => h.t > t + 0.1); if (h) seekT(h.t - 0.6); };
+    const tlSeek = (e) => { const r = tl.getBoundingClientRect(); seekT((e.clientX - r.left) / r.width * dur); };
+    tl.addEventListener('pointerdown', (e) => { tl.setPointerCapture(e.pointerId); tlSeek(e); tl.onpointermove = tlSeek; });
+    tl.addEventListener('pointerup', () => (tl.onpointermove = null));
+    if (video) video.addEventListener('loadeddata', draw, { once: true });
+    setTimeout(() => seekT(demo ? Math.max(0, res.hits.length ? res.hits[0].t - 1 : 0) : 0), 50);
+    return { pause, play, seek: (x) => { seekT(x); stage.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, destroy() { pause(); ro.disconnect(); if (video) video.remove(); }, redraw: draw };
+  }
+  function roundRect(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+  const ICON = { play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>', pause: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>' };
+
+  /* ---------- Gráficos SVG ---------- */
+  function ring(score, col, label) {
+    const r = 46, c = 2 * Math.PI * r, f = clamp(score / 100, 0, 1);
+    return `<svg viewBox="0 0 120 132" width="128" role="img" aria-label="${label}: ${score} de 100"><circle cx="60" cy="58" r="${r}" fill="none" stroke="rgba(0,0,0,.2)" stroke-width="11"/><circle cx="60" cy="58" r="${r}" fill="none" stroke="${col}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${c * f} ${c}" transform="rotate(-90 60 58)"/><text x="60" y="66" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-size="34" font-weight="700" fill="currentColor">${score}</text><text x="60" y="126" text-anchor="middle" font-size="12" font-weight="700" fill="currentColor" opacity=".85">${label}</text></svg>`;
+  }
+  function radar(players) {
+    const keys = Object.keys(players[0].scores), N = keys.length, cx = 170, cy = 150, R = 105;
+    const pt = (i, v) => { const a = -Math.PI / 2 + i * 2 * Math.PI / N; return [cx + Math.cos(a) * R * v, cy + Math.sin(a) * R * v]; };
+    let g = `<svg viewBox="0 0 340 300" class="diagram" role="img" aria-label="Perfil de juego por categorías">`;
+    [0.25, 0.5, 0.75, 1].forEach((v) => (g += `<polygon points="${keys.map((_, i) => pt(i, v).join(',')).join(' ')}" fill="none" class="ch-grid"/>`));
+    keys.forEach((k, i) => { const [x, y] = pt(i, 1); g += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" class="ch-grid"/>`; const [lx, ly] = pt(i, 1.2); g += `<text x="${lx}" y="${ly + 4}" text-anchor="middle" font-size="12" font-weight="700" class="ch-ink">${k}</text>`; });
+    players.forEach((m) => { const col = pcol(m.p); g += `<polygon points="${keys.map((k, i) => pt(i, m.scores[k] / 100).join(',')).join(' ')}" fill="${col}" fill-opacity=".18" stroke="${col}" stroke-width="2.5"/>`; keys.forEach((k, i) => { const [x, y] = pt(i, m.scores[k] / 100); g += `<circle cx="${x}" cy="${y}" r="3.5" fill="${col}"/>`; }); });
+    return g + '</svg>';
+  }
+  function axisTicks(lo, hi, n) { const st = niceStep((hi - lo) / n); const out = []; for (let v = Math.ceil(lo / st) * st; v <= hi + 1e-9; v += st) out.push(+v.toFixed(6)); return out; }
+  function niceStep(x) { const p = Math.pow(10, Math.floor(Math.log10(x || 1))), f = x / p; return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * p; }
+  // Altura de contacto a lo largo del partido
+  function contactChart(hits, stature, dur) {
+    const W = 760, H = 260, l = 46, r = 16, tp = 16, b = 34, maxH = Math.max(3.2, ...hits.map((h) => h.h || 0)) + 0.1;
+    const X = (t) => l + t / dur * (W - l - r), Y = (h) => tp + (1 - h / maxH) * (H - tp - b);
+    let g = `<svg viewBox="0 0 ${W} ${H}" class="diagram wide" role="img" aria-label="Altura de contacto de cada golpe a lo largo del partido">`;
+    const bands = [[0, stature * 0.55, 'Bajo la cintura', '--def'], [stature * 0.55, stature * 1.02, 'Media altura', '--neu'], [stature * 1.02, maxH, 'Por encima de la cabeza', '--atk']];
+    bands.forEach(([a, c, n, col]) => { g += `<rect x="${l}" y="${Y(c)}" width="${W - l - r}" height="${Y(a) - Y(c)}" fill="${css(col)}" fill-opacity=".07"/><text x="${W - r - 6}" y="${Y(c) + 15}" text-anchor="end" font-size="11.5" font-weight="700" fill="${css(col)}">${n}</text>`; });
+    axisTicks(0, maxH, 4).forEach((v) => (g += `<line x1="${l}" x2="${W - r}" y1="${Y(v)}" y2="${Y(v)}" class="ch-grid"/><text x="${l - 8}" y="${Y(v) + 4}" text-anchor="end" class="ch-txt">${fmt(v, 1)} m</text>`));
+    axisTicks(0, dur, 6).forEach((v) => (g += `<text x="${X(v)}" y="${H - 12}" text-anchor="middle" class="ch-txt">${mmss(v)}</text>`));
+    hits.filter((h) => Number.isFinite(h.h)).forEach((h) => (g += `<circle cx="${X(h.t)}" cy="${Y(Math.max(0.05, h.h))}" r="5.5" fill="${css(ROLE_COL[h.role])}" stroke="${css('--surface')}" stroke-width="1.5" data-seek="${h.t}" style="cursor:pointer"><title>${esc(h.type)} · ${fmt(h.h, 2)} m · ${mmss(h.t)}</title></circle>`));
+    return g + '</svg>';
+  }
+  // Velocidad del volante por tipo de golpe
+  function speedChart(hits) {
+    const by = {}; hits.filter((h) => h.v0).forEach((h) => (by[h.type] = by[h.type] || []).push(h));
+    const types = Object.keys(by).sort((a, b) => mean(by[b].map((h) => h.v0)) - mean(by[a].map((h) => h.v0)));
+    if (!types.length) return '<p class="muted">No hay suficientes intercambios para estimar la velocidad.</p>';
+    const W = 560, row = 30, l = 150, r = 50, tp = 8, H = tp + types.length * row + 30, mx = Math.max(100, ...hits.filter((h) => h.v0).map((h) => h.v0 * 3.6));
+    const X = (v) => l + v / mx * (W - l - r);
+    let g = `<svg viewBox="0 0 ${W} ${H}" class="diagram wide" role="img" aria-label="Velocidad estimada del volante por tipo de golpe">`;
+    axisTicks(0, mx, 5).forEach((v) => (g += `<line x1="${X(v)}" x2="${X(v)}" y1="${tp}" y2="${H - 26}" class="ch-grid"/><text x="${X(v)}" y="${H - 8}" text-anchor="middle" class="ch-txt">${v}</text>`));
+    g += `<text x="${W - r + 8}" y="${H - 8}" class="ch-txt">km/h</text>`;
+    types.forEach((ty, i) => {
+      const y = tp + i * row + row / 2, vs = by[ty].map((h) => h.v0 * 3.6), col = css(ROLE_COL[by[ty][0].role]);
+      g += `<text x="${l - 10}" y="${y + 4}" text-anchor="end" font-size="13" class="ch-ink">${esc(ty)}</text>`;
+      g += `<line x1="${X(Math.min(...vs))}" x2="${X(Math.max(...vs))}" y1="${y}" y2="${y}" stroke="${col}" stroke-width="3" stroke-opacity=".35" stroke-linecap="round"/>`;
+      by[ty].forEach((h) => (g += `<circle cx="${X(h.v0 * 3.6)}" cy="${y}" r="4.5" fill="${col}" fill-opacity=".75" data-seek="${h.t}" style="cursor:pointer"><title>${esc(ty)} · ${Math.round(h.v0 * 3.6)} km/h</title></circle>`));
+      g += `<text x="${X(Math.max(...vs)) + 8}" y="${y + 4}" font-size="12" font-weight="700" class="ch-ink">${Math.round(mean(vs))}</text>`;
+    });
+    return g + '</svg>';
+  }
+  function lineChart(series, dur, rallies, yLabel) {
+    const W = 560, H = 200, l = 40, r = 12, tp = 12, b = 26;
+    const mx = Math.max(1, ...series.flatMap((s) => s.y.filter(Number.isFinite))) * 1.1;
+    const X = (t) => l + t / dur * (W - l - r), Y = (v) => tp + (1 - v / mx) * (H - tp - b);
+    let g = `<svg viewBox="0 0 ${W} ${H}" class="diagram wide" role="img" aria-label="${yLabel} a lo largo del partido">`;
+    rallies.forEach((ra) => (g += `<rect x="${X(ra.start)}" y="${tp}" width="${Math.max(1, X(ra.end) - X(ra.start))}" height="${H - tp - b}" fill="${css('--accent')}" fill-opacity=".09"/>`));
+    axisTicks(0, mx, 4).forEach((v) => (g += `<line x1="${l}" x2="${W - r}" y1="${Y(v)}" y2="${Y(v)}" class="ch-grid"/><text x="${l - 6}" y="${Y(v) + 4}" text-anchor="end" class="ch-txt">${fmt(v, v < 10 ? 1 : 0)}</text>`));
+    axisTicks(0, dur, 5).forEach((v) => (g += `<text x="${X(v)}" y="${H - 8}" text-anchor="middle" class="ch-txt">${mmss(v)}</text>`));
+    series.forEach((s) => { let d = '', on = false; s.t.forEach((t, i) => { const v = s.y[i]; if (!Number.isFinite(v)) { on = false; return; } d += (on ? 'L' : 'M') + X(t).toFixed(1) + ' ' + Y(v).toFixed(1); on = true; }); g += `<path d="${d}" fill="none" stroke="${s.col}" stroke-width="1.8" stroke-linejoin="round"/>`; });
+    return g + `<text x="${l}" y="${tp - 2}" class="ch-txt">${yLabel}</text></svg>`;
+  }
+  function downsample(t, y, step) { const ot = [], oy = []; for (let i = 0; i < t.length; i += step) { const w = y.slice(i, i + step).filter(Number.isFinite); ot.push(t[i]); oy.push(w.length ? w.reduce((a, b) => a + b, 0) / w.length : NaN); } return { t: ot, y: oy }; }
+
+  /* ---------- Mapa de calor / zonas / golpes ---------- */
+  function drawHeat(cv, players, mode) {
+    const c = cv.getContext('2d'), W = cv.width, H = cv.height, m = 22, sx = (W - 2 * m) / COURT.W, sy = (H - 2 * m) / COURT.L;
+    const P = (x, y) => [m + x * sx, H - m - y * sy];
+    c.clearRect(0, 0, W, H);
+    c.fillStyle = css('--court'); roundRect(c, 0, 0, W, H, 16); c.fill();
+    if (mode === 'heat') {
+      const off = document.createElement('canvas'); const m0 = players[0]; off.width = m0.GX; off.height = m0.GY; const oc = off.getContext('2d'); const id = oc.createImageData(m0.GX, m0.GY);
+      for (const pm of players) for (let iy = 0; iy < pm.GY; iy++) for (let ix = 0; ix < pm.GX; ix++) {
+        const v = pm.heat[iy * pm.GX + ix]; if (v < 0.04) continue;
+        const o = ((pm.GY - 1 - iy) * pm.GX + ix) * 4, [rr, gg, bb] = ramp(v);
+        if (id.data[o + 3] < v * 235) { id.data[o] = rr; id.data[o + 1] = gg; id.data[o + 2] = bb; id.data[o + 3] = Math.round(clamp(v * 1.4, 0, 1) * 225); }
+      }
+      oc.putImageData(id, 0, 0); c.imageSmoothingEnabled = true; c.drawImage(off, m, m, W - 2 * m, H - 2 * m);
+    }
+    c.strokeStyle = 'rgba(255,255,255,.85)'; c.lineWidth = 2;
+    for (const [a, b] of COURT_SEGS) { c.beginPath(); c.moveTo(...P(...a)); c.lineTo(...P(...b)); c.stroke(); }
+    c.strokeStyle = '#f2f7f4'; c.lineWidth = 4; c.beginPath(); c.moveTo(...P(-0.25, COURT.NET)); c.lineTo(...P(COURT.W + 0.25, COURT.NET)); c.stroke();
+    if (mode === 'zones') {
+      for (const pm of players) {
+        const rows = [[0, 2.2], [2.2, 4.5], [4.5, 6.7]];
+        pm.zones.forEach((rw, ri) => rw.forEach((v, ci) => {
+          const [d0, d1] = rows[ri], x0 = ci * COURT.W / 3, x1 = (ci + 1) * COURT.W / 3;
+          const y0 = pm.p === 0 ? COURT.NET - d1 : COURT.NET + d0, y1 = pm.p === 0 ? COURT.NET - d0 : COURT.NET + d1;
+          const xx0 = pm.p === 0 ? x0 : COURT.W - x1, xx1 = pm.p === 0 ? x1 : COURT.W - x0;
+          const A = P(xx0, y1), B = P(xx1, y0);
+          c.fillStyle = `rgba(232,150,44,${clamp(v * 2.4, 0.04, 0.85)})`; c.fillRect(A[0] + 2, A[1] + 2, B[0] - A[0] - 4, B[1] - A[1] - 4);
+          c.fillStyle = '#fff'; c.font = `800 ${Math.round(W / 15)}px "Barlow Condensed", sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+          c.fillText(Math.round(v * 100) + '%', (A[0] + B[0]) / 2, (A[1] + B[1]) / 2);
+        }));
+      }
+    }
+    if (mode === 'hull') {
+      for (const pm of players) { const col = pm.p === S.me ? '#e8962c' : '#8592ff'; c.fillStyle = col + '44'; c.strokeStyle = col; c.lineWidth = 2.5; c.beginPath(); pm.hull.forEach((q, i) => (i ? c.lineTo(...P(...q)) : c.moveTo(...P(...q)))); c.closePath(); c.fill(); c.stroke(); const [bx, by] = BA.basePoint(pm.p); const q = P(bx, by); c.fillStyle = '#fff'; c.beginPath(); c.arc(...q, 6, 0, 7); c.fill(); c.font = '700 12px Figtree, sans-serif'; c.textAlign = 'left'; c.fillText('base', q[0] + 9, q[1] + 4); }
+    }
+    if (mode === 'shots') {
+      const hs = S.res.hits.filter((h) => players.some((pm) => pm.p === h.p) && h.next !== undefined);
+      for (const h of hs) { const nx = S.res.hits[h.next]; const A = P(h.x, h.y), B = P(nx.x, nx.y); const col = css(ROLE_COL[h.role]); c.strokeStyle = col; c.globalAlpha = 0.75; c.lineWidth = 2; c.beginPath(); c.moveTo(...A); c.lineTo(...B); c.stroke(); const a = Math.atan2(B[1] - A[1], B[0] - A[0]); c.fillStyle = col; c.beginPath(); c.moveTo(...B); c.lineTo(B[0] - 9 * Math.cos(a - 0.4), B[1] - 9 * Math.sin(a - 0.4)); c.lineTo(B[0] - 9 * Math.cos(a + 0.4), B[1] - 9 * Math.sin(a + 0.4)); c.fill(); c.globalAlpha = 1; }
+    }
+    c.fillStyle = 'rgba(255,255,255,.8)'; c.font = '700 12px Figtree, sans-serif'; c.textAlign = 'center';
+    c.fillText(S.track.names[1].toUpperCase(), W / 2, 15); c.fillText(S.track.names[0].toUpperCase(), W / 2, H - 6);
+  }
+  function ramp(v) { const st = [[0, [255, 236, 160]], [0.45, [245, 170, 60]], [0.75, [235, 90, 50]], [1, [200, 30, 60]]]; for (let i = 1; i < st.length; i++) if (v <= st[i][0]) { const [a, ca] = st[i - 1], [b, cb] = st[i], u = (v - a) / (b - a); return ca.map((x, j) => Math.round(x + (cb[j] - x) * u)); } return st[st.length - 1][1]; }
+
+  /* ---------- Resultados ---------- */
+  function renderResults() {
+    const root = $('#v-resultados');
+    if (!S.res) {
+      root.innerHTML = `<div class="card empty"><svg viewBox="0 0 64 64" width="64" aria-hidden="true"><circle cx="32" cy="46" r="10" class="s-acc"/><path d="M24 40 14 8l10 4 4-8 4 6 4-6 4 8 10-4-10 32z" class="s-court"/></svg><h3>Todavía no hay ningún análisis</h3><p class="muted">Sube un vídeo de tu partido o mira el de demostración para ver todo lo que muestra Pluma Lab.</p><div class="row" style="justify-content:center"><button class="btn primary" id="emptyDemo">Ver partido de demostración</button><button class="btn" id="emptyUp">Subir vídeo</button></div></div>`;
+      $('#emptyDemo').onclick = runDemo; $('#emptyUp').onclick = () => $('#fileIn').click();
+      return;
+    }
+    if (root.dataset.built === String(S.sel) && root.innerHTML) { S.replay && S.replay.redraw(); return; }
+    const res = S.res, tr = S.track, me = S.me, op = 1 - me;
+    const cmp = S.sel === 'cmp', sel = cmp ? null : +S.sel;
+    const pls = cmp ? [res.players[me], res.players[op]] : [res.players[sel]];
+    const M = pls[0];
+    const both = (f, d, u) => cmp ? `${fmt(f(res.players[me]), d)}<small>${u}</small><div class="vs">Rival: ${fmt(f(res.players[op]), d)} ${u}</div>` : `${fmt(f(M), d)}<small>${u}</small>`;
+    const hl = res.highlights;
+    const myHits = cmp ? res.hits : res.hits.filter((h) => h.p === sel);
+    root.innerHTML = `
+    <div class="res-top"><div><h2>${tr.demo ? 'Partido de demostración' : 'Tu partido'}</h2><p class="muted">${mmss(tr.duration)} analizados · ${res.rallies.length} puntos · ${res.hits.length} golpes detectados${tr.demo ? ' · datos simulados' : ''}</p></div>
+      <div class="seg" id="selSeg"><button data-v="${me}" aria-pressed="${S.sel === me}">Tú</button><button data-v="${op}" aria-pressed="${S.sel === op}">Rival</button><button data-v="cmp" aria-pressed="${cmp}">Comparar</button></div></div>
+
+    <div class="board">
+      <div class="row" style="gap:6px">${pls.map((m) => ring(m.overall, m.p === me ? '#e8962c' : '#9aa8ff', 'Nota de ' + (m.p === me ? 'Tú' : 'Rival').toLowerCase())).join('')}</div>
+      <div class="tiles">
+        <div class="tile"><div class="v">${both((m) => m.hits, 0, '')}</div><div class="l">Golpes</div></div>
+        <div class="tile"><div class="v">${both((m) => m.dist, 0, 'm')}</div><div class="l">Distancia recorrida</div></div>
+        <div class="tile"><div class="v">${both((m) => m.smashMax, 0, 'km/h')}</div><div class="l">Remate más rápido (estimado)</div></div>
+        <div class="tile"><div class="v">${both((m) => m.attackShare * 100, 0, '%')}</div><div class="l">Golpes por encima de la cabeza</div></div>
+        <div class="tile"><div class="v">${both((m) => m.avgSpeed * 3.6, 1, 'km/h')}</div><div class="l">Velocidad media al moverte</div></div>
+        <div class="tile"><div class="v">${hl.longest ? hl.longest.n : '—'}<small>golpes</small></div><div class="l">Punto más largo</div></div>
+      </div>
+    </div>
+
+    <div class="card" id="replayCard">
+      <div class="card-h"><h3>Repetición</h3><div class="legend"><span><i class="sw" style="background:#e8962c"></i>Tú</span><span><i class="sw" style="background:#8592ff"></i>Rival</span>${tr.demo ? '<span class="pill">Vídeo simulado</span>' : ''}</div></div>
+      <div class="replay">
+        <div style="min-width:0">
+          <div class="stage"><canvas class="ov"></canvas><span class="badge">${tr.demo ? 'Demostración' : 'Tu vídeo'}</span><span class="shot-pop"></span></div>
+          <svg class="timeline diagram" viewBox="0 0 1000 64" preserveAspectRatio="none" role="img" aria-label="Línea de tiempo de golpes; toca para saltar">${timelineSVG()}</svg>
+          <div class="ctrls">
+            <button class="icon-btn prevHit" aria-label="Golpe anterior"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+            <button class="icon-btn play" aria-label="Reproducir">${ICON.play}</button>
+            <button class="icon-btn nextHit" aria-label="Golpe siguiente"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+            <span class="num small tm">0:00</span><span style="flex:1"></span>
+            <div class="seg"><button data-rate="0.25" aria-pressed="false">¼×</button><button data-rate="0.5" aria-pressed="false">½×</button><button data-rate="1" aria-pressed="true">1×</button></div>
+            ${tr.demo ? '' : '<button class="chip" data-opt="skel" aria-pressed="true">Esqueletos</button><button class="chip" data-opt="court" aria-pressed="true">Pista</button>'}<button class="chip" data-opt="trail" aria-pressed="true">Rastro</button>
+          </div>
+        </div>
+        <div class="mini-wrap"><div class="mini"><canvas width="180" height="380"></canvas></div><p class="small muted" style="margin-top:8px">Vista desde arriba. La línea discontinua es el golpe en vuelo, con el color de su tipo.</p></div>
+      </div>
+      <div class="legend" style="margin-top:8px"><span><i class="sw" style="background:var(--atk)"></i>Ataque</span><span><i class="sw" style="background:var(--neu)"></i>Neutral</span><span><i class="sw" style="background:var(--def)"></i>Defensa</span><span><i class="sw" style="background:var(--srv)"></i>Saque</span><span>Círculos arriba: rival · abajo: tú</span></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card"><div class="card-h"><h3>Perfil de juego</h3><p>Puntuación de 0 a 100 en cada aspecto</p></div>${radar(cmp ? pls : [M])}
+        <div class="legend" style="justify-content:center">${pls.map((m) => `<span><i class="sw" style="background:${pcol(m.p)}"></i>${m.p === me ? 'Tú' : 'Rival'} · ${m.overall}</span>`).join('')}</div></div>
+      <div class="card"><div class="card-h"><h3>Consejos para ${cmp || sel === me ? 'ti' : 'el rival'}</h3></div><div class="tips">${(cmp ? res.players[me] : M).tips.slice(0, 6).map((t) => `<div class="tip"><i style="background:${css(t.lvl === 'bien' ? '--good' : t.lvl === 'mejora' ? '--accent' : t.lvl === 'aviso' ? '--bad' : '--def')}"></i><div><b>${t.title}</b><span class="small">${t.body}</span></div></div>`).join('') || '<p class="muted">Sin consejos todavía: hacen falta más golpes.</p>'}</div></div>
+    </div>
+
+    <div class="card"><div class="card-h"><h3>Ataque y defensa según la altura de contacto</h3><p>Cada punto es un golpe: a qué altura cogiste el volante y cuándo. Toca uno para verlo.</p></div>
+      <div style="display:grid;gap:10px;margin-bottom:12px">${pls.map((m) => { const t = m.cats.alto + m.cats.medio + m.cats.bajo || 1; const seg = (v, col, n) => v ? `<div style="flex:${v};background:${css(col)}" title="${n}">${Math.round(v / t * 100)}%</div>` : ''; return `<div><div class="row small" style="justify-content:space-between;margin-bottom:4px"><b>${m.p === me ? 'Tú' : 'Rival'}</b><span class="muted">${m.cats.alto} arriba · ${m.cats.medio} a media altura · ${m.cats.bajo} abajo</span></div><div class="stack">${seg(m.cats.alto, '--atk', 'Arriba')}${seg(m.cats.medio, '--neu', 'Media altura')}${seg(m.cats.bajo, '--def', 'Abajo')}</div></div>`; }).join('')}</div>
+      <div class="overflow">${contactChart(myHits.filter((h) => h.nIn > 0), (cmp ? res.players[me] : M).stature, tr.duration)}</div>
+      <div class="legend"><span><i class="sw" style="background:var(--atk)"></i>Ataque (remates)</span><span><i class="sw" style="background:var(--neu)"></i>Neutral (clears, drops, drives, dejadas)</span><span><i class="sw" style="background:var(--def)"></i>Defensa (lobs, bloqueos)</span></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card"><div class="card-h"><h3>Tipos de golpe</h3><p>${myHits.length} golpes</p></div><div class="bars">${typeBars(myHits)}</div></div>
+      <div class="card"><div class="card-h"><h3>Velocidad del volante</h3><p>Salida estimada, km/h</p></div>
+        ${hl.fastest ? `<div class="row" style="margin-bottom:10px"><span class="pill"><i class="sw" style="background:var(--atk)"></i>Golpe más rápido: ${Math.round(hl.fastest.v0 * 3.6)} km/h · ${tr.names[hl.fastest.p]} · ${esc(hl.fastest.type)}</span><button class="chip" data-seek="${hl.fastest.t}">Ver jugada</button></div>` : ''}
+        <div class="overflow">${speedChart(myHits)}</div><p class="small muted">Se calcula con la distancia y el tiempo entre golpes y un modelo de frenado del volante en el aire. Es una aproximación.</p></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card"><div class="card-h"><h3>Pista</h3><div class="seg" id="heatSeg"><button data-v="heat">Calor</button><button data-v="zones">Zonas</button><button data-v="shots">Golpes</button><button data-v="hull">Cobertura</button></div></div>
+        <div style="display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:16px;align-items:start" class="heat-grid"><canvas id="heatCv" width="300" height="620" style="width:100%;height:auto"></canvas><div id="heatTxt" class="small"></div></div></div>
+      <div class="card"><div class="card-h"><h3>Movimiento</h3><p>Velocidad (km/h) en cada momento; en naranja, los puntos</p></div>
+        <div class="metrics" style="margin-bottom:12px">
+          ${metric('Distancia por minuto', both((m) => m.distPerMin, 0, 'm'), 'Cuánto te mueves', null)}
+          ${metric('Velocidad punta', both((m) => m.maxSpeed * 3.6, 1, 'km/h'), 'Tu carrera más rápida', null)}
+          ${metric('Cobertura de pista', both((m) => m.coverage * 100, 0, '%'), 'Zona de tu media pista que pisas', null)}
+        </div>
+        <div class="overflow">${lineChart(pls.map((m) => { const d = downsample(res.series.t, res.series.spd[m.p].map((v) => v * 3.6), Math.max(1, Math.round(0.5 / res.dt))); return { ...d, col: pcol(m.p) }; }), tr.duration, res.rallies, 'km/h')}</div></div>
+    </div>
+
+    <div class="card"><div class="card-h"><h3>Técnica y desplazamientos</h3><p>Comparado con lo que recomiendan los entrenadores</p></div>
+      <div class="metrics">${techMetrics(pls, me)}</div></div>
+
+    <div class="grid2">
+      <div class="card"><div class="card-h"><h3>Puntos jugados</h3><p>Toca un punto para verlo</p></div><div class="rallies">${res.rallies.map((r, i) => `<button class="rally" data-seek="${r.start - 1}"><span class="num small">${mmss(r.start)}</span><span class="dots">${r.hits.map((h) => `<i class="${h.p === me ? '' : 'p1'}" style="background:${css(ROLE_COL[h.role])}" title="${tr.names[h.p]}: ${esc(h.type)}"></i>`).join('')}</span><span class="small muted" style="text-align:right">${r.n} golpes · ${fmt(r.dur, 0)} s</span></button>`).join('')}</div>
+        <p class="small muted" style="margin-top:8px">Círculos: tus golpes · cuadrados: los del rival.</p></div>
+      <div class="card"><div class="card-h"><h3>Resistencia</h3><p>Velocidad media en cada punto</p></div>
+        <div class="overflow">${fatigueChart(pls)}</div>
+        <p class="small muted">Si la línea baja hacia el final, te estás cansando.</p></div>
+    </div>
+    <p class="small muted">Todas las medidas son estimaciones a partir de la postura detectada en el vídeo. Úsalas para ver tendencias y comparar partidos grabados igual.</p>`;
+    root.dataset.built = String(S.sel);
+    $$('#selSeg button').forEach((b) => (b.onclick = () => { S.sel = b.dataset.v === 'cmp' ? 'cmp' : +b.dataset.v; S.replay && S.replay.destroy(); S.replay = null; root.dataset.built = ''; renderResults(); }));
+    $$('#heatSeg button').forEach((b) => (b.onclick = () => { S.heatMode = b.dataset.v; drawResultCanvases(); }));
+    root.onclick = (e) => { const el = e.target.closest('[data-seek]'); if (el && S.replay) S.replay.seek(+el.dataset.seek); };
+    S.replay = Replay($('#replayCard'));
+    drawResultCanvases();
+  }
+  function metric(l, v, h, state) { return `<div class="metric"><span class="l">${l}</span><span class="v">${v}</span><span class="h">${h}</span>${state ? `<span><span class="state ${state[0]}">${state[1]}</span></span>` : ''}</div>`; }
+  function techMetrics(pls, me) {
+    const m = pls[0], o = pls[1];
+    const vv = (f, d, u) => `${fmt(f(m), d)}<small>${u}</small>${o ? `<div class="h">Rival: ${fmt(f(o), d)} ${u}</div>` : ''}`;
+    const st = (ok, warn) => (ok ? ['good', 'Bien'] : warn ? ['warn', 'Mejorable'] : ['bad', 'A trabajar']);
+    const q = (v, a, b) => (Number.isFinite(v) ? st(v >= a, v >= b) : null);
+    return [
+      metric('Brazo estirado arriba', vv((x) => x.elbowOk * 100, 0, '%'), 'Golpes altos con el codo ≥ 145°', q(m.elbowOk, 0.7, 0.45)),
+      metric('Ángulo del codo', vv((x) => x.elbowAvg, 0, '°'), 'Media en el contacto por arriba', q(m.elbowAvg, 150, 135)),
+      metric('Rodillas en espera', vv((x) => x.readyKnee, 0, '°'), 'Ideal entre 120° y 155°', Number.isFinite(m.readyKnee) ? st(m.readyKnee >= 115 && m.readyKnee <= 155, m.readyKnee <= 165) : null),
+      metric('Split step', vv((x) => x.split * 100, 0, '%'), 'Golpes del rival en los que saltas para prepararte', q(m.split, 0.6, 0.35)),
+      metric('Vuelta a la base', vv((x) => x.recovery * 100, 0, '%'), Number.isFinite(m.recTime) ? `En ${fmt(m.recTime, 1)} s de media` : 'Tras cada golpe', q(m.recovery, 0.75, 0.5)),
+      metric('Reacción', vv((x) => x.reaction, 2, 's'), 'Hasta empezar a moverte', Number.isFinite(m.reaction) ? st(m.reaction <= 0.3, m.reaction <= 0.45) : null),
+      metric('Estocadas en la red', vv((x) => x.lunges, 0, ''), Number.isFinite(m.lungeKnee) ? `Rodilla a ${fmt(m.lungeKnee, 0)}° de media` : 'Pasos largos a la red', null),
+      metric('Saltos al golpear', vv((x) => x.jumps, 0, ''), m.jumpMax ? `El más alto: ${m.jumpMax} cm` : 'Remates en salto', null),
+      metric('Variedad de golpes', vv((x) => x.variety * 100, 0, '%'), 'Cuánto mezclas los tipos de golpe', q(m.variety, 0.7, 0.5)),
+      metric('Golpes por minuto', vv((x) => x.hitsPerMin, 1, ''), 'Ritmo de juego', null),
+    ].join('');
+  }
+  function typeBars(hits) {
+    const c = {}; hits.forEach((h) => { (c[h.type] = c[h.type] || { n: 0, role: h.role }).n++; });
+    const arr = Object.entries(c).sort((a, b) => b[1].n - a[1].n), mx = arr.length ? arr[0][1].n : 1;
+    return arr.map(([k, v]) => `<div class="bar-row"><span>${esc(k)}</span><span class="track"><div style="width:${v.n / mx * 100}%;background:${css(ROLE_COL[v.role])}"></div></span><span class="num" style="text-align:right">${v.n}</span></div>`).join('') || '<p class="muted">No se han detectado golpes.</p>';
+  }
+  function timelineSVG() {
+    const res = S.res, dur = S.track.duration; if (!dur) return '';
+    let g = `<rect x="0" y="0" width="1000" height="64" fill="${css('--surface-2')}"/>`;
+    res.rallies.forEach((r) => (g += `<rect x="${r.start / dur * 1000 - 2}" y="6" width="${Math.max(3, (r.dur) / dur * 1000 + 4)}" height="52" rx="3" fill="${css('--accent')}" fill-opacity=".14"/>`));
+    res.hits.forEach((h) => { const y = h.p === S.me ? 44 : 20; g += `<rect x="${h.t / dur * 1000 - 1.5}" y="${y - 8}" width="3" height="16" rx="1.5" fill="${css(ROLE_COL[h.role])}"/>`; });
+    g += `<line x1="0" x2="1000" y1="32" y2="32" stroke="${css('--line')}"/><g class="ph"><rect x="-1.5" y="0" width="3" height="64" fill="${css('--ink')}"/></g>`;
+    return g;
+  }
+  function fatigueChart(pls) {
+    const res = S.res, N = res.rallies.length; if (N < 2) return '<p class="muted">Hacen falta al menos dos puntos.</p>';
+    const W = 560, H = 200, l = 40, r = 12, tp = 14, b = 28;
+    const all = pls.flatMap((m) => m.perRally.filter(Number.isFinite).map((v) => v * 3.6)); const mx = Math.max(2, ...all) * 1.15;
+    const X = (i) => l + i / (N - 1) * (W - l - r), Y = (v) => tp + (1 - v / mx) * (H - tp - b);
+    let g = `<svg viewBox="0 0 ${W} ${H}" class="diagram" role="img" aria-label="Velocidad media por punto">`;
+    axisTicks(0, mx, 4).forEach((v) => (g += `<line x1="${l}" x2="${W - r}" y1="${Y(v)}" y2="${Y(v)}" class="ch-grid"/><text x="${l - 6}" y="${Y(v) + 4}" text-anchor="end" class="ch-txt">${fmt(v, 1)}</text>`));
+    for (let i = 0; i < N; i += Math.max(1, Math.ceil(N / 10))) g += `<text x="${X(i)}" y="${H - 9}" text-anchor="middle" class="ch-txt">${i + 1}</text>`;
+    pls.forEach((m) => {
+      const col = pcol(m.p), pts = m.perRally.map((v, i) => [X(i), Number.isFinite(v) ? Y(v * 3.6) : null]).filter((p) => p[1] !== null);
+      g += `<path d="${pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('')}" fill="none" stroke="${col}" stroke-width="2.5"/>`;
+      pts.forEach((p) => (g += `<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="${col}"/>`));
+      // tendencia lineal
+      const xs = m.perRally.map((v, i) => [i, v * 3.6]).filter((q) => Number.isFinite(q[1]));
+      if (xs.length > 2) { const mxx = mean(xs.map((q) => q[0])), myy = mean(xs.map((q) => q[1])); let a = 0, bb = 0; xs.forEach(([x, y]) => { a += (x - mxx) * (y - myy); bb += (x - mxx) ** 2; }); const sl = bb ? a / bb : 0; g += `<line x1="${X(0)}" y1="${Y(myy - sl * mxx)}" x2="${X(N - 1)}" y2="${Y(myy + sl * (N - 1 - mxx))}" stroke="${col}" stroke-dasharray="5 5" stroke-width="1.5"/>`; }
+    });
+    return g + `<text x="${l}" y="${tp - 3}" class="ch-txt">km/h</text><text x="${W - r}" y="${H - 9}" text-anchor="end" class="ch-txt">punto nº</text></svg>`;
+  }
+  function drawResultCanvases() {
+    const cv = $('#heatCv'); if (!cv) return;
+    const res = S.res, cmp = S.sel === 'cmp';
+    const pls = cmp ? res.players : [res.players[+S.sel]];
+    $$('#heatSeg button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === S.heatMode));
+    drawHeat(cv, pls, S.heatMode);
+    const m = pls.find((x) => x.p === S.me) || pls[0];
+    const zn = ['Red', 'Medio campo', 'Fondo'];
+    const zr = m.zones.map((r) => r.reduce((a, b) => a + b, 0));
+    const txt = {
+      heat: `<p><b>Mapa de calor.</b> Las zonas rojas son donde más tiempo pasas.</p>`,
+      zones: `<p><b>Tiempo en cada zona</b> de tu media pista.</p>`,
+      shots: `<p><b>Trayectorias de golpes:</b> desde donde golpeas hasta donde el rival recoge el volante, con el color del tipo de golpe.</p>`,
+      hull: `<p><b>Cobertura:</b> el área que recorres. El punto blanco es la posición base recomendada.</p>`,
+    }[S.heatMode];
+    $('#heatTxt').innerHTML = txt + `<div class="bars" style="margin-top:12px">${zr.map((v, i) => `<div class="bar-row" style="grid-template-columns:90px minmax(0,1fr) 40px"><span>${zn[i]}</span><span class="track"><div style="width:${v * 100}%;background:var(--court)"></div></span><span class="num">${Math.round(v * 100)}%</span></div>`).join('')}</div><p class="small muted" style="margin-top:10px">Reparto de ${m.p === S.me ? 'tu' : 'su'} tiempo entre red, medio campo y fondo.</p>`;
+    if (window.innerWidth < 560) $('.heat-grid').style.gridTemplateColumns = 'minmax(0,1fr)';
+  }
+
+  /* ---------- Aprende ---------- */
+  function renderLearn() {
+    const root = $('#v-aprende');
+    root.innerHTML = `<div class="res-top"><div><h2>Aprende bádminton</h2><p class="muted">Reglas, golpes, desplazamientos y táctica, con dibujos.</p></div></div>` + BK.learnHTML();
+    $$('#learnNav [data-go]').forEach((b) => (b.onclick = () => document.getElementById(b.dataset.go).scrollIntoView({ behavior: 'smooth', block: 'start' })));
+    $$('#courtMode button').forEach((b) => (b.onclick = () => { $$('#courtMode button').forEach((x) => x.setAttribute('aria-pressed', x === b)); $('#courtDia').innerHTML = BK.courtDiagram(b.dataset.m); }));
+  }
+
+  /* ---------- Asistente ---------- */
+  let sample = null, aiChecked = false;
+  async function initChat() {
+    if (!aiChecked) {
+      aiChecked = true;
+      $('#aiMode').textContent = 'Comprobando…';
+      try { sample = window.claude && window.claude.use ? await window.claude.use('sample') : null; } catch (e) { sample = null; }
+      $('#aiMode').innerHTML = sample ? '<i class="sw" style="background:var(--good)"></i>IA conversacional' : '<i class="sw" style="background:var(--muted)"></i>Modo sin conexión';
+    }
+    renderChips();
+    if (!S.chat.length) addMsg('bot', `<p>¡Hola! Soy tu asistente de bádminton. Pregúntame por las reglas, cómo hacer un golpe, táctica${S.res ? ' o por tu partido analizado' : ''}.</p>${S.res ? '' : '<p class="small muted">Cuando analices un vídeo, también podré comentarte tus datos.</p>'}`);
+  }
+  function renderChips() {
+    const qs = S.res ? ['Resume mi partido', '¿En qué debo mejorar?', '¿Cómo mejoro mi remate?', '¿Ataco o defiendo mucho?', '¿Cómo se cuentan los puntos?'] : ['¿Cómo se cuentan los puntos?', '¿Desde dónde saco?', '¿Qué es un drop?', '¿Cómo mejoro mi remate?', 'Táctica de dobles'];
+    $('#chatChips').innerHTML = qs.map((q) => `<button class="chip" type="button">${q}</button>`).join('');
+    $$('#chatChips .chip').forEach((b) => (b.onclick = () => ask(b.textContent)));
+  }
+  function addMsg(who, html) { const d = document.createElement('div'); d.className = 'msg ' + who; d.innerHTML = html; $('#chatLog').appendChild(d); $('#chatLog').scrollTop = 1e9; if (who !== 'tmp') S.chat.push({ who, html }); return d; }
+  $('#chatForm').onsubmit = (e) => { e.preventDefault(); const q = $('#chatInput').value.trim(); if (q) { $('#chatInput').value = ''; ask(q); } };
+  const hist = [];
+  async function ask(q) {
+    const me = document.createElement('div'); me.className = 'msg me'; me.textContent = q; $('#chatLog').appendChild(me);
+    const bot = addMsg('bot', '<span class="typing"><i></i><i></i><i></i></span>');
+    if (sample) {
+      try {
+        const sys = systemPrompt();
+        hist.push({ role: 'user', content: q });
+        const msgs = hist.slice(-8).map((m, i, arr) => (i === arr.length - 1 ? { role: 'user', content: sys + '\n\nPregunta del usuario: ' + m.content } : m));
+        const out = await sample(msgs, { cache: false, modelTier: 'quick', onText: ({ text }) => { bot.innerHTML = md(text); $('#chatLog').scrollTop = 1e9; } });
+        bot.innerHTML = md(out.text); hist.push({ role: 'assistant', content: out.text });
+        return;
+      } catch (e) { hist.pop(); if (e && e.code === 'not_granted') { sample = null; $('#aiMode').innerHTML = '<i class="sw" style="background:var(--muted)"></i>Modo sin conexión'; } }
+    }
+    setTimeout(() => { bot.innerHTML = localAnswer(q); $('#chatLog').scrollTop = 1e9; }, 350);
+  }
+  function md(t) { try { return window.marked ? marked.parse(t, { breaks: true }) : `<p>${esc(t).replace(/\n/g, '<br>')}</p>`; } catch (e) { return `<p>${esc(t)}</p>`; } }
+  function summaryFor(p) {
+    const m = S.res.players[p];
+    return { jugador: m.name, golpes: m.hits, tipos: m.types, distancia_m: Math.round(m.dist), velocidad_media_kmh: +(m.avgSpeed * 3.6).toFixed(1), golpes_por_arriba_pct: Math.round(m.attackShare * 100), golpes_por_abajo_pct: Math.round(m.defShare * 100), remate_max_kmh: Math.round(m.smashMax) || null, remate_medio_kmh: Math.round(m.smashAvg) || null, codo_estirado_pct: Math.round(m.elbowOk * 100) || null, split_step_pct: Math.round(m.split * 100) || null, vuelta_base_pct: Math.round(m.recovery * 100) || null, reaccion_s: +(m.reaction || 0).toFixed(2), estocadas: m.lunges, saltos: m.jumps, rodillas_espera_grados: Math.round(m.readyKnee) || null, cobertura_pct: Math.round(m.coverage * 100), puntuaciones: m.scores, nota: m.overall, consejos: m.tips.map((t) => t.title) };
+  }
+  function systemPrompt() {
+    let s = 'Eres el asistente de Pluma Lab, una app de análisis de bádminton. Responde en español de España, de forma clara, cercana y breve (máximo unos 150 palabras salvo que pidan más), con viñetas cuando ayuden. Si preguntan por reglas, usa el reglamento vigente de la BWF: juegos a 21 puntos con 2 de diferencia y tope 30, al mejor de 3; desde enero de 2027 la BWF pasará a juegos a 15 puntos con tope 21. No inventes datos del análisis: si algo no está en los datos, dilo.';
+    if (S.res) s += `\n\nDatos del análisis de vídeo (estimaciones${S.track.demo ? ', partido de demostración simulado' : ''}). Duración ${Math.round(S.track.duration)} s, ${S.res.rallies.length} puntos.\nUsuario: ${JSON.stringify(summaryFor(S.me))}\nRival: ${JSON.stringify(summaryFor(1 - S.me))}`;
+    else s += '\n\nTodavía no hay ningún vídeo analizado.';
+    return s;
+  }
+  const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9ñ ]/g, ' ');
+  function localAnswer(q) {
+    const n = norm(q), words = n.split(/\s+/).filter((w) => w.length > 2);
+    const mine = /\b(mi|mis|me|he|hice|tengo|partido|analisis|juego|resume|resumen|mejorar|rival|ataco|defiendo|corri|corro)\b/.test(n);
+    if (S.res && mine) { const a = dataAnswer(n); if (a) return a; }
+    let best = null, bs = 0;
+    for (const e of BK.KB) {
+      const ks = e.k.split(' ');
+      let sc = 0; for (const w of words) for (const k of ks) { if (k === w) sc += 3; else if (k.length > 3 && (w.startsWith(k.slice(0, 5)) || k.startsWith(w.slice(0, 5)))) sc += 1.5; }
+      if (sc > bs) { bs = sc; best = e; }
+    }
+    if (best && bs >= 1.5) return best.a + (sample ? '' : '<p class="small muted">Respuesta de la guía integrada.</p>');
+    if (!S.res && mine) return '<p>Aún no has analizado ningún vídeo. Ve a <b>Analizar</b>, sube tu partido o prueba el de demostración, y luego pregúntame por tus datos.</p>';
+    return '<p>No tengo una respuesta para eso en la guía integrada. Prueba a preguntar por reglas (puntos, saque, faltas), golpes (clear, drop, remate, lob, dejada, bloqueo), desplazamientos o táctica.</p>';
+  }
+  function dataAnswer(n) {
+    const m = S.res.players[S.me], o = S.res.players[1 - S.me];
+    const pc = (v) => (Number.isFinite(v) ? Math.round(v * 100) + ' %' : '—');
+    if (/remate|smash|velocidad del volante|rapid/.test(n)) return `<p>Has hecho <b>${m.smashN} remates</b>.${Number.isFinite(m.smashAvg) ? ` Velocidad de salida estimada: <b>${Math.round(m.smashAvg)} km/h</b> de media y <b>${Math.round(m.smashMax)} km/h</b> la más rápida.` : ''} ${Number.isFinite(m.elbowOk) ? `En el ${pc(m.elbowOk)} de tus golpes altos llevas el brazo estirado.` : ''}</p>` + BK.KB.find((e) => e.k.startsWith('remate')).a;
+    if (/mejor|consejo|fallo|trabajar|debo/.test(n)) return `<p>Lo más importante según tu vídeo:</p><ul>${m.tips.filter((t) => t.lvl !== 'bien').slice(0, 4).map((t) => `<li><b>${t.title}.</b> ${t.body}</li>`).join('') || '<li>¡Buen trabajo! No hay puntos débiles claros.</li>'}</ul>`;
+    if (/ataq|defien|defensa|ataque|altura/.test(n)) return `<p>El <b>${pc(m.attackShare)}</b> de tus golpes son por encima de la cabeza (ataque) y el <b>${pc(m.defShare)}</b> por debajo de la cintura (defensa). Tu rival: ${pc(o.attackShare)} y ${pc(o.defShare)}.</p><p>${m.attackShare >= o.attackShare ? 'Atacas más que tu rival.' : 'Tu rival te obliga a defender más. Intenta moverte antes para coger el volante más alto.'}</p>`;
+    if (/distancia|corri|corro|mueve|muevo|velocidad|cansa|fisico/.test(n)) return `<p>Has recorrido <b>${Math.round(m.dist)} m</b> (${Math.round(m.distPerMin)} m por minuto) a una velocidad media de <b>${fmt(m.avgSpeed * 3.6, 1)} km/h</b> cuando te mueves. Tu rival: ${Math.round(o.dist)} m.</p>`;
+    if (/rival|compar/.test(n)) return `<p>Nota global: <b>tú ${m.overall}</b> · rival ${o.overall}.</p><ul>${Object.keys(m.scores).map((k) => `<li>${k}: ${m.scores[k]} frente a ${o.scores[k]}</li>`).join('')}</ul>`;
+    if (/golpe|tipo/.test(n)) return `<p>Tus golpes:</p><ul>${Object.entries(m.types).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<li>${k}: ${v}</li>`).join('')}</ul>`;
+    if (/resum|partido|analisis|juego/.test(n)) return `<p>Resumen de ${S.track.demo ? 'la demostración' : 'tu partido'} (${mmss(S.track.duration)}, ${S.res.rallies.length} puntos):</p><ul><li><b>${m.hits} golpes</b>: ${pc(m.attackShare)} por arriba, ${pc(m.defShare)} por abajo.</li><li><b>${Math.round(m.dist)} m</b> recorridos.</li>${Number.isFinite(m.smashMax) ? `<li>Remate más rápido: <b>${Math.round(m.smashMax)} km/h</b>.</li>` : ''}<li>Vuelta a la base: ${pc(m.recovery)} · split step: ${pc(m.split)}.</li><li>Nota global: <b>${m.overall}</b> (rival ${o.overall}).</li></ul>${(() => { const t = m.tips.find((x) => x.lvl === 'mejora' || x.lvl === 'aviso'); return t ? `<p>Consejo principal: <b>${t.title}</b>. ${t.body}</p>` : ''; })()}`;
+    return null;
+  }
+
+  /* ---------- Arranque ---------- */
+  const h0 = (location.hash || '').slice(1);
+  go(VIEWS.includes(h0) ? h0 : 'analizar');
+})();
+
+</script>
+
+<script>if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>
+</body></html>

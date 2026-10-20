@@ -1,0 +1,24 @@
+PLUMA LAB · Cómo publicarla gratis en GitHub Pages
+=================================================
+
+1. Crea una cuenta gratuita en https://github.com (si no la tienes).
+2. Pulsa "+" (arriba a la derecha) > "New repository".
+   - Nombre: pluma-lab
+   - Marca "Public" y pulsa "Create repository".
+3. En el repositorio, pulsa "uploading an existing file" (o "Add file" > "Upload files").
+4. Arrastra TODO el contenido de esta carpeta (index.html, sw.js, manifest.webmanifest,
+   los iconos y la carpeta "mp" entera). Pulsa "Commit changes".
+   Consejo: arrastra desde el ordenador, la carpeta "mp" incluida, para que mantenga su estructura.
+5. Ve a "Settings" > "Pages". En "Branch" elige "main" y "/ (root)" y pulsa "Save".
+6. Espera 1-2 minutos. Tu app estará en:
+       https://TU-USUARIO.github.io/pluma-lab/
+
+Instalarla en el móvil
+- Android (Chrome): abre la dirección > menú (⋮) > "Instalar aplicación" o "Añadir a pantalla de inicio".
+- iPhone (Safari): abre la dirección > botón Compartir > "Añadir a pantalla de inicio".
+
+Notas
+- Todo se procesa en el móvil: los vídeos no se suben a ningún sitio.
+- La primera vez descarga el modelo de IA (unos 6 MB). Después funciona también sin conexión.
+- Fuera de Claude, el asistente funciona en "modo sin conexión" con la guía integrada y los datos de tu partido.
+- En iPhone, graba en Ajustes > Cámara > Formatos > "Más compatible".
