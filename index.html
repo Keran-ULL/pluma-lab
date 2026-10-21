@@ -246,7 +246,12 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
 .mode-card b { font-family: var(--f-display); font-size: 22px; }
 .reps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
 @media (max-width: 480px) { .reps-grid { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; } .rep-card .b { padding: 6px 8px; } }
-.rep-card { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); text-align: left; padding: 0; display: grid; }
+.rep-card { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); text-align: left; padding: 0; display: grid; align-content: start; }
+.rep-img { border: 0; padding: 0; background: none; display: block; width: 100%; }
+.rep-edit { margin-top: 4px; width: 100%; border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 5px 6px; font-size: 13px; }
+.fixbar { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 12px 16px; }
+.fixbar > div { flex: 1 1 320px; min-width: 0; }
+.addHit { padding: 7px 12px; font-size: 13px; }
 .rep-card canvas { width: 100%; height: auto; display: block; background: #0a1511; aspect-ratio: 4/3; }
 .rep-card .b { padding: 8px 10px; display: grid; gap: 3px; }
 .rep-card .b b { font-size: 14px; }
@@ -322,6 +327,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
           <div class="field"><label>¿Desde dónde se grabó?</label><div class="seg" id="viewSeg"><button aria-pressed="true" data-v="side">De lado</button><button aria-pressed="false" data-v="back">De espaldas</button><button aria-pressed="false" data-v="front">De frente</button></div></div>
           <div class="field"><label for="tH">Estatura del jugador (cm)</label><input type="number" id="tH" value="175" min="120" max="220"></div>
           <div class="field"><label for="tHand">Mano de juego</label><select id="tHand"><option value="auto">Detectar sola</option><option value="R">Diestro</option><option value="L">Zurdo</option></select></div>
+          <div class="field"><label>Sensibilidad para detectar golpes</label><div class="seg" id="tsSeg"><button aria-pressed="false" data-v="low">Baja</button><button aria-pressed="true" data-v="normal">Normal</button><button aria-pressed="false" data-v="high">Alta</button></div><span class="small muted">Baja: solo golpes claros. Alta: también golpes muy suaves.</span></div>
           <div class="field"><label>Precisión</label><div class="seg" id="tqSeg"><button aria-pressed="false" data-v="fast">Rápida</button><button aria-pressed="true" data-v="normal">Normal</button><button aria-pressed="false" data-v="high">Alta</button></div></div>
           <div class="field"><label>Duración estimada</label><div class="num" id="tEtaTxt" style="padding-top:6px">—</div></div>
         </div>
@@ -545,10 +551,34 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
   const ROW_N = ['red', 'medio campo', 'fondo'];
   function basePoint(p) { const dn = 2.75; return p === 0 ? [COURT.W / 2, COURT.NET - dn] : [COURT.W / 2, COURT.NET + dn]; }
 
+  /* ---------- Limpieza de puntos (vídeos de baja calidad) ---------- */
+  // Mediana de 3 fotogramas por coordenada: quita saltos sueltos sin aplanar los golpes
+  // (en un golpe la mano avanza siempre en la misma dirección y la mediana la conserva).
+  // Las articulaciones poco visibles se sustituyen por la media de sus vecinas.
+  function cleanSeq(list) {
+    const n = list.length, out = new Array(n).fill(null);
+    const med3 = (a, b, c) => (a > b ? (b > c ? b : a > c ? c : a) : (a > c ? a : b > c ? c : b));
+    for (let i = 0; i < n; i++) {
+      const cur = list[i]; if (!cur) continue;
+      const pr = list[i - 1] || cur, nx = list[i + 1] || cur;
+      const img = new Float32Array(cur.img.length), w = cur.w ? new Float32Array(cur.w.length) : null;
+      for (let k = 0; k < NK; k++) {
+        const low = cur.img[k * 3 + 2] < 0.3 && list[i - 1] && list[i + 1];
+        for (let d = 0; d < 2; d++) { const j = k * 3 + d; img[j] = low ? (pr.img[j] + nx.img[j]) / 2 : med3(pr.img[j], cur.img[j], nx.img[j]); }
+        img[k * 3 + 2] = cur.img[k * 3 + 2];
+        if (w) for (let d = 0; d < 3; d++) { const j = k * 3 + d; const a = pr.w ? pr.w[j] : cur.w[j], c = nx.w ? nx.w[j] : cur.w[j]; w[j] = low ? (a + c) / 2 : med3(a, cur.w[j], c); }
+      }
+      out[i] = { img, w };
+    }
+    return out;
+  }
+
   /* ---------- Análisis principal ---------- */
   function analyze(track, opts) {
     opts = opts || {};
-    const frames = track.frames, n = frames.length;
+    const raw = track.frames, n = raw.length;
+    const cl = [0, 1].map((p) => cleanSeq(raw.map((f) => f.p[p])));
+    const frames = raw.map((f, i) => ({ t: f.t, p: [cl[0][i], cl[1][i]] }));
     const t = frames.map((f) => f.t);
     const { img2court } = courtHomographies(track.corners);
     const dur = n ? t[n - 1] - t[0] : 0;
@@ -640,7 +670,9 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       const handPref = track.hand && track.hand[p];
       let side = handPref === 'L' ? 0 : handPref === 'R' ? 1 : null;
       if (side === null) { const sl = wSpd[0].filter(Number.isFinite).reduce((a, b) => a + b, 0), sr = wSpd[1].filter(Number.isFinite).reduce((a, b) => a + b, 0); side = sr >= sl ? 1 : 0; }
-      const ws = wSpd[side];
+      // Solo cuenta como golpe si la mano de la raqueta va claramente más rápida que la otra
+      // (al andar o colocarse se mueven los dos brazos parecido)
+      const ws = wSpd[side].map((v, i) => (Number.isFinite(v) && Number.isFinite(wSpd[1 - side][i]) && v < 1.35 * wSpd[1 - side][i] ? v * 0.5 : v));
       const kW = side ? K.rwr : K.lwr, kE = side ? K.rel : K.lel, kS = side ? K.rsh : K.lsh;
       return { p, stat, scale, bPx, X, Y, spd: spdS, dist, rise, air, ws, side, kW, kE, kS, rawX, rawY };
     }
@@ -879,7 +911,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     return T.sort((a, b) => order[a.lvl] - order[b.lvl]);
   }
 
-  G.BA = { COURT, MP_IDX, K, NK, homography, applyH, courtHomographies, analyze, zoneOf, toHalf, basePoint, ROW_N, mean, median, pct, clamp, mps2kmh, DRAG_K };
+  G.BA = { cleanSeq, COURT, MP_IDX, K, NK, homography, applyH, courtHomographies, analyze, zoneOf, toHalf, basePoint, ROW_N, mean, median, pct, clamp, mps2kmh, DRAG_K };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 </script>
@@ -897,9 +929,11 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     { id: 'Dejada de red', n: 'Dejada de red', d: 'Golpes suaves junto a la red.' },
     { id: 'Drive', n: 'Drive', d: 'Golpes planos a media altura.' },
     { id: 'Saque', n: 'Saque', d: 'Saques cortos o largos.' },
+    { id: 'Defensa', n: 'Defensa', d: 'Bloqueos y defensas de remate a media pista.' },
     { id: 'footwork', n: 'Desplazamientos', d: 'Footwork o sombra: se centra en cómo te mueves.' },
   ];
-  const CAT_OF = { Remate: 'alto', 'Remate en salto': 'alto', Clear: 'alto', 'Dejada desde el fondo': 'alto', Lob: 'bajo', 'Dejada de red': 'bajo', Drive: 'medio', 'Saque largo': 'bajo', 'Saque corto': 'medio', Saque: 'bajo' };
+  const CAT_OF = { Remate: 'alto', 'Remate en salto': 'alto', Clear: 'alto', 'Dejada desde el fondo': 'alto', Lob: 'bajo', 'Dejada de red': 'bajo', Drive: 'medio', 'Saque largo': 'bajo', 'Saque corto': 'medio', Saque: 'bajo', Bloqueo: null, 'Defensa larga': null };
+  const SENS = { low: { abs: 4.2, path: 0.55, ratio: 1.6, n: 'Baja' }, normal: { abs: 2.6, path: 0.4, ratio: 1.4, n: 'Normal' }, high: { abs: 2.0, path: 0.28, ratio: 1.2, n: 'Alta' } };
   const P3 = (pl, k) => [pl.w[k * 3], pl.w[k * 3 + 1], pl.w[k * 3 + 2]];
   const I2 = (pl, k) => [pl.img[k * 3], pl.img[k * 3 + 1], pl.img[k * 3 + 2]];
   const ang = (a, b, c) => { const u = [a[0] - b[0], a[1] - b[1], a[2] - b[2]], v = [c[0] - b[0], c[1] - b[1], c[2] - b[2]]; const d = u[0] * v[0] + u[1] * v[1] + u[2] * v[2]; return Math.acos(clamp(d / ((Math.hypot(...u) * Math.hypot(...v)) || 1), -1, 1)) * 180 / Math.PI; };
@@ -908,7 +942,9 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
   function fill(a, t, gap) { const o = a.slice(); let l = -1; for (let i = 0; i < a.length; i++) { if (!Number.isFinite(a[i])) continue; if (l >= 0 && i - l > 1 && t[i] - t[l] <= gap) for (let j = l + 1; j < i; j++) o[j] = a[l] + (a[i] - a[l]) * (t[j] - t[l]) / (t[i] - t[l]); l = i; } return o; }
 
   function analyzeTraining(track) {
-    const F = track.frames, n = F.length, t = F.map((f) => f.t);
+    const cl = G.BA.cleanSeq(track.frames.map((f) => f.p));
+    const F = track.frames.map((f, i) => ({ t: f.t, p: cl[i] })), n = F.length, t = F.map((f) => f.t);
+    const edits = track.edits || { add: [], del: [], type: {} }, sens = SENS[track.sens] ? track.sens : 'normal', SE = SENS[sens];
     const dt = n > 1 ? (t[n - 1] - t[0]) / (n - 1) : 1 / 15;
     const S = track.stature || 1.75, view = track.view || 'side', drill = track.drill || 'mixed';
     const ok = F.map((f) => !!(f.p && f.p.w));
@@ -969,18 +1005,41 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     const kneeMin = (i) => Math.min(kneeA(i, K.lhip, K.lkn, K.lan), kneeA(i, K.rhip, K.rkn, K.ran));
     const stance = (i) => { if (!ok[i]) return NaN; const pl = F[i].p, a = P3(pl, K.lan), b = P3(pl, K.ran); return Math.hypot(a[0] - b[0], a[2] - b[2]) * scale; };
     // Detección de golpes
+    // Un golpe de verdad es un movimiento de la mano de la raqueta rápido, breve, con recorrido
+    // y claramente más rápido que el otro brazo. Lo demás (andar, colocarse, temblor del vídeo) se descarta.
+    const W = (s) => Math.max(1, Math.round(s / dt));
+    // Velocidad de cada muñeca respecto a su hombro (movimiento del brazo, no del cuerpo)
+    const armSp = (kw, ks) => { const o = new Array(n).fill(NaN); for (let i = 1; i < n - 1; i++) if (ok[i - 1] && ok[i + 1]) { const a = P3(F[i - 1].p, kw), b = P3(F[i + 1].p, kw), sa = P3(F[i - 1].p, ks), sb = P3(F[i + 1].p, ks); o[i] = Math.min(30, Math.hypot(b[0] - sb[0] - a[0] + sa[0], b[1] - sb[1] - a[1] + sa[1], b[2] - sb[2] - a[2] + sa[2]) * scale / (t[i + 1] - t[i - 1])); } return smooth(o, 3); };
+    const ra = armSp(kW, kS), os = armSp(kOW, kOS);
     const v = hs.filter(Number.isFinite), med = median(v), mad = median(v.map((x) => Math.abs(x - med)));
-    const thr = Math.max(2.2, med + 4.5 * mad), sep = Math.max(2, Math.round(0.55 / dt));
-    const peaks = [];
+    const thr = Math.max(SE.abs, Math.min(med + 4.5 * mad, SE.abs * 1.6)), sep = Math.max(2, Math.round(0.55 / dt));
+    const wpos = (i) => (ok[i] ? P3(F[i].p, kW).map((x) => x * scale) : null);
+    const pathLen = (a, b) => { let L = 0, last = null; for (let j = Math.max(0, a); j <= Math.min(n - 1, b); j++) { const q = wpos(j); if (!q) continue; if (last) L += Math.hypot(q[0] - last[0], q[1] - last[1], q[2] - last[2]); last = q; } return L; };
+    const lungeNear = (i) => { for (let j = Math.max(0, i - W(0.35)); j <= Math.min(n - 1, i + W(0.35)); j++) if (ok[j] && kneeA(j, kHip, kKn, kAn) < 132 && stance(j) > S * 0.45) return true; return false; };
+    const near = (i, list) => list.some((x) => Math.abs(x - i) <= W(0.25));
+    const peaks = []; let discarded = 0;
     for (let i = 1; i < n - 1; i++) {
-      if (!(hs[i] > thr)) continue; let mx = true;
+      const soft = lungeNear(i) ? 0.7 : 1;
+      if (!(hs[i] > thr * soft)) continue; let mx = true;
       for (let j = Math.max(0, i - sep); j <= Math.min(n - 1, i + sep); j++) if (j !== i && hs[j] > hs[i]) { mx = false; break; }
-      if (mx) peaks.push(i);
+      if (!mx) continue;
+      let lo = i, hi = i; while (lo > 0 && hs[lo - 1] > hs[i] * 0.5) lo--; while (hi < n - 1 && hs[hi + 1] > hs[i] * 0.5) hi++;
+      let oMax = 0, rMax = 0, hTop = 0; for (let j = i - 2; j <= i + 2; j++) { if (Number.isFinite(os[j])) oMax = Math.max(oMax, os[j]); if (Number.isFinite(ra[j])) rMax = Math.max(rMax, ra[j]); hTop = Math.max(hTop, handH(j) || 0); }
+      const overhead = hTop > S * 1.05; // por encima de la cabeza casi nunca hay gestos rápidos que no sean golpes
+      const vis = ok[i] ? F[i].p.img[kW * 3 + 2] : 0;
+      const good = pathLen(i - W(0.3), i + W(0.3)) >= SE.path * soft && (overhead || rMax >= SE.ratio * oMax) && (hi - lo + 1) * dt <= 1.0 && vis >= 0.25;
+      if (near(i, edits.del)) continue;
+      if (track.debug) track.debug.push({ t: t[i], pk: +hs[i].toFixed(2), thr: +(thr * soft).toFixed(2), path: +pathLen(i - W(0.3), i + W(0.3)).toFixed(2), o: +oMax.toFixed(2), r: +rMax.toFixed(2), ov: overhead, dur: +((hi - lo + 1) * dt).toFixed(2), vis: +vis.toFixed(2), good });
+      if (good) peaks.push(i); else discarded++;
     }
-    const W = (s) => Math.round(s / dt);
+    (edits.add || []).forEach((i) => { if (i > 0 && i < n - 1 && !peaks.some((p) => Math.abs(p - i) <= W(0.3))) peaks.push(i); });
+    peaks.sort((a, b) => a - b);
+    const fMed = median(fwd);
     const reps = peaks.map((pi, k) => {
       let ci = pi, ch = handH(pi);
-      if (ch > S * 1.05) { for (let j = Math.max(0, pi - 2); j <= Math.min(n - 1, pi + 1); j++) { const x = handH(j); if (x > ch) { ch = x; ci = j; } } }
+      // Por arriba si la mano ya estaba alta antes del pico de velocidad; el contacto es el punto más alto cerca del pico
+      let hb = ch; for (let j = Math.max(0, pi - 2); j <= pi; j++) hb = Math.max(hb, handH(j) || 0);
+      if (hb > S * 1.05) { let best = -1e9; for (let j = Math.max(0, pi - 2); j <= Math.min(n - 1, pi + 3); j++) { if (!ok[j]) continue; const x = handH(j), e = ang(P3(F[j].p, kS), P3(F[j].p, kE), P3(F[j].p, kW)), sc = x + 0.004 * e; if (sc > best) { best = sc; ch = x; ci = j; } } }
       else { // golpes bajos y medios: el contacto es donde la mano llega más adelante
         const fr = (j) => { if (!ok[j]) return -9; const q = F[j].p; return view === 'side' ? (I2(q, kW)[0] - I2(q, kS)[0]) * facing : (P3(q, kW)[2] - P3(q, kS)[2]) * (view === 'front' ? -1 : 1) * pxPerM; };
         let bf = fr(pi); for (let j = pi; j <= Math.min(n - 1, pi + 2); j++) { const x = fr(j); if (x > bf) { bf = x; ci = j; } }
@@ -1001,12 +1060,13 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       let lk = 180, li = ci; for (let j = Math.max(0, ci - W(0.3)); j <= Math.min(n - 1, ci + W(0.3)); j++) { const kv = kneeA(j, kHip, kKn, kAn); if (kv < lk) { lk = kv; li = j; } }
       r.lungeKnee = lk; r.stance = stance(li);
       r.lunge = lk < 128 && r.stance > S * 0.5;
+      r.adv = fwd[ci] - fMed; r.kneeC = kneeMin(ci); r.stanceC = stance(ci) / S; r.manual = (edits.add || []).some((x) => Math.abs(x - pi) <= W(0.3));
       const pli = F[li].p;
       if (view === 'side' && pli) { r.kneeOver = (I2(pli, kKn)[0] - I2(pli, kAn)[0]) * facing / pxPerM; r.footFwd = (I2(pli, kAn)[0] - I2(pli, kOAn)[0]) * facing / pxPerM; }
       else if (pli) { const z = (P3(pli, kAn)[2] - P3(pli, kOAn)[2]) * (view === 'front' ? -1 : 1); r.footFwd = z * scale; }
       if (pli) { const s = mid(I2(pli, K.lsh), I2(pli, K.rsh)), h = mid(I2(pli, K.lhip), I2(pli, K.rhip)); r.lean = Math.atan2(Math.abs(s[0] - h[0]), Math.max(1, h[1] - s[1])) * 180 / Math.PI; if (view !== 'side') { const sw = mid(P3(pli, K.lsh), P3(pli, K.rsh)), hw = mid(P3(pli, K.lhip), P3(pli, K.rhip)); r.lean = Math.atan2(Math.hypot(sw[0] - hw[0], sw[2] - hw[2]), Math.max(0.01, hw[1] - sw[1])) * 180 / Math.PI; } }
       // Recorrido de la mano tras el golpe (lob frente a dejada)
-      let up = 0; for (let j = ci; j <= Math.min(n - 1, ci + W(0.45)); j++) up = Math.max(up, wristH(j)); r.follow = up;
+      let up = 0; for (let j = ci; j <= Math.min(n - 1, ci + W(0.45)); j++) up = Math.max(up, wristH(j)); r.follow = up; r.swingUp = up - wristH(ci);
       // Antebrazo hacia abajo después del contacto (remate)
       let down = 0; for (let j = ci; j <= Math.min(n - 1, ci + W(0.3)); j++) down = Math.max(down, wristH(ci) - wristH(j)); r.down = down;
       // Quieto antes (saque)
@@ -1017,14 +1077,21 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     const altoPeaks = reps.filter((r) => r.cat === 'alto').map((r) => r.peak), mxA = Math.max(0, ...altoPeaks);
     reps.forEach((r, k) => {
       const prev = reps[k - 1];
-      if (drill !== 'mixed' && drill !== 'footwork') {
+      // Cerca de la red = avanza hacia delante o hace estocada adelantando el pie de la raqueta
+      r.nearNet = (r.lunge && r.adv > 0.3 && !(Number.isFinite(r.footFwd) && r.footFwd < 0.05)) || r.adv > 1.0;
+      if (drill === 'Defensa') r.type = r.swingUp > 0.6 ? 'Defensa larga' : 'Bloqueo';
+      else if (drill !== 'mixed' && drill !== 'footwork') {
         r.type = drill === 'Saque' ? (r.peak > thr * 2.2 ? 'Saque largo' : 'Saque corto') : drill;
         if (drill === 'Remate' && r.jump) r.type = 'Remate en salto';
       } else if (r.cat === 'alto') r.type = r.peak >= mxA * 0.72 && r.down > 1.0 ? (r.jump ? 'Remate en salto' : 'Remate') : r.peak < mxA * 0.76 ? 'Dejada desde el fondo' : 'Clear';
-      else if (r.still && (!prev || r.t - prev.t > 2.5) && !r.lunge) r.type = r.cat === 'bajo' ? 'Saque largo' : 'Saque corto';
-      else if (r.cat === 'bajo') r.type = r.follow > S * 0.82 ? 'Lob' : 'Dejada de red';
-      else r.type = 'Drive';
+      else if (r.still && (!prev || r.t - prev.t > 2.5) && !r.lunge && r.kneeC > 148 && r.stanceC < 0.45) r.type = r.cat === 'bajo' ? 'Saque largo' : 'Saque corto';
+      else if (r.cat === 'bajo' || (r.cat === 'medio' && r.h < S * 0.8 && !r.nearNet)) {
+        if (r.nearNet) r.type = r.follow > S * 0.82 ? 'Lob' : 'Dejada de red';
+        else r.type = r.swingUp > 0.6 ? 'Defensa larga' : 'Bloqueo';
+      } else r.type = 'Drive';
       if (drill === 'footwork') r.type = 'Golpe de sombra';
+      const ed = Object.keys(edits.type || {}).find((x) => Math.abs(+x - r.i) <= W(0.25));
+      if (ed !== undefined) { r.type = edits.type[ed]; r.edited = true; }
       r.expected = CAT_OF[r.type];
     });
     // Recuperación: volver a la posición base (la más habitual)
@@ -1039,9 +1106,15 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       const C = [], c = (id, n, pass, val, ideal) => C.push({ id, n, pass, val, ideal });
       const cat = r.expected || r.cat;
       if (r.type === 'Golpe de sombra') { /* solo desplazamiento */ }
+      else if (/Bloqueo|Defensa larga/.test(r.type)) {
+        c('dfront', 'Raqueta delante del cuerpo', r.front >= 0.1, `${Math.round(r.front * 100)} cm`, '≥ 10 cm delante');
+        c('dknee', 'Piernas flexionadas', r.kneeC <= 150, `${Math.round(r.kneeC)}°`, '≤ 150°');
+        c('dstance', 'Apoyo amplio', r.stanceC >= 0.3, `${Math.round(r.stanceC * 100)} %`, '≥ 30 % de tu estatura');
+        if (r.type === 'Bloqueo') c('dshort', 'Golpe corto, sin mucho swing', r.swingUp <= 0.45, `${Math.round(r.swingUp * 100)} cm`, '≤ 45 cm');
+      }
       else if (cat === 'alto') {
         c('elbow', 'Brazo estirado en el contacto', r.elbow >= 150, `${Math.round(r.elbow)}°`, '≥ 150°');
-        c('high', 'Contacto alto', r.h >= S * 1.42, `${r.h.toFixed(2)} m`, `≥ ${(S * 1.42).toFixed(2)} m`);
+        c('high', 'Contacto alto', r.h >= S * 1.36, `${r.h.toFixed(2)} m`, `≥ ${(S * 1.36).toFixed(2)} m`);
         c('free', 'Brazo libre arriba al preparar', r.freeArm, r.freeArm ? 'sí' : 'no', 'sí');
         c('front', 'Contacto delante del cuerpo', r.front >= 0.03, `${Math.round(r.front * 100)} cm`, '≥ 3 cm delante');
         if (/Remate/.test(r.type)) c('load', 'Carga de piernas antes del golpe', r.loadKnee <= 155, `${Math.round(r.loadKnee)}°`, '≤ 155°');
@@ -1091,7 +1164,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       Desplazamiento: Math.round(clamp((Number.isFinite(move.recAvg) ? clamp(1.6 - move.recAvg, 0, 1) : 0.5) * 60 + (Number.isFinite(move.splitShare) ? move.splitShare : 0.3) * 40, 0, 100)),
     };
     const overall = Math.round(mean(Object.values(scores)));
-    const res = { mode: 'training', drill, view, duration: n ? t[n - 1] - t[0] : 0, dt, valid, n, reps, byType, checkSum, ready, move, scores, overall, fatigue, facing, side, stature: S, series: { t, fwd, lat, spd: spdS, hand: hs, handH: t.map((_, i) => handH(i)), knee: t.map((_, i) => kneeMin(i)), elbow: t.map((_, i) => (ok[i] ? ang(P3(F[i].p, kS), P3(F[i].p, kE), P3(F[i].p, kW)) : NaN)) }, joints: { kW, kE, kS, kKn, kHip, kAn } };
+    const res = { mode: 'training', sens, discarded, edits, drill, view, duration: n ? t[n - 1] - t[0] : 0, dt, valid, n, reps, byType, checkSum, ready, move, scores, overall, fatigue, facing, side, stature: S, series: { t, fwd, lat, spd: spdS, hand: hs, handH: t.map((_, i) => handH(i)), knee: t.map((_, i) => kneeMin(i)), elbow: t.map((_, i) => (ok[i] ? ang(P3(F[i].p, kS), P3(F[i].p, kE), P3(F[i].p, kW)) : NaN)) }, joints: { kW, kE, kS, kKn, kHip, kAn } };
     res.tips = tips(res);
     return res;
   }
@@ -1114,6 +1187,9 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     if (Number.isFinite(R.ready.racketUp) && R.ready.racketUp < 0.5) add('mejora', 'Raqueta arriba al esperar', `Solo tienes la raqueta por encima de la cintura el ${P(R.ready.racketUp)} del tiempo de espera.`);
     if (Number.isFinite(R.move.splitShare) && R.move.splitShare < 0.4 && R.move.starts >= 4) add('mejora', 'Haz el split step', 'Antes de salir hacia el volante, da un pequeño salto de preparación. Casi no lo detectamos.');
     if (Number.isFinite(R.fatigue) && R.fatigue > 0.15) add('aviso', 'Pierdes velocidad al final', `La velocidad de tu brazo baja un ${Math.round(R.fatigue * 100)} % en las últimas repeticiones. Descansa entre series o haz menos repeticiones con más calidad.`);
+    const df = share('dknee'); if (Number.isFinite(df) && df < 0.7) add('mejora', 'Baja más al defender', `Solo en el ${P(df)} de tus defensas tienes las rodillas bien flexionadas. Baja el centro de gravedad para reaccionar al remate.`);
+    const dsn = share('dstance'); if (Number.isFinite(dsn) && dsn < 0.7) add('mejora', 'Abre más los pies al defender', 'Con los pies más separados tienes más equilibrio y llegas antes a los lados.');
+    const dfr = share('dfront'); if (Number.isFinite(dfr) && dfr < 0.7) add('mejora', 'Defiende con la raqueta delante', `Solo en el ${P(dfr)} de las defensas golpeas delante del cuerpo. Lleva la raqueta delante y abajo antes de que llegue el remate.`);
     const cat = R.checkSum.cat; if (cat && cat.tot - cat.ok > 0) add('aviso', 'Algunos golpes no corresponden al ejercicio', `${cat.tot - cat.ok} repeticiones tienen una altura de contacto que no es la propia del golpe elegido.`);
     const o = { mejora: 0, aviso: 1, dato: 2, bien: 3 };
     return T.sort((a, b) => o[a.lvl] - o[b.lvl]);
@@ -1131,12 +1207,15 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     function ik(a, c, L1, L2, bend) { const d = sub(c, a); let D = len(d); if (D > L1 + L2 - 1e-3) { c = add(a, mul(nrm(d), L1 + L2 - 1e-3)); D = L1 + L2 - 1e-3; } const x = (L1 * L1 - L2 * L2 + D * D) / (2 * D), h = Math.sqrt(Math.max(0, L1 * L1 - x * x)); const dn = nrm(d); let b = sub(bend, mul(dn, dot(bend, dn))); b = nrm(b); return add(add(a, mul(dn, x)), mul(b, h)); }
     const plan = [
       ['Clear', {}], ['Remate', {}], ['Dejada desde el fondo', {}], ['Dejada de red', {}], ['Lob', {}], ['Remate', { jump: 1 }], ['Drive', {}],
-      ['Clear', { bent: 1 }], ['Lob', { kneeOver: 1 }], ['Remate', { armDown: 1, late: 1 }], ['Dejada de red', { lean: 1 }], ['Remate', { jump: 1 }], ['Clear', {}], ['Lob', {}],
+      ['Bloqueo', { def: 1, extra: 'walk' }], ['Clear', { bent: 1 }], ['Lob', { kneeOver: 1, extra: 'raise' }], ['Defensa larga', { def: 1 }], ['Remate', { armDown: 1, late: 1 }],
+      ['Dejada de red', { lean: 1, extra: 'shake' }], ['Bloqueo', { def: 1, extra: 'flick' }], ['Remate', { jump: 1 }], ['Clear', {}], ['Lob', {}],
     ];
+    // Movimientos que NO son golpes (para comprobar que no se cuentan): andar, levantar la raqueta despacio, sacudir los brazos, girar la raqueta
     const S = 1.76, fs = S / 1.75; const reps = []; let tt = 1.6;
-    for (const [type, fl] of plan) { reps.push({ t: tt, type, fl, cat: CAT_OF[type] }); tt += 2.4 + (fl.late ? 0.6 : 0); }
+    const extras = [];
+    for (const [type, fl] of plan) { reps.push({ t: tt, type, fl, cat: CAT_OF[type] }); if (fl.extra) extras.push({ t: tt + 1.3, kind: fl.extra, d: fl.extra === 'flick' ? 0.4 : 1.5 }); tt += 2.4 + (fl.late ? 0.6 : 0) + (fl.extra ? 2.0 : 0); }
     const dur = tt + 0.6;
-    const posFor = (cat) => (cat === 'alto' ? -1.7 : cat === 'bajo' ? 2.0 : 0.3);
+    const posFor = (cat) => (cat === 'alto' ? -1.7 : cat === 'bajo' ? 2.0 : cat === null ? 0 : 0.3);
     function yAt(t0) {
       let y = 0;
       for (const rp of reps) {
@@ -1144,6 +1223,8 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
         if (t0 >= go && t0 <= rp.t) y = lerp(0, p, sst((t0 - go) / 0.6));
         else if (t0 > rp.t && t0 <= back) y = lerp(p, 0, sst((t0 - rp.t - 0.15) / (back - rp.t - 0.15)));
       }
+      const ex = extras.find((e) => t0 >= e.t && t0 <= e.t + e.d);
+      if (ex && ex.kind === 'walk') y += 0.7 * Math.sin(Math.PI * (t0 - ex.t) / ex.d);
       return y;
     }
     function joints(t0) {
@@ -1154,6 +1235,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       if (next && next.t - t0 > 0.75) { const d = (next.t - t0 - 0.75) / 0.2; jump += 0.05 * Math.sin(Math.PI * clamp(1 - d, 0, 1)); }
       if (act) {
         if (act.fl.jump) jump += 0.3 * Math.max(0, Math.cos(Math.PI / 2 * clamp((t0 - act.t + 0.04) / 0.3, -1, 1)));
+        if (act.fl.def) crouch = 0.45 + 0.5 * sst(1 - Math.abs(t0 - act.t) / 0.6);
         if (act.cat === 'bajo') { lunge = sst(1 - Math.abs(t0 - act.t) / 0.5); if (act.fl.lean) lean = 1.7 * lunge; }
         if (act.cat === 'alto' && !act.fl.jump) crouch = 0.45 + 0.4 * sst(1 - Math.abs(t0 - act.t + 0.3) / 0.3);
       }
@@ -1161,7 +1243,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       const shC = add(add(hipC, [0, 0, 0.5 * fs]), mul(fwd, lean * 0.6 + 0.06 * lunge));
       const lsh = add(shC, mul(side, -0.19 * fs)), rsh = add(shC, mul(side, 0.19 * fs)), lhip = add(hipC, mul(side, -0.12 * fs)), rhip = add(hipC, mul(side, 0.12 * fs));
       const nose = add(add(shC, [0, 0, 0.22 * fs]), mul(fwd, 0.09));
-      const stw = 0.2 * fs + 0.1 * crouch;
+      const stw = 0.2 * fs + 0.1 * crouch + (act && act.fl.def ? 0.16 : 0);
       let lan = [-stw, y, 0.08 + jump], ran = [stw, y, 0.08 + jump];
       if (lunge) { ran = add(ran, mul(fwd, 0.9 * lunge)); lan = add(lan, mul(fwd, -0.4 * lunge)); }
       const kb = lunge ? (act && act.fl.kneeOver ? mul(fwd, 1.6) : add(mul(fwd, 0.25), [0, 0, 1])) : fwd;
@@ -1171,22 +1253,39 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       let wr = rest, freeUp = false;
       if (act) {
         const c = act.cat; let A, B, Cc;
-        if (c === 'alto') { const ext = act.fl.bent ? 0.4 : 0.62; A = add(add(rsh, mul(fwd, -0.3)), [0, 0, 0.05]); B = add(add(rsh, mul(fwd, 0.16)), [0, 0, ext * fs]); Cc = add(add(add(hipC, mul(fwd, 0.4)), mul(side, -0.25)), [0, 0, act.type === 'Remate' ? -0.05 : 0.35]); freeUp = !act.fl.armDown && s < 0.2; }
+        if (act.fl.def) { A = add(add(add(rsh, mul(side, 0.3)), mul(fwd, 0.1)), [0, 0, -0.6]); B = add(add(add(rsh, mul(fwd, 0.5)), mul(side, 0.15)), [0, 0, -0.85 * fs]); Cc = act.type === 'Bloqueo' ? add(B, add(mul(fwd, 0.15), [0, 0, 0.1])) : add(add(rsh, mul(fwd, 0.35)), [0, 0, 0.35]); }
+        else if (c === 'alto') { const ext = act.fl.bent ? 0.4 : 0.62; A = add(add(rsh, mul(fwd, -0.3)), [0, 0, 0.05]); B = add(add(rsh, mul(fwd, 0.16)), [0, 0, ext * fs]); Cc = add(add(add(hipC, mul(fwd, 0.4)), mul(side, -0.25)), [0, 0, act.type === 'Remate' ? -0.05 : 0.35]); freeUp = !act.fl.armDown; }
         else if (c === 'medio') { A = add(add(rsh, mul(side, 0.45)), mul(fwd, -0.25)); B = add(add(add(rsh, mul(side, 0.4)), mul(fwd, 0.42)), [0, 0, -0.05]); Cc = add(add(rsh, mul(side, -0.15)), mul(fwd, 0.4)); }
         else { A = add(add(add(rsh, mul(side, 0.2)), mul(fwd, 0.25)), [0, 0, -0.5]); B = add(add(rsh, mul(fwd, 0.65)), [0, 0, act.type === 'Lob' ? -0.85 * fs : -0.5 * fs]); Cc = act.type === 'Lob' ? add(add(rsh, mul(fwd, 0.45)), [0, 0, 0.45]) : add(add(rsh, mul(fwd, 0.7)), [0, 0, -0.6]); }
         if (s < 0) wr = s < -0.5 ? lv(rest, A, sst((s + 1) * 2)) : lv(A, B, sst((s + 0.5) * 2)); else wr = s < 1 ? lv(B, Cc, sst(s)) : lv(Cc, rest, sst(s - 1));
         if (s < -1.5) wr = rest;
       }
+      const fu = freeUp ? (s < 0 ? sst((s + 1.5) / 1.0) : 1 - sst(s / 1.2)) : 0;
+      let lwr = lv(add(add(lsh, mul(fwd, 0.15)), [0, 0, -0.35]), add(add(lsh, mul(fwd, 0.3)), [0, 0, 0.45]), fu);
+      const ex = !act && extras.find((e) => t0 >= e.t && t0 <= e.t + e.d);
+      if (ex) {
+        const uu = (t0 - ex.t) / ex.d;
+        if (ex.kind === 'walk') { const sw = Math.sin(2 * Math.PI * 2 * uu); wr = add(wr, mul(fwd, 0.3 * sw)); lwr = add(lwr, mul(fwd, -0.3 * sw)); }
+        if (ex.kind === 'raise') wr = lv(rest, add(rsh, [0, 0.1, 0.6]), Math.sin(Math.PI * uu));
+        if (ex.kind === 'shake') { const sw = 0.16 * Math.sin(2 * Math.PI * 3 * uu); wr = add(wr, [0, 0, sw]); lwr = add(lwr, [0, 0, -sw]); }
+        if (ex.kind === 'flick') wr = add(wr, mul(side, 0.06 * Math.sin(2 * Math.PI * 2 * uu)));
+      }
       const rel = ik(rsh, wr, 0.3 * fs, 0.28 * fs, [0, -0.3, -1]);
-      const lwr = freeUp ? add(add(lsh, mul(fwd, 0.3)), [0, 0, 0.45]) : add(add(lsh, mul(fwd, 0.15)), [0, 0, -0.35]);
       const lel = ik(lsh, lwr, 0.3 * fs, 0.28 * fs, [0, 0, -1]);
       return { J: [nose, lsh, rsh, lel, rel, lwr, wr, lhip, rhip, lkn, rkn, lan, ran], act, s };
     }
     let seed = 11; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296 - 0.5; };
+    // Ruido de vídeo de baja calidad: temblor de todos los puntos y, a veces, un punto que salta en un fotograma
+    let fc = 0;
     function frameAt(t0, noise) {
       const { J } = joints(t0); const img = new Float32Array(NK * 3), w = new Float32Array(NK * 3);
-      const hc = mid(J[7], J[8]);
-      J.forEach((P, k) => { const q = cam.project(P); img[k * 3] = q[0] + (noise ? rnd() * 2.5 : 0); img[k * 3 + 1] = q[1] + (noise ? rnd() * 2.5 : 0); img[k * 3 + 2] = 0.95; const d = sub(P, hc); w[k * 3] = dot(d, r); w[k * 3 + 1] = -dot(d, u) + (noise ? rnd() * 0.015 : 0); w[k * 3 + 2] = dot(d, f); });
+      const hc = mid(J[7], J[8]); fc++;
+      const glitch = noise && fc % 23 === 0 ? (fc % 2 ? 6 : 5) : -1;
+      J.forEach((P, k) => {
+        const q = cam.project(P), g = k === glitch ? 1 : 0;
+        img[k * 3] = q[0] + (noise ? rnd() * 7 : 0) + g * 70; img[k * 3 + 1] = q[1] + (noise ? rnd() * 7 : 0) - g * 50; img[k * 3 + 2] = noise ? 0.6 + rnd() * 0.6 : 0.95;
+        const d = sub(P, hc); w[k * 3] = dot(d, r) + (noise ? rnd() * 0.03 : 0) + g * 0.35; w[k * 3 + 1] = -dot(d, u) + (noise ? rnd() * 0.03 : 0) - g * 0.3; w[k * 3 + 2] = dot(d, f) + (noise ? rnd() * 0.03 : 0);
+      });
       return { img, w };
     }
     const fps = 15, frames = []; for (let x = 0; x <= dur; x += 1 / fps) frames.push({ t: +x.toFixed(4), p: frameAt(x, true) });
@@ -1198,7 +1297,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       return null;
     };
     const track = { mode: 'training', demo: true, width: Wd, height: Hd, duration: dur, frames, stature: S, hand: 'auto', view: 'side', drill: 'mixed', name: 'Tú' };
-    return { track, cam, truth: reps, skeletonAt: (x) => frameAt(x, false), shuttleAt: shuttle };
+    return { track, cam, truth: reps, extras, skeletonAt: (x) => frameAt(x, false), shuttleAt: shuttle };
   }
 
   G.BT = { DRILLS, analyzeTraining, makeTrainingDemo };
@@ -2352,7 +2451,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
   function trainAnswer(n) {
     const R = S.res, alto = R.reps.filter((r) => r.cat === 'alto');
     if (/corregir|mejor|consejo|fallo|trabajar|debo/.test(n)) return `<p>Lo que más conviene corregir:</p><ul>${R.tips.filter((t) => t.lvl !== 'bien').slice(0, 4).map((t) => `<li><b>${t.title}.</b> ${t.body}</li>`).join('') || '<li>No hay errores claros: ¡buen trabajo!</li>'}</ul>`;
-    if (/altura|alto|arriba/.test(n)) return `<p>Altura media de contacto: <b>${fmt(mean(R.reps.map((r) => r.h)), 2)} m</b>${alto.length ? `; en los golpes por arriba, <b>${fmt(mean(alto.map((r) => r.h)), 2)} m</b> (lo ideal para tu estatura es al menos ${fmt(R.stature * 1.42, 2)} m)` : ''}.</p>`;
+    if (/altura|alto|arriba/.test(n)) return `<p>Altura media de contacto: <b>${fmt(mean(R.reps.map((r) => r.h)), 2)} m</b>${alto.length ? `; en los golpes por arriba, <b>${fmt(mean(alto.map((r) => r.h)), 2)} m</b> (lo ideal para tu estatura es al menos ${fmt(R.stature * 1.36, 2)} m)` : ''}.</p>`;
     if (/estocada|red|rodilla|lunge/.test(n)) { const l = R.reps.filter((r) => r.lunge); return `<p>Has hecho <b>${R.move.lunges} estocadas</b>${l.length ? `, con la rodilla a ${fmt(mean(l.map((r) => r.lungeKnee)), 0)}° de media (ideal 80°–125°)` : ''}.</p>` + BK.KB.find((e) => e.k.startsWith('estocada')).a; }
     if (/remate|smash/.test(n)) { const sm = R.reps.filter((r) => /Remate/.test(r.type)); return `<p>${sm.length ? `En tus ${sm.length} remates: codo a ${fmt(mean(sm.map((r) => r.elbow)), 0)}° y contacto a ${fmt(mean(sm.map((r) => r.h)), 2)} m de media.` : 'No he detectado remates en este vídeo.'}</p>` + BK.KB.find((e) => e.k.startsWith('remate')).a; }
     if (/mueve|muevo|desplaz|velocidad|base/.test(n)) return `<p>Te has desplazado <b>${fmt(R.move.dist, 0)} m</b>, a ${fmt(R.move.avg * 3.6, 1)} km/h de media al moverte. Vuelves a la base en ${fmt(R.move.recAvg, 1)} s de media.</p>`;
@@ -2400,7 +2499,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
   }
 
   /* ===================== MODO ENTRENAMIENTO ===================== */
-  S.tset = { drill: 'mixed', view: 'side', q: 'normal' };
+  S.tset = { drill: 'mixed', view: 'side', q: 'normal', sens: 'normal' };
   const TQUAL = { fast: { fps: 10, mc: 0 }, normal: { fps: 15, mc: 1 }, high: { fps: 24, mc: 1 } };
   const VIEW_N = { side: 'de lado', back: 'de espaldas', front: 'de frente' };
   (function bindTraining() {
@@ -2409,10 +2508,10 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     $$('#drillChips .chip').forEach((b) => (b.onclick = () => { S.tset.drill = b.dataset.d; $$('#drillChips .chip').forEach((x) => x.setAttribute('aria-pressed', x === b)); desc(); }));
     desc();
     const seg = (id, key) => $$('#' + id + ' button').forEach((b) => (b.onclick = () => { $$('#' + id + ' button').forEach((x) => x.setAttribute('aria-pressed', x === b)); S.tset[key] = b.dataset.v; updateTTrim(); }));
-    seg('viewSeg', 'view'); seg('tqSeg', 'q');
+    seg('viewSeg', 'view'); seg('tqSeg', 'q'); seg('tsSeg', 'sens');
     $('#tTrimA').oninput = updateTTrim; $('#tTrimB').oninput = updateTTrim;
     $('#runTBtn').onclick = () => runTraining().catch((e) => { console.error(e); showErr(`<b>No se pudo completar el análisis.</b> ${esc(e.message || e)}<br><span class="small muted">Puedes probar la demo de entrenamiento para ver cómo funciona.</span>`); showPanel('tset'); });
-    $('#demoTBtn').onclick = () => { const b = $('#demoTBtn'); b.disabled = true; setTimeout(() => { S.demo = BT.makeTrainingDemo(); S.track = S.demo.track; S.me = 0; S.sel = 0; b.disabled = false; finish(); }, 30); };
+    $('#demoTBtn').onclick = () => { const b = $('#demoTBtn'); b.disabled = true; setTimeout(() => { S.demo = BT.makeTrainingDemo(); S.track = S.demo.track; S.track.sens = 'normal'; S.track.edits = { add: [], del: [], type: {} }; S.me = 0; S.sel = 0; b.disabled = false; finish(); }, 30); };
   })();
   function tTrim() { const d = S.video ? S.video.duration : 0; let a = $('#tTrimA').value / 1000 * d, b = $('#tTrimB').value / 1000 * d; if (b < a) [a, b] = [b, a]; return [a, b]; }
   function updateTTrim() {
@@ -2457,7 +2556,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     }
     if (wake) wake.release().catch(() => {});
     if (found < frames.length * 0.3) throw new Error('Casi no se ha detectado al jugador. Comprueba que se vea entero, de la cabeza a los pies, y que no haya otras personas delante.');
-    S.track = { mode: 'training', demo: false, width: W, height: H, duration: b - a, offset: a, frames, thumbs, stature: (+$('#tH').value || 175) / 100, hand: $('#tHand').value, view: S.tset.view, drill: S.tset.drill, name: 'Tú' };
+    S.track = { mode: 'training', demo: false, width: W, height: H, duration: b - a, offset: a, frames, thumbs, stature: (+$('#tH').value || 175) / 100, hand: $('#tHand').value, view: S.tset.view, drill: S.tset.drill, sens: S.tset.sens, edits: { add: [], del: [], type: {} }, name: 'Tú' };
     S.demo = null; finish();
   }
 
@@ -2536,7 +2635,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     tl.addEventListener('pointerdown', (e) => { tl.setPointerCapture(e.pointerId); tls(e); tl.onpointermove = tls; }); tl.addEventListener('pointerup', () => (tl.onpointermove = null));
     if (video) video.addEventListener('loadeddata', draw, { once: true });
     setTimeout(() => seekT(R.reps.length ? Math.max(0, R.reps[0].t - 1) : 0), 50);
-    return { pause, play, seek: (x) => { seekT(x); stage.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, destroy() { pause(); ro.disconnect(); if (video) video.remove(); }, redraw: draw };
+    return { pause, play, time: () => t, seek: (x) => { seekT(x); stage.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, destroy() { pause(); ro.disconnect(); if (video) video.remove(); }, redraw: draw };
   }
   function drawRepThumbs() {
     const R = S.res, tr = S.track;
@@ -2565,7 +2664,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     const W = 760, H = 240, l = 46, r = 118, tp = 14, b = 40, S0 = R.stature, mx = Math.max(S0 * 1.7, ...reps.map((x) => x.h)) + 0.1;
     const bw = (W - l - r) / reps.length, Y = (v) => tp + (1 - v / mx) * (H - tp - b);
     let g = `<svg viewBox="0 0 ${W} ${H}" class="diagram wide" role="img" aria-label="Altura de contacto en cada repetición">`;
-    [[S0 * 1.42, 'Ideal arriba'], [S0 * 0.6, 'Cintura']].forEach(([v, n]) => (g += `<line x1="${l}" x2="${W - r + 4}" y1="${Y(v)}" y2="${Y(v)}" stroke="${css('--muted')}" stroke-dasharray="5 5"/><text x="${W - r + 10}" y="${Y(v) - 2}" class="ch-txt">${n}</text><text x="${W - r + 10}" y="${Y(v) + 12}" class="ch-txt">${fmt(v, 2)} m</text>`));
+    [[S0 * 1.36, 'Ideal arriba'], [S0 * 0.6, 'Cintura']].forEach(([v, n]) => (g += `<line x1="${l}" x2="${W - r + 4}" y1="${Y(v)}" y2="${Y(v)}" stroke="${css('--muted')}" stroke-dasharray="5 5"/><text x="${W - r + 10}" y="${Y(v) - 2}" class="ch-txt">${n}</text><text x="${W - r + 10}" y="${Y(v) + 12}" class="ch-txt">${fmt(v, 2)} m</text>`));
     axisTicks(0, mx, 4).forEach((v) => (g += `<line x1="${l}" x2="${W - r}" y1="${Y(v)}" y2="${Y(v)}" class="ch-grid"/><text x="${l - 8}" y="${Y(v) + 4}" text-anchor="end" class="ch-txt">${fmt(v, 1)} m</text>`));
     const colOf = (rp) => css(rp.cat === 'alto' ? '--atk' : rp.cat === 'bajo' ? '--def' : '--neu');
     reps.forEach((rp, k) => { const x = l + k * bw + bw * 0.18, w = bw * 0.64; g += `<rect x="${x}" y="${Y(rp.h)}" width="${w}" height="${Y(0) - Y(rp.h)}" rx="3" fill="${colOf(rp)}" data-seek="${rp.t - 0.8}" style="cursor:pointer"><title>${esc(rp.type)} · ${fmt(rp.h, 2)} m</title></rect>`; if (bw > 22) g += `<text x="${x + w / 2}" y="${H - 22}" text-anchor="middle" class="ch-txt">${k + 1}</text>`; if (rp.score !== null && bw > 26) g += `<circle cx="${x + w / 2}" cy="${H - 9}" r="4" fill="${css(rp.score >= 80 ? '--good' : rp.score >= 50 ? '--warn' : '--bad')}"/>`; });
@@ -2591,7 +2690,9 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     const checkRows = Object.values(R.checkSum).sort((a, b) => a.ok / a.tot - b.ok / b.tot);
     const st = (v, a, b) => (Number.isFinite(v) ? (v >= a ? ['good', 'Bien'] : v >= b ? ['warn', 'Mejorable'] : ['bad', 'A trabajar']) : null);
     root.innerHTML = `
-    <div class="res-top"><div><h2>${tr.demo ? 'Entrenamiento de demostración' : 'Tu entrenamiento'}</h2><p class="muted">${drillN} · grabado ${VIEW_N[R.view]} · ${mmss(R.duration)} · ${R.reps.length} golpes${tr.demo ? ' · datos simulados' : ''}</p></div></div>
+    <div class="res-top"><div><h2>${tr.demo ? 'Entrenamiento de demostración' : 'Tu entrenamiento'}</h2><p class="muted">${drillN} · grabado ${VIEW_N[R.view]} · ${mmss(R.duration)} · ${R.reps.length} golpes${tr.demo ? ' · datos simulados' : ''}</p></div>
+      <div class="field"><label>Sensibilidad de detección</label><div class="seg" id="resSens"><button data-v="low" aria-pressed="${R.sens === 'low'}">Baja</button><button data-v="normal" aria-pressed="${R.sens === 'normal'}">Normal</button><button data-v="high" aria-pressed="${R.sens === 'high'}">Alta</button></div></div></div>
+    <div class="card fixbar"><div><b>¿Algún golpe mal detectado?</b> <span class="small muted">Cambia su tipo o márcalo como "No es un golpe" en su tarjeta. Si falta uno, pausa la repetición en ese momento y pulsa "+ Golpe aquí". Si detecta gestos que no son golpes, baja la sensibilidad.${R.discarded ? (R.discarded === 1 ? ' Se ha descartado 1 movimiento que no parecía un golpe.' : ` Se han descartado ${R.discarded} movimientos que no parecían golpes.`) : ''}</span></div>${nEdits(tr) ? `<button class="btn" id="undoEdits">Deshacer ${nEdits(tr)} ${nEdits(tr) === 1 ? 'corrección' : 'correcciones'}</button>` : ''}</div>
     <div class="board">
       <div class="row">${ring(R.overall, '#e8962c', 'Nota global')}</div>
       <div class="tiles">
@@ -2615,7 +2716,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
             <button class="icon-btn nextHit" aria-label="Golpe siguiente"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
             <span class="num small tm">0:00</span><span style="flex:1"></span>
             <div class="seg"><button data-rate="0.25" aria-pressed="false">¼×</button><button data-rate="0.5" aria-pressed="false">½×</button><button data-rate="1" aria-pressed="true">1×</button></div>
-            <button class="chip" data-opt="angles" aria-pressed="true">Ángulos</button><button class="chip" data-opt="trail" aria-pressed="true">Rastro</button>
+            <button class="chip" data-opt="angles" aria-pressed="true">Ángulos</button><button class="chip" data-opt="trail" aria-pressed="true">Rastro</button><button class="btn addHit" type="button">+ Golpe aquí</button>
           </div>
         </div>
         <div class="live"><span class="eyebrow">En este momento</span>
@@ -2628,7 +2729,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       <p class="small muted" style="margin-top:8px">Marcas de la línea de tiempo: cada golpe, en verde si la técnica es buena, en naranja si es mejorable y en rojo si hay que trabajarla.</p>
     </div>
     <div class="card"><div class="card-h"><h3>Momento del contacto en cada golpe</h3><p>Toca uno para verlo en la repetición</p></div>
-      <div class="reps-grid">${R.reps.map((r, k) => `<button class="rep-card" data-seek="${r.t - 0.8}"><canvas data-k="${k}" width="340" height="255"></canvas><div class="b"><div class="row" style="justify-content:space-between"><b>${k + 1}. ${esc(r.type)}</b>${r.score !== null ? `<span class="state ${r.score >= 80 ? 'good' : r.score >= 50 ? 'warn' : 'bad'}">${r.score}</span>` : ''}</div><span class="small muted">${fmt(r.h, 2)} m · codo ${fmt(r.elbow, 0)}°${r.jump ? ` · salto ${r.jump} cm` : ''}</span>${r.checks.filter((c) => !c.pass).slice(0, 2).map((c) => `<span class="small" style="color:var(--bad)">✗ ${c.n}</span>`).join('')}</div></button>`).join('') || '<p class="muted">No se han detectado golpes.</p>'}</div></div>
+      <div class="reps-grid">${R.reps.map((r, k) => `<div class="rep-card"><button class="rep-img" data-seek="${r.t - 0.8}" aria-label="Ver golpe ${k + 1} en la repetición"><canvas data-k="${k}" width="340" height="255"></canvas></button><div class="b"><div class="row" style="justify-content:space-between"><b>${k + 1}. ${esc(r.type)}${r.edited || r.manual ? ' <span class="pill" title="Corregido a mano">✎</span>' : ''}</b>${r.score !== null ? `<span class="state ${r.score >= 80 ? 'good' : r.score >= 50 ? 'warn' : 'bad'}">${r.score}</span>` : ''}</div><span class="small muted">${fmt(r.h, 2)} m · codo ${fmt(r.elbow, 0)}°${r.jump ? ` · salto ${r.jump} cm` : ''}</span>${r.checks.filter((c) => !c.pass).slice(0, 2).map((c) => `<span class="small" style="color:var(--bad)">✗ ${c.n}</span>`).join('')}<select class="rep-edit" data-i="${r.i}" aria-label="Corregir el golpe ${k + 1}">${EDIT_TYPES.map((x) => `<option value="${x}" ${x === r.type ? 'selected' : ''}>${x}</option>`).join('')}${EDIT_TYPES.includes(r.type) ? '' : `<option selected>${esc(r.type)}</option>`}<option value="__del">✗ No es un golpe</option></select></div></div>`).join('') || '<p class="muted">No se han detectado golpes. Prueba con una sensibilidad más alta o márcalos a mano con "+ Golpe aquí".</p>'}</div></div>
     <div class="grid2">
       <div class="card"><div class="card-h"><h3>Qué haces bien y qué corregir</h3><p>% de golpes que lo cumplen</p></div>
         <div class="bars">${checkRows.map((c) => { const v = c.ok / c.tot, col = v >= 0.8 ? '--good' : v >= 0.5 ? '--warn' : '--bad'; return `<div class="bar-row" style="grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) 46px"><span>${esc(c.n)}</span><span class="track"><div style="width:${v * 100}%;background:${css(col)}"></div></span><span class="num" style="text-align:right">${Math.round(v * 100)}%</span></div>`; }).join('') || '<p class="muted">Sin comprobaciones.</p>'}</div></div>
@@ -2656,9 +2757,21 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     </div>
     <p class="small muted">Las medidas se estiman a partir de la postura detectada. Para comparar sesiones, graba siempre desde el mismo sitio y a la misma altura.</p>`;
     root.dataset.built = 'training';
+    $$('#resSens button').forEach((b) => (b.onclick = () => { tr.sens = b.dataset.v; reTrain(); }));
+    $$('.rep-edit', root).forEach((sel) => (sel.onchange = () => { const i = +sel.dataset.i; tr.edits = tr.edits || { add: [], del: [], type: {} }; if (sel.value === '__del') { tr.edits.del.push(i); delete tr.edits.type[i]; } else tr.edits.type[i] = sel.value; reTrain(); }));
+    if ($('#undoEdits')) $('#undoEdits').onclick = () => { tr.edits = { add: [], del: [], type: {} }; reTrain(); };
     root.onclick = (e) => { const el = e.target.closest('[data-seek]'); if (el && S.replay) S.replay.seek(+el.dataset.seek); };
     S.replay = TReplay($('#replayCard'));
+    $('.addHit', root).onclick = () => { const i = frameAt(tr, S.replay.time()); tr.edits = tr.edits || { add: [], del: [], type: {} }; tr.edits.del = tr.edits.del.filter((x) => Math.abs(x - i) > 3); tr.edits.add.push(i); reTrain(); };
     drawRepThumbs();
+  }
+  const EDIT_TYPES = ['Clear', 'Remate', 'Remate en salto', 'Dejada desde el fondo', 'Dejada de red', 'Lob', 'Drive', 'Bloqueo', 'Defensa larga', 'Saque corto', 'Saque largo'];
+  const nEdits = (tr) => (tr.edits ? tr.edits.add.length + tr.edits.del.length + Object.keys(tr.edits.type).length : 0);
+  function reTrain() {
+    const y = window.scrollY, root = $('#v-resultados');
+    S.res = BT.analyzeTraining(S.track);
+    S.replay && S.replay.destroy(); S.replay = null; root.dataset.built = ''; renderResults();
+    window.scrollTo(0, y);
   }
   const CATC = (r) => (r.cat === 'alto' ? '--atk' : r.cat === 'bajo' ? '--def' : '--neu');
 
