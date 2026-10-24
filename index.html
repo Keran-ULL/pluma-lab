@@ -250,7 +250,9 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
 .rep-img { border: 0; padding: 0; background: none; display: block; width: 100%; }
 .rep-edit { margin-top: 4px; width: 100%; border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 5px 6px; font-size: 13px; }
 .fixbar { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 12px 16px; }
-.fixbar > div { flex: 1 1 320px; min-width: 0; }
+.fixbar > div, .fixbar > details { flex: 1 1 320px; min-width: 0; }
+.fixbar summary { cursor: pointer; }
+.fixbar details[open] summary { margin-bottom: 6px; }
 .addHit { padding: 7px 12px; font-size: 13px; }
 .rep-card canvas { width: 100%; height: auto; display: block; background: #0a1511; aspect-ratio: 4/3; }
 .rep-card .b { padding: 8px 10px; display: grid; gap: 3px; }
@@ -260,6 +262,25 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
 .live .metric { padding: 8px 10px; }
 .live .metric .v { font-size: 22px; }
 .checks { display: grid; gap: 8px; }
+
+.alt-box { border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 12px; padding: 12px; display: grid; gap: 8px; }
+.nudge { display: flex; gap: 6px; }
+.nudge .icon-btn { font-size: 18px; font-weight: 800; }
+.nudge .icon-btn:disabled { opacity: .35; }
+.calib-wrap canvas { touch-action: none; }
+.fsbox:fullscreen, .fsbox:-webkit-full-screen, .fsbox.fake-fs { background: #000; display: flex; flex-direction: column; gap: 6px; padding: env(safe-area-inset-top, 0px) max(8px, env(safe-area-inset-right, 0px)) max(8px, env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)); color: #f2f7f4; }
+.fsbox.fake-fs { position: fixed; inset: 0; z-index: 100; }
+.fsbox:fullscreen .stage, .fsbox:-webkit-full-screen .stage, .fsbox.fake-fs .stage { flex: 1; aspect-ratio: auto; border-radius: 0; min-height: 0; }
+.fsbox:fullscreen .ctrls, .fsbox.fake-fs .ctrls { margin-top: 0; }
+.fsbox.fake-fs .chip, .fsbox:fullscreen .chip, .fsbox.fake-fs .btn, .fsbox:fullscreen .btn, .fsbox.fake-fs .icon-btn:not(.play), .fsbox:fullscreen .icon-btn:not(.play) { background: #1d2a25; color: #f2f7f4; border-color: #33463f; }
+.fsbox.fake-fs .chip[aria-pressed="true"], .fsbox:fullscreen .chip[aria-pressed="true"] { background: #f2f7f4; color: #0a1511; }
+body.noscroll { overflow: hidden; }
+.rally-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.rally-row.off .rally { opacity: .5; }
+.rally-tog { font-size: 12px; padding: 4px 9px; }
+.rally-row.off .rally-tog { color: var(--muted); }
+.rep-card.off { opacity: .55; }
+#shotType { border: 1px solid var(--line); background: var(--surface-2); border-radius: 10px; padding: 7px 10px; }
 
 </style>
 
@@ -337,10 +358,13 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       </div>
       <!-- Paso 1: calibración -->
       <div id="p-calib" style="display:grid;gap:12px">
-        <div><h3>Marca las 4 esquinas exteriores de la pista</h3><p class="muted small">Toca las esquinas en orden. Puedes arrastrar los puntos para afinar; aparecerá la pista dibujada encima para que compruebes que encaja.</p></div>
+        <div><h3>Marca 4 puntos de la pista</h3><p class="muted small">Toca las 4 esquinas en orden. Mientras arrastras un punto verás una lupa; después puedes afinarlo con las flechas. Si una esquina no se ve, cámbiala por otro cruce de líneas del mismo lateral.</p></div>
+        <div class="row"><span class="small muted">Líneas que vas a marcar:</span><div class="seg" id="lineMode"><button type="button" data-v="d" aria-pressed="true">Dobles (exteriores)</button><button type="button" data-v="s" aria-pressed="false">Individual (laterales interiores)</button></div></div>
         <div class="calib-wrap" id="calibWrap"><canvas id="calibCv" width="1280" height="720"></canvas><div class="calib-tip" id="calibTip"><span class="n">1</span><span>Esquina cercana izquierda</span></div></div>
+        <div class="alt-box" id="altBox" hidden><b id="altTitle"></b><div class="chips" id="altChips"></div><p class="small muted">Los puntos que no son esquinas se dibujan en azul.</p></div>
+        <div class="row"><span class="small muted" id="selTxt"></span><span style="flex:1"></span><div class="nudge" id="nudge"><button class="icon-btn" type="button" data-d="-1,0" aria-label="Mover a la izquierda">←</button><button class="icon-btn" type="button" data-d="0,-1" aria-label="Mover arriba">↑</button><button class="icon-btn" type="button" data-d="0,1" aria-label="Mover abajo">↓</button><button class="icon-btn" type="button" data-d="1,0" aria-label="Mover a la derecha">→</button></div></div>
         <div class="field"><label for="scrub">Elige un fotograma donde se vean bien las líneas</label><input type="range" id="scrub" class="range" min="0" max="1000" value="0"></div>
-        <div class="row"><button class="btn" id="undoPt">Deshacer punto</button><button class="btn" id="resetPt">Empezar de nuevo</button><span style="flex:1"></span><button class="btn primary" id="toSettings" disabled>Continuar</button></div>
+        <div class="row"><button class="btn" id="undoPt">Deshacer punto</button><button class="btn" id="resetPt">Empezar de nuevo</button><button class="btn" id="hiddenPt">Un punto no se ve</button><span style="flex:1"></span><button class="btn primary" id="toSettings" disabled>Continuar</button></div>
       </div>
       <!-- Paso 2: ajustes -->
       <div id="p-settings" hidden style="display:grid;gap:16px">
@@ -471,10 +495,42 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     const w = H[6] * x + H[7] * y + H[8];
     return [(H[0] * x + H[1] * y + H[2]) / w, (H[3] * x + H[4] * y + H[5]) / w];
   }
+  // Homografía por mínimos cuadrados con 4 o más puntos (coordenadas normalizadas para que sea estable)
+  function normT(pts) {
+    const mx = pts.reduce((a, p) => a + p[0], 0) / pts.length, my = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+    const d = pts.reduce((a, p) => a + Math.hypot(p[0] - mx, p[1] - my), 0) / pts.length || 1, s = Math.SQRT2 / d;
+    return { T: [s, 0, -s * mx, 0, s, -s * my, 0, 0, 1], Ti: [1 / s, 0, mx, 0, 1 / s, my, 0, 0, 1], f: (p) => [(p[0] - mx) * s, (p[1] - my) * s] };
+  }
+  const mul3 = (A, B) => { const C = new Array(9).fill(0); for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) C[i * 3 + j] += A[i * 3 + k] * B[k * 3 + j]; return C; };
+  function homographyLS(src, dst) {
+    if (src.length === 4) return homography(src, dst);
+    const ns = normT(src), nd = normT(dst);
+    const M = Array.from({ length: 8 }, () => new Array(8).fill(0)), v = new Array(8).fill(0);
+    src.forEach((p, i) => {
+      const [x, y] = ns.f(p), [u, w] = nd.f(dst[i]);
+      for (const [row, rhs] of [[[x, y, 1, 0, 0, 0, -u * x, -u * y], u], [[0, 0, 0, x, y, 1, -w * x, -w * y], w]]) {
+        for (let a = 0; a < 8; a++) { v[a] += row[a] * rhs; for (let c = 0; c < 8; c++) M[a][c] += row[a] * row[c]; }
+      }
+    });
+    const h = solve(M, v), Hn = [h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7], 1];
+    const H = mul3(nd.Ti, mul3(Hn, ns.T));
+    return H.map((x) => x / H[8]);
+  }
+  // Puntos de referencia de la pista (m). x: ancho desde el lateral izquierdo de dobles; y: largo desde el fondo cercano
+  const LM = (() => {
+    const W = COURT.W, L = COURT.L, N = COURT.NET, sd = COURT.SIDE, ss = COURT.SHORT, dl = COURT.DLONG;
+    return {
+      x: { d: [0, W], s: [sd, W - sd] },
+      y: { fondo: [0, L], largo: [dl, L - dl], corto: [N - ss, N + ss], red: [N, N] },
+      yName: { fondo: 'la línea de fondo', largo: 'la línea de saque largo de dobles', corto: 'la línea de saque corto', red: 'la red (base del poste)' },
+    };
+  })();
   // Esquinas de pista (dobles) en orden: cerca-izq, cerca-der, lejos-der, lejos-izq
   const COURT_CORNERS = [[0, 0], [COURT.W, 0], [COURT.W, COURT.L], [0, COURT.L]];
-  function courtHomographies(imgCorners) {
-    return { img2court: homography(imgCorners, COURT_CORNERS), court2img: homography(COURT_CORNERS, imgCorners) };
+  // Acepta las 4 esquinas de dobles (como antes) o {court:[[x,y]...], img:[[u,v]...]} con 4 o más puntos
+  function courtHomographies(c) {
+    if (Array.isArray(c)) return { img2court: homography(c, COURT_CORNERS), court2img: homography(COURT_CORNERS, c) };
+    return { img2court: homographyLS(c.img, c.court), court2img: homographyLS(c.court, c.img) };
   }
   const angle3 = (a, b, c) => {
     const u = [a[0] - b[0], a[1] - b[1], a[2] - b[2]], v = [c[0] - b[0], c[1] - b[1], c[2] - b[2]];
@@ -577,12 +633,38 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
   function analyze(track, opts) {
     opts = opts || {};
     const raw = track.frames, n = raw.length;
-    const cl = [0, 1].map((p) => cleanSeq(raw.map((f) => f.p[p])));
-    const frames = raw.map((f, i) => ({ t: f.t, p: [cl[0][i], cl[1][i]] }));
-    const t = frames.map((f) => f.t);
-    const { img2court } = courtHomographies(track.corners);
+    const t = raw.map((f) => f.t);
+    const { img2court, court2img } = courtHomographies(track.corners);
     const dur = n ? t[n - 1] - t[0] : 0;
     const dt = n > 1 ? dur / (n - 1) : 1 / 12;
+    const edits = track.edits || {}; ['add', 'del'].forEach((k) => (edits[k] = edits[k] || [])); edits.type = edits.type || {}; edits.rally = edits.rally || {};
+    const SENS = { low: 2.2, normal: 1.6, high: 1.2 }, sens = SENS[track.sens] ? track.sens : 'normal';
+    // Filtro de personas: solo vale una detección si sus pies caen en su media pista, si su tamaño
+    // encaja con lo que debería medir en ese punto de la pista y si no "salta" de sitio de golpe.
+    // Así se ignora a quien pasa por delante o por detrás, y al rival detectado en la zona equivocada.
+    let ignored = 0;
+    const gated = [0, 1].map((p) => {
+      const S = track.stature[p] || 1.75, list = raw.map((f) => f.p[p]), out = list.slice();
+      let last = null;
+      for (let i = 0; i < n; i++) {
+        const pl = list[i]; if (!pl) continue;
+        const la = im(pl, K.lan), ra = im(pl, K.ran), no = im(pl, K.nose);
+        const ax = (la[0] + ra[0]) / 2, ay = Math.max(la[1], ra[1]);
+        const [cx, cy] = applyH(img2court, ax, ay);
+        const own = p === 0 ? cy > -1.6 && cy < COURT.NET + 0.8 : cy < COURT.L + 1.6 && cy > COURT.NET - 0.8;
+        let okp = own && cx > -1.6 && cx < COURT.W + 1.6;
+        if (okp) {
+          const a = applyH(court2img, cx - 0.5, cy), b = applyH(court2img, cx + 0.5, cy), pxm = Math.hypot(b[0] - a[0], b[1] - a[1]);
+          const ratio = Math.hypot(no[0] - ax, no[1] - ay) / (S * pxm);
+          okp = ratio > 0.3 && ratio < 1.9;
+        }
+        if (okp && last && t[i] - last.t < 1.5 && Math.hypot(cx - last.x, cy - last.y) > 1.5 + 7 * (t[i] - last.t)) okp = false;
+        if (okp) last = { x: cx, y: cy, t: t[i] }; else { out[i] = null; ignored++; }
+      }
+      return out;
+    });
+    const cl = gated.map((list) => cleanSeq(list));
+    const frames = raw.map((f, i) => ({ t: f.t, p: [cl[0][i], cl[1][i]] }));
     const P = [0, 1].map((p) => perPlayer(p));
 
     function perPlayer(p) {
@@ -689,6 +771,26 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       const jump = pp.rise[i];
       return (fl - wr[1]) * pp.scale + 0.55 * Math.max(-0.4, up) + jump;
     }
+    // Datos técnicos del golpe (para las mismas comprobaciones que en el modo entrenamiento)
+    function techAt(pp, h) {
+      const i = h.i, W = (s) => Math.max(1, Math.round(s / dt)), p = pp.p, okf = (j) => frames[j] && frames[j].p[p] && frames[j].p[p].w;
+      const kOW = pp.side ? K.lwr : K.rwr, kOS = pp.side ? K.lsh : K.rsh;
+      let raised = false, sawArm = false;
+      for (let j = Math.max(0, i - W(0.7)); j <= i; j++) if (okf(j)) { sawArm = true; const pl = frames[j].p[p]; if (pl.w[kOW * 3 + 1] < pl.w[kOS * 3 + 1] - 0.02) { raised = true; break; } }
+      h.freeArm = sawArm ? raised : undefined;
+      let kb = 180; for (let j = Math.max(0, i - W(0.8)); j <= i; j++) { const k = kneeAt(p, j); if (Number.isFinite(k)) kb = Math.min(kb, k); } h.loadKnee = kb < 180 ? kb : NaN;
+      const kHip = pp.side ? K.rhip : K.lhip, kKn = pp.side ? K.rkn : K.lkn, kAn = pp.side ? K.ran : K.lan;
+      let lk = 180, li = i; for (let j = Math.max(0, i - W(0.3)); j <= Math.min(n - 1, i + W(0.3)); j++) if (okf(j)) { const pl = frames[j].p[p]; const v = angle3(wd(pl, kHip), wd(pl, kKn), wd(pl, kAn)); if (v < lk) { lk = v; li = j; } }
+      const stL = okf(li) ? (() => { const pl = frames[li].p[p], a = wd(pl, K.lan), b = wd(pl, K.ran); return Math.hypot(a[0] - b[0], a[2] - b[2]) * pp.scale; })() : NaN;
+      h.lunge = lk < 128 && stL > pp.stat * 0.5; h.lungeKnee = lk < 180 ? lk : NaN;
+      if (okf(li)) { const pl = frames[li].p[p]; const sw = [(pl.w[K.lsh * 3] + pl.w[K.rsh * 3]) / 2, (pl.w[K.lsh * 3 + 1] + pl.w[K.rsh * 3 + 1]) / 2, (pl.w[K.lsh * 3 + 2] + pl.w[K.rsh * 3 + 2]) / 2], hw = [(pl.w[K.lhip * 3] + pl.w[K.rhip * 3]) / 2, (pl.w[K.lhip * 3 + 1] + pl.w[K.rhip * 3 + 1]) / 2, (pl.w[K.lhip * 3 + 2] + pl.w[K.rhip * 3 + 2]) / 2]; h.lean = Math.atan2(Math.hypot(sw[0] - hw[0], sw[2] - hw[2]), Math.max(0.01, hw[1] - sw[1])) * 180 / Math.PI; }
+      h.kneeC = kneeAt(p, i); h.stanceC = okf(i) ? (() => { const pl = frames[i].p[p], a = wd(pl, K.lan), b = wd(pl, K.ran); return Math.hypot(a[0] - b[0], a[2] - b[2]) * pp.scale / pp.stat; })() : NaN;
+      const wh = (j) => { if (!okf(j)) return NaN; const pl = frames[j].p[p]; return (Math.max(pl.w[K.lan * 3 + 1], pl.w[K.ran * 3 + 1]) + 0.07 - pl.w[pp.kW * 3 + 1]) * pp.scale; };
+      let up = -1e9; for (let j = i; j <= Math.min(n - 1, i + W(0.45)); j++) { const v = wh(j); if (Number.isFinite(v)) up = Math.max(up, v); }
+      h.swingUp = up > -1e9 && Number.isFinite(wh(i)) ? up - wh(i) : NaN;
+      let still = true; for (let j = Math.max(0, i - W(1.0)); j < i - W(0.25); j++) if (pp.spd[j] > 0.6) { still = false; break; }
+      h.still = i - W(1.0) < 0 ? undefined : still; // al principio del vídeo no se puede saber
+    }
     function elbowAt(pp, i) { const pl = frames[i] && frames[i].p[pp.p]; if (!pl || !pl.w) return NaN; return angle3(wd(pl, pp.kS), wd(pl, pp.kE), wd(pl, pp.kW)); }
     function kneeAt(p, i) { const pl = frames[i] && frames[i].p[p]; if (!pl || !pl.w) return NaN; return Math.min(angle3(wd(pl, K.lhip), wd(pl, K.lkn), wd(pl, K.lan)), angle3(wd(pl, K.rhip), wd(pl, K.rkn), wd(pl, K.ran))); }
     function stanceAt(p, i) { const pl = frames[i] && frames[i].p[p]; if (!pl || !pl.w) return NaN; const a = wd(pl, K.lan), b = wd(pl, K.ran), s1 = wd(pl, K.lsh), s2 = wd(pl, K.rsh); return Math.hypot(a[0] - b[0], a[2] - b[2]) / (Math.hypot(s1[0] - s2[0], s1[2] - s2[2]) || 0.35); }
@@ -699,7 +801,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       const ws = pp.ws;
       const v = ws.filter(Number.isFinite);
       const med = median(v), mad = median(v.map((x) => Math.abs(x - med)));
-      const thr = Math.max(opts.minSwing || 1.6, med + 4 * mad);
+      const thr = Math.max(opts.minSwing || SENS[sens], med + 4 * mad);
       const sep = Math.round(0.45 / dt);
       for (let i = 1; i < n - 1; i++) {
         if (!(ws[i] > thr)) continue;
@@ -708,22 +810,28 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
         if (isMax) cands.push({ p: pp.p, i, t: t[i], peak: ws[i] });
       }
     }
+    const nearE = (list, p, i) => list.some((e) => e.p === p && Math.abs(e.i - i) <= Math.round(0.3 / dt));
+    cands = cands.filter((c) => !nearE(edits.del, c.p, c.i));
+    edits.add.forEach((e) => { if (e.i > 0 && e.i < n - 1 && !cands.some((c) => c.p === e.p && Math.abs(c.i - e.i) <= Math.round(0.3 / dt))) cands.push({ p: e.p, i: e.i, t: t[e.i], peak: P[e.p].ws[e.i] || 0, manual: true }); });
     cands.sort((a, b) => a.t - b.t);
     // Alternancia: dos golpes seguidos del mismo jugador muy juntos -> quedarse con el más fuerte
     const hits = [];
     for (const c of cands) {
       const last = hits[hits.length - 1];
-      if (last && last.p === c.p && c.t - last.t < 1.0) { if (c.peak > last.peak) hits[hits.length - 1] = c; continue; }
-      if (last && last.p !== c.p && c.t - last.t < 0.2) { if (c.peak > last.peak) hits[hits.length - 1] = c; continue; }
+      if (!c.manual && last && !last.manual && last.p === c.p && c.t - last.t < 1.0) { if (c.peak > last.peak) hits[hits.length - 1] = c; continue; }
+      if (!c.manual && last && !last.manual && last.p !== c.p && c.t - last.t < 0.2) { if (c.peak > last.peak) hits[hits.length - 1] = c; continue; }
       hits.push(c);
     }
     // Afinar el instante de contacto: altura máxima de la muñeca cerca del pico
     for (const h of hits) {
       const pp = P[h.p];
-      let best = h.i, bh = contactH(pp, h.i);
-      if (bh > pp.stat * 0.9) for (let j = Math.max(0, h.i - 2); j <= Math.min(n - 1, h.i + 1); j++) { const ch = contactH(pp, j); if (ch > bh) { bh = ch; best = j; } }
+      // Contacto por arriba: punto más alto con el brazo más estirado cerca del pico de velocidad
+      let best = h.i, bh = contactH(pp, h.i), hb = bh;
+      for (let j = Math.max(0, h.i - 2); j <= h.i; j++) hb = Math.max(hb, contactH(pp, j) || 0);
+      if (hb > pp.stat * 1.0) { let sc0 = -1e9; for (let j = Math.max(0, h.i - 2); j <= Math.min(n - 1, h.i + 2); j++) { const ch = contactH(pp, j), e = elbowAt(pp, j); if (!Number.isFinite(ch)) continue; const sc = ch + 0.004 * (Number.isFinite(e) ? e : 120); if (sc > sc0) { sc0 = sc; bh = ch; best = j; } } }
       h.i = best; h.t = t[best];
       h.h = bh;
+      techAt(pp, h);
       const xs = pp.X[best], ys = pp.Y[best];
       h.x = Number.isFinite(xs) ? xs : pp.rawX[best]; h.y = Number.isFinite(ys) ? ys : pp.rawY[best];
       h.jump = pp.rise[best] > 0.12 ? Math.round(pp.rise[best] * 100) : 0; // cm
@@ -737,7 +845,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     const rallies = [];
     hits.forEach((h, k) => {
       const prev = hits[k - 1];
-      if (!prev || h.t - prev.t > 2.8) rallies.push({ hits: [] });
+      if (!prev || h.t - prev.t > 2.4) rallies.push({ hits: [] }); // un volante no tarda más de ~2 s en cruzar
       const r = rallies[rallies.length - 1]; h.rally = rallies.length - 1; h.nIn = r.hits.length; r.hits.push(h);
     });
     rallies.forEach((r) => { r.start = r.hits[0].t; r.end = r.hits[r.hits.length - 1].t; r.dur = r.end - r.start; r.n = r.hits.length; r.server = r.hits[0].p; });
@@ -750,33 +858,77 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
         h.next = k + 1; h.T = nx.t - h.t;
         const d = Math.hypot(nx.x - h.x, nx.y - h.y, (nx.h || 1) - (h.h || 1));
         h.d = d; h.vAvg = d / h.T;
-        h.v0 = clamp((Math.exp(DRAG_K * d) - 1) / (DRAG_K * h.T), 0, 117); // m/s, tope ~420 km/h
+        const Te = h.T + 0.5 * dt; // el instante de contacto solo se conoce con la precisión de un fotograma
+        h.v0 = clamp((Math.exp(DRAG_K * d) - 1) / (DRAG_K * Te), 0, 95); // m/s, tope ~340 km/h
         h.recvDn = toHalf(nx.p, nx.x, nx.y).dn; h.recvCat = nx.cat;
       }
+    });
+    // Potencia del golpe: velocidad de salida del volante (si se conoce) y velocidad de la mano
+    const refPeak = pct(hits.map((h) => h.peak), 0.85) || 1;
+    hits.forEach((h) => {
+      const p2 = clamp(h.peak / refPeak, 0, 1.2), p1 = h.v0 ? clamp((mps2kmh(h.v0) - 40) / 160, 0, 1) : null;
+      h.power = p1 === null ? p2 : 0.6 * p1 + 0.4 * Math.min(p2, 1);
+      h.force = h.power >= 0.65 ? 'Fuerte' : h.power >= 0.38 ? 'Media' : 'Suave';
     });
     hits.forEach((h, k) => {
       const prev = hits[k - 1] && hits[k - 1].rally === h.rally ? hits[k - 1] : null;
       const dn = h.zone.dn, rf = h.recvDn; // rf: distancia a la red del rival cuando la recibe
       let ty;
-      if (h.nIn === 0) ty = rf !== undefined && rf < 2.9 ? 'Saque corto' : 'Saque largo';
+      if (h.nIn === 0) ty = rf !== undefined ? (rf < 2.9 ? 'Saque corto' : 'Saque largo') : (h.power < 0.4 ? 'Saque corto' : 'Saque largo');
       else if (h.cat === 'alto') {
-        const fast = h.v0 ? mps2kmh(h.v0) > 150 && h.T < 0.8 : h.peak >= strong;
+        const fast = h.v0 ? mps2kmh(h.v0) > 150 && h.T < 0.8 : h.power >= 0.7;
         if (dn < 2.2) ty = 'Remate en la red';
-        else if (fast || (h.T === undefined && h.peak >= strong)) ty = h.jump ? 'Remate en salto' : 'Remate';
-        else if (rf !== undefined && rf < 2.6) ty = 'Dejada desde el fondo';
+        else if (fast) ty = h.jump ? 'Remate en salto' : 'Remate';
+        else if (rf !== undefined ? rf < 2.6 : h.power < 0.45) ty = 'Dejada desde el fondo';
         else ty = 'Clear';
-      } else if (prev && /Remate/.test(prev.type)) ty = rf !== undefined && rf < 2.6 ? 'Bloqueo' : 'Defensa larga';
-      else if (h.cat === 'medio') ty = dn < 2.2 && rf !== undefined && rf < 2.6 ? 'Dejada de red' : (rf !== undefined && rf > 4.5 && h.T > 1.0 ? 'Lob' : 'Drive');
-      else ty = rf !== undefined && rf > 3.8 ? 'Lob' : 'Dejada de red';
+      } else {
+        // Golpes por debajo de la cabeza: lo que manda es adónde va el volante y con qué fuerza
+        const long = h.T !== undefined ? (h.T >= 0.95 && rf > 3.4) : (h.power >= 0.55 && h.swingUp > 0.45);
+        const short = rf !== undefined ? rf < 2.6 && !long : h.power < 0.38;
+        const flat = h.cat === 'medio' && h.v0 && mps2kmh(h.v0) > 95 && h.T < 0.75 && rf >= 2.6;
+        if (prev && /Remate/.test(prev.type)) ty = long ? 'Defensa larga' : flat ? 'Drive' : 'Bloqueo';
+        else if (long) ty = 'Lob';
+        else if (short) ty = dn < 2.6 ? 'Dejada de red' : 'Bloqueo';
+        else if (flat) ty = 'Drive';
+        else if (rf !== undefined && rf > 3.0) ty = 'Lob';
+        else ty = h.power >= 0.6 && h.cat === 'medio' ? 'Drive' : dn < 2.6 ? 'Dejada de red' : 'Bloqueo';
+      }
+      h.auto = ty;
+      const ek = Object.keys(edits.type).find((key) => { const [ep, ei] = key.split(':').map(Number); return ep === h.p && Math.abs(ei - h.i) <= Math.round(0.3 / dt); });
+      if (ek !== undefined) { ty = edits.type[ek]; h.edited = true; }
       h.type = ty;
       h.role = /Saque/.test(ty) ? 'saque' : /Remate/.test(ty) ? 'ataque' : /Bloqueo|Defensa larga|Lob/.test(ty) ? 'defensa' : 'neutral';
+      h.checkCat = false; h.nearNet = dn < 2.6;
+      if (G.BT) G.BT.checksFor(h, P[h.p].stat, 'back');
     });
+    // ¿Es un punto de verdad? Empieza con un saque desde la zona de saque y los dos están dentro de la pista.
+    // Los peloteos para devolver el volante o los golpes sueltos no cuentan (se puede corregir a mano).
+    rallies.forEach((r) => {
+      const f = r.hits[0], z = toHalf(f.p, f.x, f.y);
+      const inServe = Number.isFinite(z.dn) && z.dn >= 1.6 && z.dn <= 7.2 && f.x > -0.4 && f.x < COURT.W + 0.4;
+      const serveLike = f.cat !== 'alto' && f.still !== false && inServe;
+      let inside = 0, tot = 0;
+      for (let i = f.i; i < n && t[i] <= r.end; i++) for (const pp of P) { const x = pp.X[i], y = pp.Y[i]; if (!Number.isFinite(x)) continue; tot++; if (x > -0.6 && x < COURT.W + 0.6 && y > -0.6 && y < COURT.L + 0.6) inside++; }
+      const insideShare = tot ? inside / tot : 1;
+      r.auto = serveLike && insideShare > 0.7;
+      r.reason = r.auto ? '' : !serveLike ? (r.n === 1 ? 'Golpe suelto sin saque' : 'No empieza con un saque') : 'Jugadores fuera de la pista';
+      r.key = String(Math.round(r.start * 10));
+      r.manual = r.key in edits.rally;
+      r.valid = r.manual ? !!edits.rally[r.key] : r.auto;
+    });
+    const noValid = rallies.length > 0 && !rallies.some((r) => r.valid);
+    hits.forEach((h) => (h.valid = noValid || rallies[h.rally].valid));
+    // Fotogramas "en juego": durante los puntos válidos (para no contar los paseos entre puntos)
+    const inPlay = new Array(n).fill(noValid || !rallies.length);
+    rallies.forEach((r) => { if (!r.valid) return; for (let i = 0; i < n; i++) if (t[i] >= r.start - 1.0 && t[i] <= r.end + 1.5) inPlay[i] = true; });
 
     /* ---- Métricas por jugador ---- */
     const players = P.map((pp) => {
-      const p = pp.p, my = hits.filter((h) => h.p === p), opp = hits.filter((h) => h.p !== p);
+      const vh = hits.filter((h) => h.valid), p = pp.p, my = vh.filter((h) => h.p === p), opp = vh.filter((h) => h.p !== p);
       const pos = [];
-      for (let i = 0; i < n; i++) if (Number.isFinite(pp.X[i]) && Number.isFinite(pp.Y[i])) pos.push([pp.X[i], pp.Y[i], t[i]]);
+      for (let i = 0; i < n; i++) if (inPlay[i] && Number.isFinite(pp.X[i]) && Number.isFinite(pp.Y[i])) pos.push([pp.X[i], pp.Y[i], t[i]]);
+      let distP = 0; for (let i = 1; i < n; i++) if (inPlay[i] && inPlay[i - 1] && [pp.X[i - 1], pp.X[i], pp.Y[i - 1], pp.Y[i]].every(Number.isFinite)) { const d = Math.hypot(pp.X[i] - pp.X[i - 1], pp.Y[i] - pp.Y[i - 1]); if (d > 0.03 && d < 8 * dt * 1.5) distP += d; }
+      const playT = inPlay.filter(Boolean).length * dt || dur;
       // Mapa de calor (rejilla 0,2 m)
       const GX = 31, GY = 67, heat = new Float32Array(GX * GY);
       for (const [x, y] of pos) {
@@ -796,7 +948,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       const zt = pos.length || 1; zones.forEach((r) => r.forEach((v, c) => (r[c] = v / zt)));
       const h0 = hull(pos.map((q) => [q[0], q[1]]));
       const coverage = clamp(polyArea(h0) / (COURT.SW * COURT.NET), 0, 1);
-      const sp = pp.spd.filter(Number.isFinite);
+      const sp = pp.spd.filter((v, i) => inPlay[i] && Number.isFinite(v));
       const moving = sp.filter((v) => v > 0.6);
       // Altura de contacto / ataque-defensa
       const cats = { alto: 0, medio: 0, bajo: 0 };
@@ -809,7 +961,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       const [bx, by] = basePoint(p);
       let recOk = 0, recN = 0; const recT = [];
       my.forEach((h) => {
-        const nx = hits.find((q) => q.t > h.t && q.p !== p && q.rally === h.rally);
+        const nx = vh.find((q) => q.t > h.t && q.p !== p && q.rally === h.rally);
         if (!nx) return;
         recN++;
         let reached = null;
@@ -833,7 +985,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       // Estocadas en la red
       let lunges = 0; const lungeK = []; let lastL = -9;
       for (let i = 0; i < n; i++) {
-        if (!Number.isFinite(pp.X[i])) continue;
+        if (!inPlay[i] || !Number.isFinite(pp.X[i])) continue;
         const z = zoneOf(p, pp.X[i], pp.Y[i]); const kn = kneeAt(p, i), st = stanceAt(p, i);
         if (z.dn < 2.6 && kn < 118 && st > 1.6 && t[i] - lastL > 0.9) { lunges++; lungeK.push(kn); lastL = t[i]; }
       }
@@ -843,12 +995,12 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       const nonServe = my.filter((h) => h.nIn > 0).length || 1;
       const totalH = my.length;
       // Velocidad por punto (fatiga)
-      const perRally = rallies.map((r) => { const s = []; for (let i = 0; i < n; i++) if (t[i] >= r.start - 0.5 && t[i] <= r.end + 0.5 && Number.isFinite(pp.spd[i])) s.push(pp.spd[i]); return mean(s); });
+      const perRally = rallies.filter((r) => r.valid || noValid).map((r) => { const s = []; for (let i = 0; i < n; i++) if (t[i] >= r.start - 0.5 && t[i] <= r.end + 0.5 && Number.isFinite(pp.spd[i])) s.push(pp.spd[i]); return mean(s); });
       const contactHs = my.filter((h) => h.nIn > 0).map((h) => h.h).filter(Number.isFinite);
       const ent = (() => { const v = Object.values(types), s = v.reduce((a, b) => a + b, 0); if (!s) return 0; let e = 0; v.forEach((c) => { const q = c / s; e -= q * Math.log(q); }); return e / Math.log(8); })();
       const m = {
         p, name: track.names ? track.names[p] : (p ? 'Rival' : 'Tú'), stature: pp.stat, hand: pp.side ? 'diestro' : 'zurdo',
-        dist: pp.dist, distPerMin: dur ? pp.dist / (dur / 60) : 0,
+        dist: distP, distPerMin: playT ? distP / (playT / 60) : 0,
         avgSpeed: mean(moving), maxSpeed: pct(sp, 0.98) || 0,
         heat, GX, GY, zones, coverage, hull: h0, pos,
         hits: totalH, cats, attackShare: cats.alto / nonServe, defShare: cats.bajo / nonServe, types,
@@ -860,7 +1012,9 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
         lunges, lungeKnee: mean(lungeK), jumps: jumps.length, jumpMax: jumps.length ? Math.max(...jumps.map((h) => h.jump)) : 0,
         elbowOk, elbowAvg: mean(overhead.map((h) => h.elbow)),
         perRally, contactHs, variety: ent,
-        hitsPerMin: dur ? totalH / (dur / 60) : 0,
+        hitsPerMin: playT ? totalH / (playT / 60) : 0,
+        checkSum: G.BT ? G.BT.sumChecks(my) : {},
+        forces: { Fuerte: my.filter((h) => h.force === 'Fuerte').length, Media: my.filter((h) => h.force === 'Media').length, Suave: my.filter((h) => h.force === 'Suave').length },
       };
       return m;
     });
@@ -877,13 +1031,38 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       };
       m.overall = Math.round(Object.values(m.scores).reduce((a, b) => a + b, 0) / 6);
       m.tips = tipsFor(m);
+      if (G.BT) { const extra = []; G.BT.techTips(m.checkSum, (lvl, title, body) => extra.push({ lvl, title, body })); const order = { mejora: 0, aviso: 1, dato: 2, bien: 3 }; m.tips = m.tips.concat(extra).sort((a, b) => order[a.lvl] - order[b.lvl]); }
     });
-    const allV = hits.filter((h) => h.v0);
+    // Volante (experimental): entre dos golpes se buscan puntos claros que se mueven y se ajusta una parábola
+    function linkShuttle() {
+      if (!raw.some((f) => f.sh && f.sh.length)) return null;
+      const wImg = (h) => { const pl = frames[h.i] && frames[h.i].p[h.p]; return pl ? im(pl, P[h.p].kW) : null; };
+      const Wd = track.width || 1280, Hd = track.height || 720, out = {};
+      hits.forEach((h, k) => {
+        if (h.next === undefined) return; const nx = hits[h.next], A = wImg(h), B = wImg(nx); if (!A || !B) return;
+        const cand = [];
+        for (let i = h.i + 1; i < nx.i; i++) {
+          const f = raw[i]; if (!f.sh || !f.sh.length) continue;
+          const u = (t[i] - h.t) / (nx.t - h.t), ex = A[0] + (B[0] - A[0]) * u, ey = A[1] + (B[1] - A[1]) * u, gate = Wd * (0.08 + 0.1 * Math.sin(Math.PI * u));
+          for (const c of f.sh) if (Math.abs(c[0] - ex) < gate && c[1] - ey < Hd * 0.08) cand.push([u, c[0], c[1]]);
+        }
+        const g = (u) => u * (1 - u), lin = (u) => A[1] + (B[1] - A[1]) * u;
+        let use = cand, a = 0;
+        for (let it = 0; it < 3 && use.length; it++) {
+          let num = 0, den = 0; use.forEach(([u, , y]) => { num += (lin(u) - y) * g(u); den += g(u) * g(u); }); a = den ? Math.max(0, num / den) : 0;
+          use = cand.filter(([u, x, y]) => Math.abs(lin(u) - a * g(u) - y) < Hd * 0.04 && Math.abs(A[0] + (B[0] - A[0]) * u - x) < Wd * 0.06);
+        }
+        if (use.length >= 2) out[k] = { A, B, a, pts: use };
+      });
+      return out;
+    }
+    const allV = hits.filter((h) => h.v0 && h.valid);
     const fastest = allV.length ? allV.reduce((a, b) => (b.v0 > a.v0 ? b : a)) : null;
-    const longest = rallies.length ? rallies.reduce((a, b) => (b.n > a.n ? b : a)) : null;
-    const highestJump = hits.filter((h) => h.jump).reduce((a, b) => (!a || b.jump > a.jump ? b : a), null);
+    const vr = rallies.filter((r) => r.valid || noValid);
+    const longest = vr.length ? vr.reduce((a, b) => (b.n > a.n ? b : a)) : null;
+    const highestJump = hits.filter((h) => h.jump && h.valid).reduce((a, b) => (!a || b.jump > a.jump ? b : a), null);
     return {
-      version: 1, duration: dur, nFrames: n, dt, fps: 1 / dt, hits, rallies, players,
+      version: 2, sens, ignored, noValid, inPlay, duration: dur, nFrames: n, dt, fps: 1 / dt, hits, rallies, players, shuttle: linkShuttle(),
       highlights: { fastest, longest, highestJump },
       series: { t, X: P.map((q) => q.X), Y: P.map((q) => q.Y), spd: P.map((q) => q.spd), ws: P.map((q) => q.ws) },
     };
@@ -893,8 +1072,6 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
   function tipsFor(m) {
     const T = [];
     const add = (lvl, title, body) => T.push({ lvl, title, body });
-    if (Number.isFinite(m.elbowOk) && m.elbowOk < 0.6) add('mejora', 'Estira más el brazo arriba', `Solo el ${Math.round(m.elbowOk * 100)} % de tus golpes por encima de la cabeza llegan con el brazo casi estirado (codo ≥ 145°). Golpea en el punto más alto, algo por delante de la cabeza.`);
-    else if (Number.isFinite(m.elbowOk)) add('bien', 'Buen punto de contacto arriba', `El ${Math.round(m.elbowOk * 100)} % de tus golpes altos los haces con el brazo extendido. Sigue así.`);
     if (m.attackShare < 0.3 && m.hits > 6) add('mejora', 'Coge el volante más alto', `Solo el ${Math.round(m.attackShare * 100)} % de tus golpes son por encima de la cabeza. Muévete antes para llegar detrás del volante y atacar en vez de defender.`);
     if (m.defShare > 0.4) add('aviso', 'Juegas mucho a la defensiva', `El ${Math.round(m.defShare * 100)} % de tus contactos son por debajo de la cintura. Intenta levantar menos y jugar más dejadas o drives.`);
     if (Number.isFinite(m.recovery) && m.recovery < 0.6) add('mejora', 'Vuelve al centro después de golpear', `Solo vuelves a la zona base en el ${Math.round(m.recovery * 100)} % de los golpes antes de que responda el rival. Recupera con pasos cortos justo después de cada golpe.`);
@@ -911,7 +1088,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     return T.sort((a, b) => order[a.lvl] - order[b.lvl]);
   }
 
-  G.BA = { cleanSeq, COURT, MP_IDX, K, NK, homography, applyH, courtHomographies, analyze, zoneOf, toHalf, basePoint, ROW_N, mean, median, pct, clamp, mps2kmh, DRAG_K };
+  G.BA = { hull, LM, homographyLS, cleanSeq, COURT, MP_IDX, K, NK, homography, applyH, courtHomographies, analyze, zoneOf, toHalf, basePoint, ROW_N, mean, median, pct, clamp, mps2kmh, DRAG_K };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 </script>
@@ -940,6 +1117,66 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
   const mid = (a, b) => a.map((v, i) => (v + b[i]) / 2);
   function smooth(a, w) { const h = w >> 1, o = a.slice(); for (let i = 0; i < a.length; i++) { let s = 0, n = 0; for (let j = i - h; j <= i + h; j++) if (j >= 0 && j < a.length && Number.isFinite(a[j])) { s += a[j]; n++; } o[i] = n ? s / n : NaN; } return o; }
   function fill(a, t, gap) { const o = a.slice(); let l = -1; for (let i = 0; i < a.length; i++) { if (!Number.isFinite(a[i])) continue; if (l >= 0 && i - l > 1 && t[i] - t[l] <= gap) for (let j = l + 1; j < i; j++) o[j] = a[l] + (a[i] - a[l]) * (t[j] - t[l]) / (t[i] - t[l]); l = i; } return o; }
+
+
+  /* ---------- Comprobaciones técnicas de un golpe (se usan en entrenamiento y en partido) ---------- */
+  // Solo se comprueba lo que se ha podido medir: un dato que falta no cuenta ni a favor ni en contra.
+  const fin = Number.isFinite;
+  function checksFor(r, S, view) {
+    const C = [], c = (id, n, pass, val, ideal) => C.push({ id, n, pass, val, ideal });
+    const cat = r.expected || r.cat;
+    if (r.type === 'Golpe de sombra') { /* solo desplazamiento */ }
+    else if (/Bloqueo|Defensa larga/.test(r.type)) {
+      if (fin(r.front)) c('dfront', 'Raqueta delante del cuerpo', r.front >= 0.1, `${Math.round(r.front * 100)} cm`, '≥ 10 cm delante');
+      if (fin(r.kneeC)) c('dknee', 'Piernas flexionadas', r.kneeC <= 150, `${Math.round(r.kneeC)}°`, '≤ 150°');
+      if (fin(r.stanceC)) c('dstance', 'Apoyo amplio', r.stanceC >= 0.3, `${Math.round(r.stanceC * 100)} %`, '≥ 30 % de tu estatura');
+      if (r.type === 'Bloqueo' && fin(r.swingUp)) c('dshort', 'Golpe corto, sin mucho swing', r.swingUp <= 0.45, `${Math.round(r.swingUp * 100)} cm`, '≤ 45 cm');
+    } else if (cat === 'alto') {
+      if (fin(r.elbow)) c('elbow', 'Brazo estirado en el contacto', r.elbow >= 150, `${Math.round(r.elbow)}°`, '≥ 150°');
+      if (fin(r.h)) c('high', 'Contacto alto', r.h >= S * 1.36, `${r.h.toFixed(2)} m`, `≥ ${(S * 1.36).toFixed(2)} m`);
+      if (typeof r.freeArm === 'boolean') c('free', 'Brazo libre arriba al preparar', r.freeArm, r.freeArm ? 'sí' : 'no', 'sí');
+      if (fin(r.front)) c('front', 'Contacto delante del cuerpo', r.front >= 0.03, `${Math.round(r.front * 100)} cm`, '≥ 3 cm delante');
+      if (/Remate/.test(r.type) && fin(r.loadKnee)) c('load', 'Carga de piernas antes del golpe', r.loadKnee <= 155, `${Math.round(r.loadKnee)}°`, '≤ 155°');
+    } else if (cat === 'bajo' && !/Saque/.test(r.type) && r.lunge === false && !r.nearNet) {
+      // Golpe bajo sin estocada (levantada desde media pista): postura de defensa
+      if (fin(r.kneeC)) c('dknee', 'Piernas flexionadas', r.kneeC <= 150, `${Math.round(r.kneeC)}°`, '≤ 150°');
+      if (fin(r.stanceC)) c('dstance', 'Apoyo amplio', r.stanceC >= 0.3, `${Math.round(r.stanceC * 100)} %`, '≥ 30 % de tu estatura');
+      if (fin(r.front)) c('dfront', 'Raqueta delante del cuerpo', r.front >= 0.1, `${Math.round(r.front * 100)} cm`, '≥ 10 cm delante');
+    } else if (cat === 'bajo' && !/Saque/.test(r.type)) {
+      if (fin(r.lungeKnee)) c('lunge', 'Estocada profunda', r.lungeKnee >= 80 && r.lungeKnee <= 125, `${Math.round(r.lungeKnee)}°`, '80°–125°');
+      if (view === 'side' && fin(r.kneeOver)) c('knee', 'Rodilla sin pasar el pie', r.kneeOver <= 0.1, `${Math.round(r.kneeOver * 100)} cm`, '≤ 10 cm');
+      if (fin(r.lean)) c('trunk', 'Tronco recto', r.lean <= 28, `${Math.round(r.lean)}°`, '≤ 28°');
+      if (fin(r.footFwd)) c('foot', 'Pie de la raqueta delante', r.footFwd > 0.1, r.footFwd > 0.1 ? 'sí' : 'no', 'sí');
+    } else if (/Saque/.test(r.type)) {
+      if (fin(r.h)) c('serveH', 'Contacto por debajo de 1,15 m', r.h - 0.55 <= 1.15, `${(r.h - 0.55).toFixed(2)} m`, '≤ 1,15 m');
+      if (typeof r.still === 'boolean') c('still', 'Pies quietos al sacar', r.still, r.still ? 'sí' : 'no', 'sí');
+    } else {
+      if (fin(r.front)) c('front', 'Contacto delante del cuerpo', r.front >= 0.08, `${Math.round(r.front * 100)} cm`, '≥ 8 cm delante');
+      if (fin(r.elbow)) c('elbowM', 'Codo flexible, sin bloquear', r.elbow >= 90 && r.elbow <= 165, `${Math.round(r.elbow)}°`, '90°–165°');
+    }
+    if (r.expected && r.cat !== r.expected && r.type !== 'Golpe de sombra' && !/Saque/.test(r.type) && r.checkCat !== false) c('cat', `Altura propia de un ${r.type.toLowerCase()}`, false, r.cat === 'alto' ? 'por arriba' : r.cat === 'bajo' ? 'por abajo' : 'a media altura', r.expected === 'alto' ? 'por arriba' : r.expected === 'bajo' ? 'por abajo' : 'a media altura');
+    if (r.dist > 0.6) c('rec', 'Vuelve a la base', r.rec !== null && r.rec <= 1.3, r.rec === null ? 'no' : `${r.rec.toFixed(1)} s`, '≤ 1,3 s');
+    r.checks = C; r.score = C.length ? Math.round(C.filter((x) => x.pass).length / C.length * 100) : null;
+    return r;
+  }
+  function sumChecks(list) { const cs = {}; list.forEach((r) => (r.checks || []).forEach((c) => { const s = (cs[c.id] = cs[c.id] || { n: c.n, ok: 0, tot: 0 }); s.tot++; if (c.pass) s.ok++; })); return cs; }
+  // Consejos que salen de las comprobaciones técnicas
+  function techTips(cs, add) {
+    const share = (id) => (cs[id] && cs[id].tot ? cs[id].ok / cs[id].tot : NaN), P = (v) => Math.round(v * 100) + ' %';
+    const e = share('elbow'); if (Number.isFinite(e)) e < 0.7 ? add('mejora', 'Estira el brazo al golpear por arriba', `Solo en el ${P(e)} de los golpes altos el codo llega casi recto (≥ 150°). Busca el volante en el punto más alto, con el brazo extendido.`) : add('bien', 'Brazo bien extendido', `En el ${P(e)} de tus golpes altos el brazo llega estirado.`);
+    const fr = share('free'); if (Number.isFinite(fr) && fr < 0.7) add('mejora', 'Usa el brazo libre', `Solo levantas el brazo contrario al preparar en el ${P(fr)} de los golpes altos. Apunta al volante con él: te ayuda a girar y a calcular el golpe.`);
+    const fo = share('front'); if (Number.isFinite(fo) && fo < 0.6) add('mejora', 'Golpea más delante', `Solo el ${P(fo)} de los contactos son delante del cuerpo. Colócate antes detrás del volante para no golpearlo encima o detrás de la cabeza.`);
+    const hi = share('high'); if (Number.isFinite(hi) && hi < 0.6) add('mejora', 'Coge el volante más alto', `Solo el ${P(hi)} de los golpes altos llegan a la altura ideal. Llega antes y estírate hacia arriba.`);
+    const lo = share('load'); if (Number.isFinite(lo) && lo < 0.6) add('mejora', 'Carga las piernas en el remate', 'Flexiona más las rodillas antes del remate: la potencia empieza en las piernas.');
+    const lu = share('lunge'); if (Number.isFinite(lu) && lu < 0.6) add('mejora', 'Estocada más profunda', `Solo el ${P(lu)} de tus estocadas tienen la flexión ideal (80°–125°). Da el paso más largo y baja la cadera.`);
+    const kn = share('knee'); if (Number.isFinite(kn) && kn < 0.85) add('aviso', 'Cuidado con la rodilla', `En el ${P(1 - kn)} de las estocadas la rodilla pasa por delante del pie. Mantén la rodilla encima del tobillo para proteger la articulación.`);
+    const tr = share('trunk'); if (Number.isFinite(tr) && tr < 0.7) add('mejora', 'Mantén el tronco recto', 'En la red te inclinas demasiado hacia delante. Con el tronco recto recuperas antes.');
+    const ft = share('foot'); if (Number.isFinite(ft) && ft < 0.7) add('mejora', 'Pie de la raqueta delante', 'En las estocadas adelanta el pie del lado de la raqueta: llegas más lejos y con más equilibrio.');
+    const df = share('dknee'); if (Number.isFinite(df) && df < 0.7) add('mejora', 'Baja más al defender', `Solo en el ${P(df)} de tus defensas tienes las rodillas bien flexionadas. Baja el centro de gravedad para reaccionar al remate.`);
+    const dsn = share('dstance'); if (Number.isFinite(dsn) && dsn < 0.7) add('mejora', 'Abre más los pies al defender', 'Con los pies más separados tienes más equilibrio y llegas antes a los lados.');
+    const dfr = share('dfront'); if (Number.isFinite(dfr) && dfr < 0.7) add('mejora', 'Defiende con la raqueta delante', `Solo en el ${P(dfr)} de las defensas golpeas delante del cuerpo. Lleva la raqueta delante y abajo antes de que llegue el remate.`);
+    const sv = share('serveH'); if (Number.isFinite(sv) && sv < 0.8) add('aviso', 'Saque demasiado alto', 'En algunos saques golpeas el volante por encima de 1,15 m, lo que sería falta.');
+  }
 
   function analyzeTraining(track) {
     const cl = G.BA.cleanSeq(track.frames.map((f) => f.p));
@@ -1075,19 +1312,22 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       return r;
     });
     const altoPeaks = reps.filter((r) => r.cat === 'alto').map((r) => r.peak), mxA = Math.max(0, ...altoPeaks);
+    const refPk = pct(reps.map((r) => r.peak), 0.85) || 1;
+    reps.forEach((r) => { r.power = clamp(r.peak / refPk, 0, 1.3); r.force = r.power >= 0.75 ? 'Fuerte' : r.power >= 0.45 ? 'Media' : 'Suave'; });
     reps.forEach((r, k) => {
       const prev = reps[k - 1];
       // Cerca de la red = avanza hacia delante o hace estocada adelantando el pie de la raqueta
       r.nearNet = (r.lunge && r.adv > 0.3 && !(Number.isFinite(r.footFwd) && r.footFwd < 0.05)) || r.adv > 1.0;
-      if (drill === 'Defensa') r.type = r.swingUp > 0.6 ? 'Defensa larga' : 'Bloqueo';
+      // Levantada (lob): golpe bajo con fuerza y la raqueta termina arriba. Si no, es un golpe suave: bloqueo o dejada.
+      const lift = r.swingUp > 0.6 || (r.power >= 0.6 && r.follow > S * 0.75);
+      if (drill === 'Defensa') r.type = lift ? 'Defensa larga' : 'Bloqueo';
       else if (drill !== 'mixed' && drill !== 'footwork') {
         r.type = drill === 'Saque' ? (r.peak > thr * 2.2 ? 'Saque largo' : 'Saque corto') : drill;
         if (drill === 'Remate' && r.jump) r.type = 'Remate en salto';
       } else if (r.cat === 'alto') r.type = r.peak >= mxA * 0.72 && r.down > 1.0 ? (r.jump ? 'Remate en salto' : 'Remate') : r.peak < mxA * 0.76 ? 'Dejada desde el fondo' : 'Clear';
       else if (r.still && (!prev || r.t - prev.t > 2.5) && !r.lunge && r.kneeC > 148 && r.stanceC < 0.45) r.type = r.cat === 'bajo' ? 'Saque largo' : 'Saque corto';
       else if (r.cat === 'bajo' || (r.cat === 'medio' && r.h < S * 0.8 && !r.nearNet)) {
-        if (r.nearNet) r.type = r.follow > S * 0.82 ? 'Lob' : 'Dejada de red';
-        else r.type = r.swingUp > 0.6 ? 'Defensa larga' : 'Bloqueo';
+        r.type = lift ? 'Lob' : r.nearNet ? 'Dejada de red' : 'Bloqueo';
       } else r.type = 'Drive';
       if (drill === 'footwork') r.type = 'Golpe de sombra';
       const ed = Object.keys(edits.type || {}).find((x) => Math.abs(+x - r.i) <= W(0.25));
@@ -1102,38 +1342,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       r.dist = Math.hypot(fwd[r.i] - f0, lat[r.i] - l0);
     });
     // Comprobaciones técnicas por repetición
-    reps.forEach((r) => {
-      const C = [], c = (id, n, pass, val, ideal) => C.push({ id, n, pass, val, ideal });
-      const cat = r.expected || r.cat;
-      if (r.type === 'Golpe de sombra') { /* solo desplazamiento */ }
-      else if (/Bloqueo|Defensa larga/.test(r.type)) {
-        c('dfront', 'Raqueta delante del cuerpo', r.front >= 0.1, `${Math.round(r.front * 100)} cm`, '≥ 10 cm delante');
-        c('dknee', 'Piernas flexionadas', r.kneeC <= 150, `${Math.round(r.kneeC)}°`, '≤ 150°');
-        c('dstance', 'Apoyo amplio', r.stanceC >= 0.3, `${Math.round(r.stanceC * 100)} %`, '≥ 30 % de tu estatura');
-        if (r.type === 'Bloqueo') c('dshort', 'Golpe corto, sin mucho swing', r.swingUp <= 0.45, `${Math.round(r.swingUp * 100)} cm`, '≤ 45 cm');
-      }
-      else if (cat === 'alto') {
-        c('elbow', 'Brazo estirado en el contacto', r.elbow >= 150, `${Math.round(r.elbow)}°`, '≥ 150°');
-        c('high', 'Contacto alto', r.h >= S * 1.36, `${r.h.toFixed(2)} m`, `≥ ${(S * 1.36).toFixed(2)} m`);
-        c('free', 'Brazo libre arriba al preparar', r.freeArm, r.freeArm ? 'sí' : 'no', 'sí');
-        c('front', 'Contacto delante del cuerpo', r.front >= 0.03, `${Math.round(r.front * 100)} cm`, '≥ 3 cm delante');
-        if (/Remate/.test(r.type)) c('load', 'Carga de piernas antes del golpe', r.loadKnee <= 155, `${Math.round(r.loadKnee)}°`, '≤ 155°');
-      } else if (cat === 'bajo' && !/Saque/.test(r.type)) {
-        c('lunge', 'Estocada profunda', r.lungeKnee >= 80 && r.lungeKnee <= 125, `${Math.round(r.lungeKnee)}°`, '80°–125°');
-        if (view === 'side' && Number.isFinite(r.kneeOver)) c('knee', 'Rodilla sin pasar el pie', r.kneeOver <= 0.1, `${Math.round(r.kneeOver * 100)} cm`, '≤ 10 cm');
-        c('trunk', 'Tronco recto', r.lean <= 28, `${Math.round(r.lean)}°`, '≤ 28°');
-        if (Number.isFinite(r.footFwd)) c('foot', 'Pie de la raqueta delante', r.footFwd > 0.1, r.footFwd > 0.1 ? 'sí' : 'no', 'sí');
-      } else if (/Saque/.test(r.type)) {
-        c('serveH', 'Contacto por debajo de 1,15 m', r.h - 0.55 <= 1.15, `${(r.h - 0.55).toFixed(2)} m`, '≤ 1,15 m');
-        c('still', 'Pies quietos al sacar', r.still, r.still ? 'sí' : 'no', 'sí');
-      } else {
-        c('front', 'Contacto delante del cuerpo', r.front >= 0.08, `${Math.round(r.front * 100)} cm`, '≥ 8 cm delante');
-        c('elbowM', 'Codo flexible, sin bloquear', r.elbow >= 90 && r.elbow <= 165, `${Math.round(r.elbow)}°`, '90°–165°');
-      }
-      if (r.expected && r.cat !== r.expected && r.type !== 'Golpe de sombra' && !/Saque/.test(r.type)) c('cat', `Altura propia de un ${r.type.toLowerCase()}`, false, r.cat === 'alto' ? 'por arriba' : r.cat === 'bajo' ? 'por abajo' : 'a media altura', r.expected === 'alto' ? 'por arriba' : r.expected === 'bajo' ? 'por abajo' : 'a media altura');
-      if (r.dist > 0.6) c('rec', 'Vuelve a la base', r.rec !== null && r.rec <= 1.3, r.rec === null ? 'no' : `${r.rec.toFixed(1)} s`, '≤ 1,3 s');
-      r.checks = C; r.score = C.length ? Math.round(C.filter((x) => x.pass).length / C.length * 100) : null;
-    });
+    reps.forEach((r) => checksFor(r, S, view));
     // Posición de espera: momentos tranquilos lejos de los golpes
     const quiet = []; for (let i = 0; i < n; i++) { if (!ok[i] || spdS[i] > 0.4) continue; if (reps.some((r) => Math.abs(t[i] - r.t) < 0.7)) continue; quiet.push(i); }
     const ready = {
@@ -1173,23 +1382,12 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     const T = [], add = (lvl, title, body) => T.push({ lvl, title, body });
     const cs = R.checkSum, share = (id) => (cs[id] && cs[id].tot ? cs[id].ok / cs[id].tot : NaN), P = (v) => Math.round(v * 100) + ' %';
     if (!R.reps.length) add('aviso', 'No se han detectado golpes', 'Comprueba que se vea el brazo de la raqueta durante todo el vídeo, o elige "Desplazamientos" si el ejercicio no lleva golpes.');
-    const e = share('elbow'); if (Number.isFinite(e)) e < 0.7 ? add('mejora', 'Estira el brazo al golpear por arriba', `Solo en el ${P(e)} de los golpes altos el codo llega casi recto (≥ 150°). Busca el volante en el punto más alto, con el brazo extendido.`) : add('bien', 'Brazo bien extendido', `En el ${P(e)} de tus golpes altos el brazo llega estirado.`);
-    const fr = share('free'); if (Number.isFinite(fr) && fr < 0.7) add('mejora', 'Usa el brazo libre', `Solo levantas el brazo contrario al preparar en el ${P(fr)} de los golpes altos. Apunta al volante con él: te ayuda a girar y a calcular el golpe.`);
-    const fo = share('front'); if (Number.isFinite(fo) && fo < 0.6) add('mejora', 'Golpea más delante', `Solo el ${P(fo)} de los contactos son delante del cuerpo. Colócate antes detrás del volante para no golpearlo encima o detrás de la cabeza.`);
-    const hi = share('high'); if (Number.isFinite(hi) && hi < 0.6) add('mejora', 'Coge el volante más alto', `Solo el ${P(hi)} de los golpes altos llegan a la altura ideal. Llega antes y estírate hacia arriba.`);
-    const lo = share('load'); if (Number.isFinite(lo) && lo < 0.6) add('mejora', 'Carga las piernas en el remate', 'Flexiona más las rodillas antes del remate: la potencia empieza en las piernas.');
-    const lu = share('lunge'); if (Number.isFinite(lu) && lu < 0.6) add('mejora', 'Estocada más profunda', `Solo el ${P(lu)} de tus estocadas tienen la flexión ideal (80°–125°). Da el paso más largo y baja la cadera.`);
-    const kn = share('knee'); if (Number.isFinite(kn) && kn < 0.85) add('aviso', 'Cuidado con la rodilla', `En el ${P(1 - kn)} de las estocadas la rodilla pasa por delante del pie. Mantén la rodilla encima del tobillo para proteger la articulación.`);
-    const tr = share('trunk'); if (Number.isFinite(tr) && tr < 0.7) add('mejora', 'Mantén el tronco recto', 'En la red te inclinas demasiado hacia delante. Con el tronco recto recuperas antes.');
-    const ft = share('foot'); if (Number.isFinite(ft) && ft < 0.7) add('mejora', 'Pie de la raqueta delante', 'En las estocadas adelanta el pie del lado de la raqueta: llegas más lejos y con más equilibrio.');
+    techTips(cs, add);
     const rc = share('rec'); if (Number.isFinite(rc)) rc < 0.6 ? add('mejora', 'Vuelve antes a la base', `Solo en el ${P(rc)} de los golpes vuelves a tu posición en menos de 1,3 s.`) : add('bien', 'Buena recuperación', `Vuelves a la base a tiempo en el ${P(rc)} de los golpes.`);
     if (Number.isFinite(R.ready.knee) && R.ready.knee > 162) add('mejora', 'Flexiona las rodillas al esperar', `En la espera tus rodillas están casi rectas (${Math.round(R.ready.knee)}°). Bájate un poco: saldrás más rápido.`);
     if (Number.isFinite(R.ready.racketUp) && R.ready.racketUp < 0.5) add('mejora', 'Raqueta arriba al esperar', `Solo tienes la raqueta por encima de la cintura el ${P(R.ready.racketUp)} del tiempo de espera.`);
     if (Number.isFinite(R.move.splitShare) && R.move.splitShare < 0.4 && R.move.starts >= 4) add('mejora', 'Haz el split step', 'Antes de salir hacia el volante, da un pequeño salto de preparación. Casi no lo detectamos.');
     if (Number.isFinite(R.fatigue) && R.fatigue > 0.15) add('aviso', 'Pierdes velocidad al final', `La velocidad de tu brazo baja un ${Math.round(R.fatigue * 100)} % en las últimas repeticiones. Descansa entre series o haz menos repeticiones con más calidad.`);
-    const df = share('dknee'); if (Number.isFinite(df) && df < 0.7) add('mejora', 'Baja más al defender', `Solo en el ${P(df)} de tus defensas tienes las rodillas bien flexionadas. Baja el centro de gravedad para reaccionar al remate.`);
-    const dsn = share('dstance'); if (Number.isFinite(dsn) && dsn < 0.7) add('mejora', 'Abre más los pies al defender', 'Con los pies más separados tienes más equilibrio y llegas antes a los lados.');
-    const dfr = share('dfront'); if (Number.isFinite(dfr) && dfr < 0.7) add('mejora', 'Defiende con la raqueta delante', `Solo en el ${P(dfr)} de las defensas golpeas delante del cuerpo. Lleva la raqueta delante y abajo antes de que llegue el remate.`);
     const cat = R.checkSum.cat; if (cat && cat.tot - cat.ok > 0) add('aviso', 'Algunos golpes no corresponden al ejercicio', `${cat.tot - cat.ok} repeticiones tienen una altura de contacto que no es la propia del golpe elegido.`);
     const o = { mejora: 0, aviso: 1, dato: 2, bien: 3 };
     return T.sort((a, b) => o[a.lvl] - o[b.lvl]);
@@ -1207,7 +1405,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     function ik(a, c, L1, L2, bend) { const d = sub(c, a); let D = len(d); if (D > L1 + L2 - 1e-3) { c = add(a, mul(nrm(d), L1 + L2 - 1e-3)); D = L1 + L2 - 1e-3; } const x = (L1 * L1 - L2 * L2 + D * D) / (2 * D), h = Math.sqrt(Math.max(0, L1 * L1 - x * x)); const dn = nrm(d); let b = sub(bend, mul(dn, dot(bend, dn))); b = nrm(b); return add(add(a, mul(dn, x)), mul(b, h)); }
     const plan = [
       ['Clear', {}], ['Remate', {}], ['Dejada desde el fondo', {}], ['Dejada de red', {}], ['Lob', {}], ['Remate', { jump: 1 }], ['Drive', {}],
-      ['Bloqueo', { def: 1, extra: 'walk' }], ['Clear', { bent: 1 }], ['Lob', { kneeOver: 1, extra: 'raise' }], ['Defensa larga', { def: 1 }], ['Remate', { armDown: 1, late: 1 }],
+      ['Bloqueo', { def: 1, extra: 'walk' }], ['Clear', { bent: 1 }], ['Lob', { kneeOver: 1, extra: 'raise' }], ['Lob', { def: 1 }], ['Remate', { armDown: 1, late: 1 }],
       ['Dejada de red', { lean: 1, extra: 'shake' }], ['Bloqueo', { def: 1, extra: 'flick' }], ['Remate', { jump: 1 }], ['Clear', {}], ['Lob', {}],
     ];
     // Movimientos que NO son golpes (para comprobar que no se cuentan): andar, levantar la raqueta despacio, sacudir los brazos, girar la raqueta
@@ -1219,7 +1417,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     function yAt(t0) {
       let y = 0;
       for (const rp of reps) {
-        const go = rp.t - 0.75, back = rp.t + (rp.fl.late ? 1.9 : 0.95), p = posFor(rp.cat);
+        const go = rp.t - 0.75, back = rp.t + (rp.fl.late ? 1.9 : 0.95), p = posFor(rp.fl.def ? null : rp.cat);
         if (t0 >= go && t0 <= rp.t) y = lerp(0, p, sst((t0 - go) / 0.6));
         else if (t0 > rp.t && t0 <= back) y = lerp(p, 0, sst((t0 - rp.t - 0.15) / (back - rp.t - 0.15)));
       }
@@ -1236,7 +1434,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       if (act) {
         if (act.fl.jump) jump += 0.3 * Math.max(0, Math.cos(Math.PI / 2 * clamp((t0 - act.t + 0.04) / 0.3, -1, 1)));
         if (act.fl.def) crouch = 0.45 + 0.5 * sst(1 - Math.abs(t0 - act.t) / 0.6);
-        if (act.cat === 'bajo') { lunge = sst(1 - Math.abs(t0 - act.t) / 0.5); if (act.fl.lean) lean = 1.7 * lunge; }
+        if (act.cat === 'bajo' && !act.fl.def) { lunge = sst(1 - Math.abs(t0 - act.t) / 0.5); if (act.fl.lean) lean = 1.7 * lunge; }
         if (act.cat === 'alto' && !act.fl.jump) crouch = 0.45 + 0.4 * sst(1 - Math.abs(t0 - act.t + 0.3) / 0.3);
       }
       const hipZ = 0.93 * fs - 0.1 * crouch - 0.3 * lunge + jump, hipC = [0, y, hipZ];
@@ -1300,7 +1498,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     return { track, cam, truth: reps, extras, skeletonAt: (x) => frameAt(x, false), shuttleAt: shuttle };
   }
 
-  G.BT = { DRILLS, analyzeTraining, makeTrainingDemo };
+  G.BT = { checksFor, sumChecks, techTips, DRILLS, analyzeTraining, makeTrainingDemo };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 </script>
@@ -1336,8 +1534,8 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
   }
 
   const FLIGHT = { 'Saque largo': 1.45, 'Saque corto': 0.9, Clear: 1.35, 'Dejada desde el fondo': 0.95, Remate: 0.42, 'Remate en salto': 0.4, Lob: 1.3, 'Dejada de red': 0.9, Bloqueo: 0.75, 'Defensa larga': 1.15, Drive: 0.55 };
-  const APEX = { 'Saque largo': 3.6, 'Saque corto': 0.35, Clear: 4.0, 'Dejada desde el fondo': 0.6, Remate: 0, 'Remate en salto': 0, Lob: 3.6, 'Dejada de red': 0.35, Bloqueo: 0.4, 'Defensa larga': 3.0, Drive: 0.15 };
-  const CAT = { 'Saque largo': 'bajo', 'Saque corto': 'medio', Clear: 'alto', 'Dejada desde el fondo': 'alto', Remate: 'alto', 'Remate en salto': 'alto', Lob: 'bajo', 'Dejada de red': 'bajo', Bloqueo: 'medio', 'Defensa larga': 'bajo', Drive: 'medio' };
+  const APEX = { 'Devolución': 2.2, 'Saque largo': 3.6, 'Saque corto': 0.35, Clear: 4.0, 'Dejada desde el fondo': 0.6, Remate: 0, 'Remate en salto': 0, Lob: 3.6, 'Dejada de red': 0.35, Bloqueo: 0.4, 'Defensa larga': 3.0, Drive: 0.15 };
+  const CAT = { 'Devolución': 'medio', 'Saque largo': 'bajo', 'Saque corto': 'medio', Clear: 'alto', 'Dejada desde el fondo': 'alto', Remate: 'alto', 'Remate en salto': 'alto', Lob: 'bajo', 'Dejada de red': 'bajo', Bloqueo: 'medio', 'Defensa larga': 'bajo', Drive: 'medio' };
   const DEST = { 'Saque largo': 'fondo', 'Saque corto': 'red', Clear: 'fondo', 'Dejada desde el fondo': 'red', Remate: 'medio', 'Remate en salto': 'medio', Lob: 'fondo', 'Dejada de red': 'red', Bloqueo: 'red', 'Defensa larga': 'fondo', Drive: 'medio' };
 
   function makeDemo(seed) {
@@ -1378,6 +1576,8 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
         const q = 1 - p, dest = target(q, DEST[type]);
         t += T; const inc = type; p = q; pos = dest; type = choose(p, inc);
       }
+      // Entre algunos puntos, el que perdió devuelve el volante al que va a sacar con un golpe flojo (no es un punto)
+      if (r % 4 === 1) { const q = hits[hits.length - 1].p; const pos2 = toCourt(1 - q, 3.0, 6.1); hits.push({ p: 1 - q, t: t + 3.4, type: 'Devolución', x: pos2[0], y: pos2[1], z: pl[1 - q].S * 0.78, jump: false, rally: -1 - r, last: true, pickup: true }); t += 3.4; }
       t += 5 + R() * 3;
     }
     const dur = t;
@@ -1388,6 +1588,8 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       keys[p].push({ t: 0, x: base(p)[0], y: base(p)[1] });
       hits.forEach((h, i) => {
         if (h.p === p) {
+          const first = !hits[i - 1] || hits[i - 1].rally !== h.rally;
+          if (first && !h.pickup) keys[p].push({ t: h.t - 1.5, x: h.x, y: h.y }); // el que saca se coloca y espera quieto
           keys[p].push({ t: h.t, x: h.x, y: h.y });
           const nx = hits[i + 1];
           const back = h.t + pl[p].rec;
@@ -1483,10 +1685,25 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     }
     // Fotogramas muestreados para el análisis
     const fps = 12, frames = [];
-    for (let tt = 0; tt <= dur; tt += 1 / fps) frames.push({ t: +tt.toFixed(4), p: [playerFrame(0, tt, true), playerFrame(1, tt, true)] });
+    // Alguien que pasa por delante de la cámara durante unos segundos (debe ignorarse)
+    const passT = [hits[Math.floor(hits.length * 0.55)].t + 1.2]; passT.push(passT[0] + 1.8);
+    function passerby(tt) {
+      const u = (tt - passT[0]) / (passT[1] - passT[0]), x = -1.5 + 9 * u, y = -3.4;
+      const J = [[x, y + 0.08, 1.6], [x - 0.2, y, 1.42], [x + 0.2, y, 1.42], [x - 0.25, y + 0.1, 1.15], [x + 0.25, y + 0.1, 1.15], [x - 0.25, y + 0.35 * Math.sin(tt * 9), 0.9], [x + 0.25, y - 0.35 * Math.sin(tt * 9), 0.9], [x - 0.12, y, 0.95], [x + 0.12, y, 0.95], [x - 0.12, y + 0.15 * Math.sin(tt * 6), 0.5], [x + 0.12, y - 0.15 * Math.sin(tt * 6), 0.5], [x - 0.12, y, 0.08], [x + 0.12, y, 0.08]];
+      const img = new Float32Array(NK * 3), w = new Float32Array(NK * 3); const hc = [x, y, 0.95];
+      J.forEach((P, k) => { const q = cam.project(P); img[k * 3] = q[0]; img[k * 3 + 1] = q[1]; img[k * 3 + 2] = 0.9; w[k * 3] = P[0] - hc[0]; w[k * 3 + 1] = -(P[2] - hc[2]); w[k * 3 + 2] = P[1] - hc[1]; });
+      return { img, w };
+    }
+    for (let tt = 0; tt <= dur; tt += 1 / fps) {
+      const f = { t: +tt.toFixed(4), p: [playerFrame(0, tt, true), playerFrame(1, tt, true)], sh: [] };
+      if (tt >= passT[0] && tt <= passT[1]) f.p[0] = passerby(tt); // el detector se queda con la persona más grande
+      const s3 = shuttleAt(tt); if (s3 && R() < 0.7) { const q = cam.project(s3); f.sh.push([q[0] + (R() - 0.5) * 4, q[1] + (R() - 0.5) * 4, 1]); }
+      for (let k = 0; k < 2; k++) if (R() < 0.5) f.sh.push([200 + R() * 880, 150 + R() * 450, 0.5]); // reflejos y ruido
+      frames.push(f);
+    }
     const corners = [[0, 0, 0], [COURT.W, 0, 0], [COURT.W, COURT.L, 0], [0, COURT.L, 0]].map((P) => cam.project(P).slice(0, 2));
     const track = { demo: true, width: W, height: H, duration: dur, corners, frames, stature: [pl[0].S, pl[1].S], hand: ['auto', 'auto'], names: ['Tú', 'Rival'] };
-    return { track, cam, truth: hits, skeletonAt: (p, tt) => playerFrame(p, tt, false), shuttleAt };
+    return { track, cam, truth: hits.filter((h) => !h.pickup), pickups: hits.filter((h) => h.pickup), passT, skeletonAt: (p, tt) => playerFrame(p, tt, false), shuttleAt };
   }
   G.BD = { makeDemo, makeCamera };
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -1797,7 +2014,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
   function openVideo(file) {
     showErr('');
     if (S.url) URL.revokeObjectURL(S.url);
-    S.file = file; S.url = URL.createObjectURL(file); S.corners = [];
+    S.file = file; S.url = URL.createObjectURL(file); S.calib = newCalib();
     const v = document.createElement('video');
     v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = S.url; v.crossOrigin = 'anonymous';
     S.video = v;
@@ -1820,60 +2037,109 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     });
   }
   // --- calibración ---
-  const CORNER_N = ['Esquina cercana izquierda', 'Esquina cercana derecha', 'Esquina lejana derecha', 'Esquina lejana izquierda'];
+  const CORNER_N = ['cercana izquierda', 'cercana derecha', 'lejana derecha', 'lejana izquierda'];
   const COURT_SEGS = (() => {
     const W = COURT.W, L = COURT.L, n = COURT.NET, s = COURT.SHORT, sd = COURT.SIDE, dl = COURT.DLONG;
     return [[[0, 0], [W, 0]], [[W, 0], [W, L]], [[W, L], [0, L]], [[0, L], [0, 0]], [[sd, 0], [sd, L]], [[W - sd, 0], [W - sd, L]], [[0, n - s], [W, n - s]], [[0, n + s], [W, n + s]], [[0, dl], [W, dl]], [[0, L - dl], [W, L - dl]], [[W / 2, 0], [W / 2, n - s]], [[W / 2, n + s], [W / 2, L]]];
   })();
-  let drag = -1, loupe = null;
+  const ALT_Y = { fondo: 'La esquina', largo: 'Cruce con la línea de saque largo de dobles', corto: 'Cruce con la línea de saque corto', red: 'Base del poste de la red' };
+  function newCalib() { return { mode: S.calib ? S.calib.mode : 'd', steps: ['fondo', 'fondo', 'fondo', 'fondo'], pts: [null, null, null, null], order: [], sel: -1 }; }
+  function lmOf(k, yKey, mode) { const side = k === 0 || k === 3 ? 0 : 1, far = k >= 2 ? 1 : 0; const x = yKey === 'red' ? BA.LM.x.d[side] : BA.LM.x[mode][side]; return [x, BA.LM.y[yKey][far]]; }
+  function lmName(k, yKey, mode) {
+    const lado = k === 0 || k === 3 ? 'izquierdo' : 'derecho', zona = k >= 2 ? 'lejano' : 'cercano';
+    if (yKey === 'fondo') return `la esquina ${CORNER_N[k]} (${mode === 's' ? 'lateral de individual con la línea de fondo' : 'línea exterior de dobles'})`;
+    if (yKey === 'red') return `la base del poste ${lado} de la red`;
+    return `el cruce del lateral ${mode === 's' ? 'de individual' : 'de dobles'} ${lado} con ${BA.LM.yName[yKey]} (lado ${zona})`;
+  }
+  function calibData(scaleK) {
+    const c = S.calib, court = [], img = [];
+    c.pts.forEach((p, k) => { if (p) { court.push(lmOf(k, c.steps[k], c.mode)); img.push([p[0] * scaleK, p[1] * scaleK]); } });
+    return { court, img };
+  }
+  function calibOk() {
+    const d = calibData(1); if (d.court.length < 4) return false;
+    for (let a = 0; a < 4; a++) for (let b = a + 1; b < 4; b++) for (let e = b + 1; e < 4; e++) { const p = d.court[a], q = d.court[b], r = d.court[e]; if (Math.abs((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])) < 0.3) return false; }
+    return true;
+  }
+  const pendingStep = () => S.calib.pts.findIndex((p) => !p);
+  let drag = -1, grabOff = [0, 0];
+  const buf = document.createElement('canvas');
   function calibScale() { const cv = $('#calibCv'); return cv.width / S.video.videoWidth; }
   function drawCalib() {
-    const cv = $('#calibCv'), c = cv.getContext('2d'), v = S.video; if (!v) return;
+    const cv = $('#calibCv'), v = S.video; if (!v || !S.calib) return;
+    if (buf.width !== cv.width || buf.height !== cv.height) { buf.width = cv.width; buf.height = cv.height; }
+    const c = buf.getContext('2d'), C = S.calib, k = calibScale(), lw = Math.max(2, cv.width / 500);
     c.drawImage(v, 0, 0, cv.width, cv.height);
-    const k = calibScale(), pts = S.corners.map(([x, y]) => [x * k, y * k]);
-    const lw = Math.max(2, cv.width / 500);
-    if (pts.length === 4) {
-      const { court2img } = courtHomographies(pts);
+    const d = calibData(k), ok = calibOk();
+    if (ok) {
+      const { court2img } = courtHomographies(d);
+      const q = [[0, 0], [COURT.W, 0], [COURT.W, COURT.L], [0, COURT.L]].map((p) => applyH(court2img, ...p));
+      c.fillStyle = 'rgba(14,106,84,.28)'; c.beginPath(); q.forEach((p, i) => (i ? c.lineTo(...p) : c.moveTo(...p))); c.closePath(); c.fill();
       c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = lw;
-      c.fillStyle = 'rgba(14,106,84,.28)'; c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(...p) : c.moveTo(...p))); c.closePath(); c.fill();
       for (const [a, b] of COURT_SEGS) { const A = applyH(court2img, ...a), B = applyH(court2img, ...b); c.beginPath(); c.moveTo(...A); c.lineTo(...B); c.stroke(); }
       const n1 = applyH(court2img, -0.3, COURT.NET), n2 = applyH(court2img, COURT.W + 0.3, COURT.NET);
       c.strokeStyle = '#e8962c'; c.lineWidth = lw * 2; c.beginPath(); c.moveTo(...n1); c.lineTo(...n2); c.stroke();
-    } else if (pts.length > 1) {
-      c.strokeStyle = '#e8962c'; c.lineWidth = lw; c.setLineDash([8, 6]); c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(...p) : c.moveTo(...p))); c.stroke(); c.setLineDash([]);
     }
-    pts.forEach(([x, y], i) => {
-      c.fillStyle = '#e8962c'; c.strokeStyle = '#241503'; c.lineWidth = 2;
-      c.beginPath(); c.arc(x, y, cv.width / 70, 0, 7); c.fill(); c.stroke();
+    const r0 = cv.width / 70;
+    C.pts.forEach((p, i) => {
+      if (!p) return; const x = p[0] * k, y = p[1] * k;
+      c.strokeStyle = '#241503'; c.lineWidth = 2; c.fillStyle = C.steps[i] === 'fondo' ? '#e8962c' : '#8fd3ff';
+      c.beginPath(); c.arc(x, y, r0, 0, 7); c.fill(); c.stroke();
+      if (i === C.sel) { c.strokeStyle = '#fff'; c.lineWidth = 3; c.beginPath(); c.arc(x, y, r0 * 1.6, 0, 7); c.stroke(); }
       c.fillStyle = '#241503'; c.font = `800 ${Math.round(cv.width / 80)}px Figtree, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(i + 1, x, y + 1);
     });
-    if (loupe) { // lupa al arrastrar
-      const R = cv.width / 9, zx = R + 12, zy = cv.height - R - 12, Z = 3;
-      c.save(); c.beginPath(); c.arc(zx, zy, R, 0, 7); c.clip();
-      c.drawImage(v, loupe[0] / k - R / Z / k, loupe[1] / k - R / Z / k, 2 * R / Z / k, 2 * R / Z / k, zx - R, zy - R, 2 * R, 2 * R);
-      c.strokeStyle = '#e8962c'; c.lineWidth = 2; c.beginPath(); c.moveTo(zx - 14, zy); c.lineTo(zx + 14, zy); c.moveTo(zx, zy - 14); c.lineTo(zx, zy + 14); c.stroke(); c.restore();
-      c.strokeStyle = '#fff'; c.lineWidth = 3; c.beginPath(); c.arc(zx, zy, R, 0, 7); c.stroke();
+    const out = cv.getContext('2d'); out.drawImage(buf, 0, 0);
+    // Lupa: lejos del dedo, con la pista dibujada y una cruz en el punto exacto
+    const lp = drag >= 0 && C.pts[drag];
+    if (lp) {
+      const px = lp[0] * k, py = lp[1] * k, R = Math.round(cv.width / 7), Z = 4, mg = 14;
+      const zx = px < cv.width / 2 ? cv.width - R - mg : R + mg, zy = py > cv.height / 2 ? R + mg + cv.height * 0.07 : cv.height - R - mg;
+      out.save(); out.beginPath(); out.arc(zx, zy, R, 0, 7); out.clip(); out.fillStyle = '#000'; out.fillRect(zx - R, zy - R, 2 * R, 2 * R);
+      out.drawImage(v, (px - R / Z) / k, (py - R / Z) / k, 2 * R / Z / k, 2 * R / Z / k, zx - R, zy - R, 2 * R, 2 * R); // vídeo limpio, sin marcas encima
+      out.strokeStyle = '#ff3b6b'; out.lineWidth = 2; out.beginPath(); out.moveTo(zx - R, zy); out.lineTo(zx - 8, zy); out.moveTo(zx + 8, zy); out.lineTo(zx + R, zy); out.moveTo(zx, zy - R); out.lineTo(zx, zy - 8); out.moveTo(zx, zy + 8); out.lineTo(zx, zy + R); out.stroke(); out.restore();
+      out.strokeStyle = '#fff'; out.lineWidth = 4; out.beginPath(); out.arc(zx, zy, R, 0, 7); out.stroke();
     }
-    const tip = $('#calibTip');
-    if (S.corners.length < 4) tip.innerHTML = `<span class="n">${S.corners.length + 1}</span><span>Toca la ${CORNER_N[S.corners.length].toLowerCase()} (línea exterior de dobles)</span>`;
-    else tip.innerHTML = `<span class="n">✓</span><span>¿Encajan las líneas? Arrastra un punto para afinar.</span>`;
-    $('#toSettings').disabled = S.corners.length < 4;
+    const ps = pendingStep(), tip = $('#calibTip');
+    if (ps >= 0) tip.innerHTML = `<span class="n">${ps + 1}</span><span>Toca ${lmName(ps, C.steps[ps], C.mode)}</span>`;
+    else if (!ok) tip.innerHTML = `<span class="n">!</span><span>Hay tres puntos en la misma línea: cambia uno por otro cruce de líneas.</span>`;
+    else tip.innerHTML = `<span class="n">✓</span><span>¿Encajan las líneas? Toca un punto y afínalo con las flechas.</span>`;
+    $('#toSettings').disabled = !ok;
+    const sel = C.sel >= 0 && C.pts[C.sel];
+    $('#selTxt').textContent = sel ? `Ajuste fino del punto ${C.sel + 1}` : 'Toca un punto para ajustarlo con las flechas';
+    $$('#nudge button').forEach((b) => (b.disabled = !sel));
+    const target = ps >= 0 ? ps : C.sel;
+    $('#hiddenPt').disabled = target < 0;
+    $('#hiddenPt').textContent = target >= 0 ? `El punto ${target + 1} no se ve` : 'Un punto no se ve';
   }
   function evPt(e) { const cv = $('#calibCv'), r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * cv.width, (e.clientY - r.top) / r.height * cv.height]; }
   const cvc = $('#calibCv');
   cvc.addEventListener('pointerdown', (e) => {
-    if (!S.video) return; const p = evPt(e), k = calibScale();
-    let best = -1, bd = cvc.width / 25;
-    S.corners.forEach(([x, y], i) => { const d = Math.hypot(x * k - p[0], y * k - p[1]); if (d < bd) { bd = d; best = i; } });
-    if (best >= 0) drag = best; else if (S.corners.length < 4) { S.corners.push([p[0] / k, p[1] / k]); drag = S.corners.length - 1; }
-    if (drag >= 0) { cvc.setPointerCapture(e.pointerId); loupe = p; }
-    drawCalib();
+    if (!S.video || !S.calib) return; e.preventDefault();
+    const C = S.calib, p = evPt(e), k = calibScale();
+    let best = -1, bd = cvc.width / 22;
+    C.pts.forEach((q, i) => { if (!q) return; const d = Math.hypot(q[0] * k - p[0], q[1] * k - p[1]); if (d < bd) { bd = d; best = i; } });
+    if (best >= 0) { drag = best; grabOff = [C.pts[best][0] * k - p[0], C.pts[best][1] * k - p[1]]; }
+    else { const ps = pendingStep(); if (ps < 0) { C.sel = -1; drawCalib(); return; } C.pts[ps] = [p[0] / k, p[1] / k]; C.order.push(ps); drag = ps; grabOff = [0, 0]; }
+    C.sel = drag; $('#altBox').hidden = true;
+    cvc.setPointerCapture(e.pointerId); drawCalib();
   });
-  cvc.addEventListener('pointermove', (e) => { if (drag < 0) return; const p = evPt(e), k = calibScale(); S.corners[drag] = [p[0] / k, p[1] / k]; loupe = p; drawCalib(); });
-  const endDrag = () => { drag = -1; loupe = null; drawCalib(); };
+  cvc.addEventListener('pointermove', (e) => { if (drag < 0) return; const p = evPt(e), k = calibScale(); S.calib.pts[drag] = [(p[0] + grabOff[0]) / k, (p[1] + grabOff[1]) / k]; drawCalib(); });
+  const endDrag = () => { drag = -1; drawCalib(); };
   cvc.addEventListener('pointerup', endDrag); cvc.addEventListener('pointercancel', endDrag);
-  $('#undoPt').onclick = () => { S.corners.pop(); drawCalib(); };
-  $('#resetPt').onclick = () => { S.corners = []; drawCalib(); };
+  const nudge = (dx, dy) => { const C = S.calib; if (!C || C.sel < 0 || !C.pts[C.sel]) return; C.pts[C.sel] = [C.pts[C.sel][0] + dx, C.pts[C.sel][1] + dy]; drag = C.sel; drawCalib(); clearTimeout(nudge.t); nudge.t = setTimeout(() => { drag = -1; drawCalib(); }, 900); };
+  $$('#nudge button').forEach((b) => (b.onclick = () => { const [dx, dy] = b.dataset.d.split(',').map(Number); nudge(dx, dy); }));
+  document.addEventListener('keydown', (e) => { if ($('#p-calib').hidden || $('#flow').hidden) return; const m = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key]; if (m && S.calib && S.calib.sel >= 0) { e.preventDefault(); nudge(...m); } });
+  $('#undoPt').onclick = () => { const C = S.calib; const k = C.order.pop(); if (k !== undefined) { C.pts[k] = null; if (C.sel === k) C.sel = -1; } drawCalib(); };
+  $('#resetPt').onclick = () => { S.calib = newCalib(); $('#altBox').hidden = true; drawCalib(); };
+  $$('#lineMode button').forEach((b) => (b.onclick = () => { $$('#lineMode button').forEach((x) => x.setAttribute('aria-pressed', x === b)); S.calib.mode = b.dataset.v; drawCalib(); }));
+  $('#hiddenPt').onclick = () => {
+    const C = S.calib, ps = pendingStep(), k = ps >= 0 ? ps : C.sel; if (k < 0) return;
+    $('#altTitle').textContent = `En lugar de la esquina ${CORNER_N[k]}, marca otro punto del mismo lateral:`;
+    const used = C.steps.map((y, i) => (i !== k ? JSON.stringify(lmOf(i, y, C.mode)) : null));
+    $('#altChips').innerHTML = Object.entries(ALT_Y).filter(([y]) => !used.includes(JSON.stringify(lmOf(k, y, C.mode)))).map(([y, n]) => `<button class="chip" type="button" data-y="${y}" aria-pressed="${C.steps[k] === y}">${n}</button>`).join('');
+    $$('#altChips .chip').forEach((b) => (b.onclick = () => { C.steps[k] = b.dataset.y; C.pts[k] = null; C.order = C.order.filter((x) => x !== k); C.sel = -1; $('#altBox').hidden = true; drawCalib(); }));
+    $('#altBox').hidden = false;
+  };
   $('#scrub').oninput = async (e) => { if (!S.video) return; await seek(S.video, e.target.value / 1000 * S.video.duration); drawCalib(); };
   $('#toSettings').onclick = () => { setStep(2); updateTrim(); };
   $('#backCalib').onclick = () => setStep(1);
@@ -1915,7 +2181,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     const v = S.video, q = QUAL[S.settings.q];
     const me = +S.settings.side;
     const W = Math.min(1280, v.videoWidth), H = Math.round(W * v.videoHeight / v.videoWidth), k = W / v.videoWidth;
-    const corners = S.corners.map(([x, y]) => [x * k, y * k]);
+    const corners = calibData(k);
     const { court2img } = courtHomographies(corners);
     // Recortes por media pista (con altura de persona)
     const crop = (p) => {
@@ -1932,6 +2198,48 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       return { x: x0, y: yA, w: Math.max(32, x1 - x0), h: Math.max(32, yB - yA) };
     };
     const crops = [crop(0), crop(1)];
+    // Zona donde puede estar cada jugador: su media pista (+1 m) "levantada" 3 m. Lo de fuera se tapa.
+    const zone = (p) => {
+      const y0 = p === 0 ? -1.2 : COURT.NET - 0.4, y1 = p === 0 ? COURT.NET + 0.4 : COURT.L + 1.2, pts = [];
+      for (const [x, y] of [[-1.2, y0], [COURT.W + 1.2, y0], [COURT.W + 1.2, y1], [-1.2, y1]]) {
+        const g = applyH(court2img, x, y), a2 = applyH(court2img, x - 0.5, y), b2 = applyH(court2img, x + 0.5, y);
+        pts.push(g, [g[0], g[1] - 3.0 * Math.hypot(b2[0] - a2[0], b2[1] - a2[1])]);
+      }
+      return BA.hull(pts);
+    };
+    const zones = [zone(0), zone(1)];
+    const img2court = BA.courtHomographies(corners).img2court;
+    const boxOf = (img) => { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (let k = 0; k < NK; k++) { const x = img[k * 3], y = img[k * 3 + 1]; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); } const hgt = y1 - y0; return [x0 - hgt * 0.18, y0 - hgt * 0.25, x1 + hgt * 0.18, y1 + hgt * 0.08]; };
+    const plausible = (p, img) => { // pies en su media pista y tamaño razonable para esa distancia
+      const ax = (img[K.lan * 3] + img[K.ran * 3]) / 2, ay = Math.max(img[K.lan * 3 + 1], img[K.ran * 3 + 1]);
+      const [cx, cy] = applyH(img2court, ax, ay);
+      if (p === 0 ? !(cy > -1.6 && cy < COURT.NET + 0.8) : !(cy < COURT.L + 1.6 && cy > COURT.NET - 0.8)) return false;
+      if (cx < -1.6 || cx > COURT.W + 1.6) return false;
+      const a2 = applyH(court2img, cx - 0.5, cy), b2 = applyH(court2img, cx + 0.5, cy), pxm = Math.hypot(b2[0] - a2[0], b2[1] - a2[1]);
+      const r = Math.hypot(img[K.nose * 3] - ax, img[K.nose * 3 + 1] - ay) / (1.75 * pxm);
+      return r > 0.3 && r < 1.9;
+    };
+    let boxes = [null, null];
+    // Volante (experimental): diferencia entre tres fotogramas seguidos a baja resolución
+    const SW = 480, SH = Math.round(SW * H / W), sk = W / SW;
+    const scv = document.createElement('canvas'); scv.width = SW; scv.height = SH; const scx = scv.getContext('2d', { willReadFrequently: true });
+    let g0 = null, g1 = null;
+    const gray = () => { scx.drawImage(work, 0, 0, SW, SH); const d = scx.getImageData(0, 0, SW, SH).data, g = new Uint8Array(SW * SH); for (let j = 0; j < g.length; j++) g[j] = (d[j * 4] * 3 + d[j * 4 + 1] * 5 + d[j * 4 + 2] * 2) / 10; return g; };
+    function shuttleCands(a0, a1, a2, bx) {
+      const out = [], seen = new Uint8Array(SW * SH), TH = 26;
+      const hot = (j) => { const d1 = a1[j] - a0[j], d2 = a1[j] - a2[j]; return (d1 > TH && d2 > TH) || (d1 < -TH && d2 < -TH); };
+      for (let y = 1; y < SH - 1; y++) for (let x = 1; x < SW - 1; x++) {
+        const j = y * SW + x; if (seen[j] || !hot(j)) continue;
+        const st = [j]; seen[j] = 1; let n2 = 0, sx = 0, sy = 0, x0 = x, x1 = x, y0 = y, y1 = y;
+        while (st.length && n2 < 80) { const q = st.pop(), qx = q % SW, qy = (q / SW) | 0; n2++; sx += qx; sy += qy; x0 = Math.min(x0, qx); x1 = Math.max(x1, qx); y0 = Math.min(y0, qy); y1 = Math.max(y1, qy);
+          for (const o of [1, -1, SW, -SW]) { const r2 = q + o; if (r2 >= 0 && r2 < seen.length && !seen[r2] && hot(r2)) { seen[r2] = 1; st.push(r2); } } }
+        if (n2 < 1 || n2 > 30 || x1 - x0 > 9 || y1 - y0 > 9) continue;
+        const cx = (sx / n2) * sk, cy = (sy / n2) * sk;
+        if (bx.some((b) => b && cx > b[0] && cx < b[2] && cy > b[1] && cy < b[3])) continue; // dentro de un jugador: es la raqueta o el cuerpo
+        out.push([cx, cy, n2]);
+      }
+      return out.sort((a, b) => b[2] - a[2]).slice(0, 6);
+    }
     const work = document.createElement('canvas'); work.width = W; work.height = H; const wc = work.getContext('2d', { willReadFrequently: false });
     const ccs = [document.createElement('canvas'), document.createElement('canvas')];
     const rcv = $('#runCv'); rcv.width = W; rcv.height = H; const rc = rcv.getContext('2d');
@@ -1951,6 +2259,12 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
         const c = crops[p], up = clamp(640 / Math.max(c.w, c.h), 1, 3);
         const cc = ccs[p], ccx = cc.getContext('2d'); if (cc.width !== Math.round(c.w * up)) { cc.width = Math.round(c.w * up); cc.height = Math.round(c.h * up); }
         ccx.drawImage(work, c.x, c.y, c.w, c.h, 0, 0, cc.width, cc.height);
+        // Tapar lo que no puede ser este jugador: fuera de su zona y donde está el otro jugador
+        const T2 = (x, y) => [(x - c.x) * up, (y - c.y) * up];
+        ccx.save(); ccx.fillStyle = '#7f7f7f'; ccx.beginPath(); ccx.rect(0, 0, cc.width, cc.height);
+        zones[p].forEach((q, j) => (j ? ccx.lineTo(...T2(...q)) : ccx.moveTo(...T2(...q)))); ccx.closePath(); ccx.fill('evenodd');
+        const ob = boxes[1 - p]; if (ob) { const A2 = T2(ob[0], ob[1]), B2 = T2(ob[2], ob[3]); ccx.fillRect(A2[0], A2[1], B2[0] - A2[0], B2[1] - A2[1]); }
+        ccx.restore();
         const r = await P[p].run(cc);
         if (r && r.poseLandmarks && r.poseWorldLandmarks) {
           const img = new Float32Array(NK * 3), w = new Float32Array(NK * 3);
@@ -1959,10 +2273,14 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
             img[j * 3] = c.x + L.x * c.w; img[j * 3 + 1] = c.y + L.y * c.h; img[j * 3 + 2] = L.visibility == null ? 0.9 : L.visibility;
             w[j * 3] = Wl.x; w[j * 3 + 1] = Wl.y; w[j * 3 + 2] = Wl.z;
           });
-          fr.p[p] = { img, w }; found[p]++;
+          if (plausible(p, img)) { fr.p[p] = { img, w }; found[p]++; boxes[p] = boxOf(img); }
         }
       }
       frames.push(fr);
+      // Volante: candidatos del fotograma anterior (necesita el siguiente para comparar)
+      const g2 = gray();
+      if (g0 && g1 && frames.length >= 2) frames[frames.length - 2].sh = shuttleCands(g0, g1, g2, boxes);
+      g0 = g1; g1 = g2;
       if (i % 3 === 0 || i === times.length - 1) {
         rc.drawImage(work, 0, 0);
         drawCourtLines(rc, court2img, 1, 'rgba(255,255,255,.5)', Math.max(1.5, W / 700));
@@ -1980,7 +2298,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     const stature = me === 0 ? [hMe, hOp] : [hOp, hMe];
     const hand = me === 0 ? [$('#handMe').value, 'auto'] : ['auto', $('#handMe').value];
     const names = me === 0 ? ['Tú', 'Rival'] : ['Rival', 'Tú'];
-    S.track = { demo: false, width: W, height: H, duration: b - a, offset: a, corners, frames, stature, hand, names };
+    S.track = { demo: false, width: W, height: H, duration: b - a, offset: a, corners, frames, stature, hand, names, sens: 'normal', edits: { add: [], del: [], type: {}, rally: {} } };
     S.me = me; S.sel = me; S.demo = null;
     finish();
   }
@@ -2020,28 +2338,11 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
   function frameAt(track, t) { const f = track.frames; let lo = 0, hi = f.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (f[m].t <= t) lo = m; else hi = m - 1; } return lo; }
 
   /* ---------- Repetición ---------- */
-  function Replay(root) {
-    const track = S.track, res = S.res, demo = S.demo;
-    const stage = $('.stage', root), cv = $('canvas.ov', root), ctx = cv.getContext('2d');
-    const mini = $('.mini canvas', root), mc = mini.getContext('2d');
-    const tl = $('.timeline', root), pop = $('.shot-pop', root);
-    const opt = { skel: true, court: true, trail: true };
-    let video = null, playing = false, t = 0, rate = 1, last = 0, raf = 0, popUntil = 0, lastHitShown = -1;
-    const dur = track.duration;
-    const { court2img } = courtHomographies(track.corners);
-    if (!demo) {
-      video = document.createElement('video'); video.src = S.url; video.muted = true; video.playsInline = true; video.preload = 'auto';
-      stage.insertBefore(video, cv); video.currentTime = track.offset || 0;
-    }
-    function size() { const r = stage.getBoundingClientRect(); const d = Math.min(2, devicePixelRatio || 1); cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d); }
-    size(); const ro = new ResizeObserver(() => { size(); draw(); }); ro.observe(stage);
-    // Transformación imagen -> lienzo (object-fit: contain)
-    function fit() { const s = Math.min(cv.width / track.width, cv.height / track.height); return { s, ox: (cv.width - track.width * s) / 2, oy: (cv.height - track.height * s) / 2 }; }
-    function drawDemoScene(tt) {
-      const { s, ox, oy } = fit(), cam = demo.cam;
+  function paintDemoMatch(ctx, CW, CH, tt) {
+      const demo = S.demo, track = S.track, s = Math.min(CW / track.width, CH / track.height), ox = (CW - track.width * s) / 2, oy = (CH - track.height * s) / 2, cam = demo.cam;
       const pr = (P) => { const q = cam.project(P); return [ox + q[0] * s, oy + q[1] * s]; };
-      const g = ctx.createLinearGradient(0, 0, 0, cv.height); g.addColorStop(0, '#1a2420'); g.addColorStop(1, '#2b2a24');
-      ctx.fillStyle = g; ctx.fillRect(0, 0, cv.width, cv.height);
+      const g = ctx.createLinearGradient(0, 0, 0, CH); g.addColorStop(0, '#1a2420'); g.addColorStop(1, '#2b2a24');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, CW, CH);
       // suelo de pabellón
       ctx.fillStyle = '#3a3226'; const fl = [[-3, -3, 0], [9.1, -3, 0], [9.1, 17, 0], [-3, 17, 0]].map(pr); ctx.beginPath(); fl.forEach((p, i) => (i ? ctx.lineTo(...p) : ctx.moveTo(...p))); ctx.fill();
       ctx.fillStyle = '#126b55'; const co = [[-0.6, -0.8, 0], [6.7, -0.8, 0], [6.7, 14.2, 0], [-0.6, 14.2, 0]].map(pr); ctx.beginPath(); co.forEach((p, i) => (i ? ctx.lineTo(...p) : ctx.moveTo(...p))); ctx.fill();
@@ -2061,7 +2362,26 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       ctx.strokeStyle = '#999'; ctx.lineWidth = Math.max(2, 5 * s); ctx.beginPath(); ctx.moveTo(...b1); ctx.lineTo(...p1); ctx.moveTo(...b2); ctx.lineTo(...p2); ctx.stroke();
       shadow(skel[1]); drawSkeleton(ctx, skel[1].img, s, '#e8962c', Math.max(3, 6.5 * s), ox, oy);
       if (sh && sh[1] <= COURT.NET) drawSh();
+      return { s, ox, oy };
     }
+  function Replay(root) {
+    const track = S.track, res = S.res, demo = S.demo;
+    const stage = $('.stage', root), cv = $('canvas.ov', root), ctx = cv.getContext('2d');
+    const mini = $('.mini canvas', root), mc = mini.getContext('2d');
+    const tl = $('.timeline', root), pop = $('.shot-pop', root);
+    const opt = { skel: true, court: true, trail: true, shuttle: true };
+    let video = null, playing = false, t = 0, rate = 1, last = 0, raf = 0, popUntil = 0, lastHitShown = -1;
+    const dur = track.duration;
+    const { court2img } = courtHomographies(track.corners);
+    if (!demo) {
+      video = document.createElement('video'); video.src = S.url; video.muted = true; video.playsInline = true; video.preload = 'auto';
+      stage.insertBefore(video, cv); video.currentTime = track.offset || 0;
+    }
+    function size() { const r = stage.getBoundingClientRect(); const d = Math.min(2, devicePixelRatio || 1); cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d); }
+    size(); const ro = new ResizeObserver(() => { size(); draw(); }); ro.observe(stage);
+    // Transformación imagen -> lienzo (object-fit: contain)
+    function fit() { const s = Math.min(cv.width / track.width, cv.height / track.height); return { s, ox: (cv.width - track.width * s) / 2, oy: (cv.height - track.height * s) / 2 }; }
+    function drawDemoScene(tt) { return paintDemoMatch(ctx, cv.width, cv.height, tt); }
     function draw() {
       ctx.clearRect(0, 0, cv.width, cv.height);
       if (demo) drawDemoScene(t);
@@ -2070,11 +2390,22 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
         if (opt.court) drawCourtLines(ctx, court2img, s, 'rgba(255,255,255,.55)', Math.max(1.5, 2 * s), ox, oy);
         if (opt.skel) { const f = track.frames[frameAt(track, t)]; if (f && Math.abs(f.t - t) < 0.3) f.p.forEach((pl, p) => pl && drawSkeleton(ctx, pl.img, s, p === S.me ? '#e8962c' : '#8592ff', Math.max(2.5, 3.5 * s), ox, oy)); }
       }
+      if (opt.shuttle && res.shuttle) drawShuttle();
       drawMini(); drawPlayhead();
       // golpe actual
       const hs = res.hits; let cur = -1; for (let i = 0; i < hs.length; i++) { if (hs[i].t <= t + 0.02) cur = i; else break; }
       if (cur >= 0 && cur !== lastHitShown && t - hs[cur].t < 0.25 && playing) { const h = hs[cur]; pop.textContent = `${track.names[h.p]} · ${h.type}${h.v0 ? ' · ' + Math.round(h.v0 * 3.6) + ' km/h' : ''}`; pop.classList.add('on'); popUntil = performance.now() + 1300; lastHitShown = cur; }
       if (performance.now() > popUntil) pop.classList.remove('on');
+    }
+    // Trayectoria estimada del volante (experimental)
+    function drawShuttle() {
+      const hs = res.hits; let k = -1; for (let j = 0; j < hs.length; j++) { const h = hs[j]; if (h.t <= t && h.next !== undefined && hs[h.next].t >= t) { k = j; break; } }
+      const fl = k >= 0 && res.shuttle[k]; if (!fl) return;
+      const { s, ox, oy } = fit(), u = (t - hs[k].t) / (hs[hs[k].next].t - hs[k].t);
+      const at = (v) => [ox + (fl.A[0] + (fl.B[0] - fl.A[0]) * v) * s, oy + (fl.A[1] + (fl.B[1] - fl.A[1]) * v - fl.a * v * (1 - v)) * s];
+      ctx.save(); ctx.strokeStyle = 'rgba(255,230,120,.85)'; ctx.lineWidth = Math.max(2, 3 * s); ctx.setLineDash([6 * s + 2, 6 * s + 2]); ctx.beginPath();
+      for (let v = 0; v <= u; v += 0.03) { const q = at(v); v ? ctx.lineTo(...q) : ctx.moveTo(...q); } ctx.stroke(); ctx.setLineDash([]);
+      const q = at(u); ctx.fillStyle = '#ffe678'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(...q, Math.max(4, 6 * s), 0, 7); ctx.fill(); ctx.stroke(); ctx.restore();
     }
     function drawMini() {
       const W = mini.width, H = mini.height, m = 14, sx = (W - 2 * m) / COURT.W, sy = (H - 2 * m) / COURT.L;
@@ -2115,8 +2446,20 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     tl.addEventListener('pointerup', () => (tl.onpointermove = null));
     if (video) video.addEventListener('loadeddata', draw, { once: true });
     setTimeout(() => seekT(demo ? Math.max(0, res.hits.length ? res.hits[0].t - 1 : 0) : 0), 50);
-    return { pause, play, seek: (x) => { seekT(x); stage.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, destroy() { pause(); ro.disconnect(); if (video) video.remove(); }, redraw: draw };
+    return { pause, play, time: () => t, seek: (x) => { seekT(x); stage.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, destroy() { pause(); ro.disconnect(); if (video) video.remove(); }, redraw: draw };
   }
+  // Pantalla completa: la del navegador si existe; si no (iPhone), una capa fija que ocupa toda la pantalla
+  function fsToggle(box) {
+    const d = document, cur = d.fullscreenElement || d.webkitFullscreenElement;
+    if (cur) { (d.exitFullscreen || d.webkitExitFullscreen).call(d); return; }
+    if (box.classList.contains('fake-fs')) { box.classList.remove('fake-fs'); d.body.classList.remove('noscroll'); return; }
+    const fake = () => { box.classList.add('fake-fs'); d.body.classList.add('noscroll'); };
+    const req = box.requestFullscreen || box.webkitRequestFullscreen;
+    if (!req) return fake();
+    try { const pr = req.call(box); if (pr && pr.then) pr.then(() => { try { screen.orientation.lock('landscape').catch(() => {}); } catch (e) {} }).catch(fake); } catch (e) { fake(); }
+  }
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $$('.fake-fs').forEach((b) => { b.classList.remove('fake-fs'); document.body.classList.remove('noscroll'); }); });
+  const FS_BTN = '<button class="icon-btn fsBtn" type="button" aria-label="Pantalla completa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>';
   function roundRect(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
   const ICON = { play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>', pause: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>' };
 
@@ -2240,13 +2583,16 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     const M = pls[0];
     const both = (f, d, u) => cmp ? `${fmt(f(res.players[me]), d)}<small>${u}</small><div class="vs">Rival: ${fmt(f(res.players[op]), d)} ${u}</div>` : `${fmt(f(M), d)}<small>${u}</small>`;
     const hl = res.highlights;
-    const myHits = cmp ? res.hits : res.hits.filter((h) => h.p === sel);
+    const myHits = (cmp ? res.hits : res.hits.filter((h) => h.p === sel)).filter((h) => h.valid);
+    const nV = res.rallies.filter((r) => r.valid).length, nX = res.rallies.length - nV;
     root.innerHTML = `
-    <div class="res-top"><div><h2>${tr.demo ? 'Partido de demostración' : 'Tu partido'}</h2><p class="muted">${mmss(tr.duration)} analizados · ${res.rallies.length} puntos · ${res.hits.length} golpes detectados${tr.demo ? ' · datos simulados' : ''}</p></div>
-      <div class="seg" id="selSeg"><button data-v="${me}" aria-pressed="${S.sel === me}">Tú</button><button data-v="${op}" aria-pressed="${S.sel === op}">Rival</button><button data-v="cmp" aria-pressed="${cmp}">Comparar</button></div></div>
+    <div class="res-top"><div><h2>${tr.demo ? 'Partido de demostración' : 'Tu partido'}</h2><p class="muted">${mmss(tr.duration)} analizados · ${nV} puntos${nX ? ` (${nX} ${nX === 1 ? 'peloteo descartado' : 'peloteos descartados'})` : ''} · ${res.hits.filter((h) => h.valid).length} golpes${tr.demo ? ' · datos simulados' : ''}</p></div>
+      <div class="row"><div class="seg" id="selSeg"><button data-v="${me}" aria-pressed="${S.sel === me}">Tú</button><button data-v="${op}" aria-pressed="${S.sel === op}">Rival</button><button data-v="cmp" aria-pressed="${cmp}">Comparar</button></div>
+      <span class="small muted">Detección de golpes:</span><div class="seg" id="resSens" title="Sensibilidad para detectar golpes"><button data-v="low" aria-pressed="${res.sens === 'low'}">Baja</button><button data-v="normal" aria-pressed="${res.sens === 'normal'}">Normal</button><button data-v="high" aria-pressed="${res.sens === 'high'}">Alta</button></div></div></div>
+    <div class="card fixbar"><details><summary><b>¿Algo mal detectado?</b> <span class="small muted">Cómo corregirlo</span></summary><span class="small muted">En "Golpes uno a uno" puedes cambiar el tipo de un golpe o quitarlo; con "+ Golpe" en la repetición añades uno que falte. En "Puntos jugados" puedes marcar si un peloteo es un punto o no: solo los puntos cuentan en las estadísticas. La sensibilidad (arriba) cambia cuántos golpes se detectan.${res.ignored ? ` Se han ignorado ${res.ignored} detecciones de personas fuera de su media pista o que no encajaban (por ejemplo, alguien pasando).` : ''}${res.noValid ? ' <b>No se ha reconocido ningún punto con saque: se usan todos los golpes.</b>' : ''}</span></details>${nMEdits(tr) ? `<button class="btn" id="undoEdits">Deshacer ${nMEdits(tr)} ${nMEdits(tr) === 1 ? 'corrección' : 'correcciones'}</button>` : ''}</div>
 
     <div class="board">
-      <div class="row" style="gap:6px">${pls.map((m) => ring(m.overall, m.p === me ? '#e8962c' : '#9aa8ff', 'Nota de ' + (m.p === me ? 'Tú' : 'Rival').toLowerCase())).join('')}</div>
+      <div class="row" style="gap:6px">${pls.map((m) => ring(m.overall, m.p === me ? '#e8962c' : '#9aa8ff', m.p === me ? 'Tu nota' : 'Nota del rival')).join('')}</div>
       <div class="tiles">
         <div class="tile"><div class="v">${both((m) => m.hits, 0, '')}</div><div class="l">Golpes</div></div>
         <div class="tile"><div class="v">${both((m) => m.dist, 0, 'm')}</div><div class="l">Distancia recorrida</div></div>
@@ -2260,7 +2606,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     <div class="card" id="replayCard">
       <div class="card-h"><h3>Repetición</h3><div class="legend"><span><i class="sw" style="background:#e8962c"></i>Tú</span><span><i class="sw" style="background:#8592ff"></i>Rival</span>${tr.demo ? '<span class="pill">Vídeo simulado</span>' : ''}</div></div>
       <div class="replay">
-        <div style="min-width:0">
+        <div style="min-width:0" class="fsbox">
           <div class="stage"><canvas class="ov"></canvas><span class="badge">${tr.demo ? 'Demostración' : 'Tu vídeo'}</span><span class="shot-pop"></span></div>
           <svg class="timeline diagram" viewBox="0 0 1000 64" preserveAspectRatio="none" role="img" aria-label="Línea de tiempo de golpes; toca para saltar">${timelineSVG()}</svg>
           <div class="ctrls">
@@ -2269,7 +2615,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
             <button class="icon-btn nextHit" aria-label="Golpe siguiente"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
             <span class="num small tm">0:00</span><span style="flex:1"></span>
             <div class="seg"><button data-rate="0.25" aria-pressed="false">¼×</button><button data-rate="0.5" aria-pressed="false">½×</button><button data-rate="1" aria-pressed="true">1×</button></div>
-            ${tr.demo ? '' : '<button class="chip" data-opt="skel" aria-pressed="true">Esqueletos</button><button class="chip" data-opt="court" aria-pressed="true">Pista</button>'}<button class="chip" data-opt="trail" aria-pressed="true">Rastro</button>
+            ${tr.demo ? '' : '<button class="chip" data-opt="skel" aria-pressed="true">Esqueletos</button><button class="chip" data-opt="court" aria-pressed="true">Pista</button>'}<button class="chip" data-opt="trail" aria-pressed="true">Rastro</button>${res.shuttle ? '<button class="chip" data-opt="shuttle" aria-pressed="true">Volante (beta)</button>' : ''}<button class="btn addHit" type="button" data-p="${me}">+ Golpe tuyo</button><button class="btn addHit" type="button" data-p="${op}">+ Golpe rival</button>${FS_BTN}
           </div>
         </div>
         <div class="mini-wrap"><div class="mini"><canvas width="180" height="380"></canvas></div><p class="small muted" style="margin-top:8px">Vista desde arriba. La línea discontinua es el golpe en vuelo, con el color de su tipo.</p></div>
@@ -2288,6 +2634,10 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       <div class="overflow">${contactChart(myHits.filter((h) => h.nIn > 0), (cmp ? res.players[me] : M).stature, tr.duration)}</div>
       <div class="legend"><span><i class="sw" style="background:var(--atk)"></i>Ataque (remates)</span><span><i class="sw" style="background:var(--neu)"></i>Neutral (clears, drops, drives, dejadas)</span><span><i class="sw" style="background:var(--def)"></i>Defensa (lobs, bloqueos)</span></div>
     </div>
+
+    <div class="card" id="shotsCard"><div class="card-h"><h3>Golpes uno a uno</h3><p>Imagen del momento del contacto, potencia y técnica. Toca la imagen para verlo en la repetición.</p></div>
+      <div class="row" style="margin-bottom:12px"><select id="shotType" aria-label="Filtrar por tipo de golpe"><option value="">Todos los golpes</option>${[...new Set(res.hits.map((h) => h.type))].sort().map((x) => `<option ${S.shotType === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select><button class="chip" id="shotFails" type="button" aria-pressed="${!!S.shotFails}">Solo con fallos</button><button class="chip" id="shotAll" type="button" aria-pressed="${!!S.shotAll}">Incluir peloteos descartados</button></div>
+      <div class="reps-grid" id="shotGrid"></div><div class="row" style="justify-content:center;margin-top:12px"><button class="btn" id="shotMore" hidden>Ver más golpes</button></div></div>
 
     <div class="grid2">
       <div class="card"><div class="card-h"><h3>Tipos de golpe</h3><p>${myHits.length} golpes</p></div><div class="bars">${typeBars(myHits)}</div></div>
@@ -2312,7 +2662,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       <div class="metrics">${techMetrics(pls, me)}</div></div>
 
     <div class="grid2">
-      <div class="card"><div class="card-h"><h3>Puntos jugados</h3><p>Toca un punto para verlo</p></div><div class="rallies">${res.rallies.map((r, i) => `<button class="rally" data-seek="${r.start - 1}"><span class="num small">${mmss(r.start)}</span><span class="dots">${r.hits.map((h) => `<i class="${h.p === me ? '' : 'p1'}" style="background:${css(ROLE_COL[h.role])}" title="${tr.names[h.p]}: ${esc(h.type)}"></i>`).join('')}</span><span class="small muted" style="text-align:right">${r.n} golpes · ${fmt(r.dur, 0)} s</span></button>`).join('')}</div>
+      <div class="card"><div class="card-h"><h3>Puntos jugados</h3><p>Toca un punto para verlo</p></div><div class="rallies">${res.rallies.map((r, i) => `<div class="rally-row${r.valid ? '' : ' off'}"><button class="rally" data-seek="${r.start - 1}"><span class="num small">${mmss(r.start)}</span><span class="dots">${r.hits.map((h) => `<i class="${h.p === me ? '' : 'p1'}" style="background:${css(ROLE_COL[h.role])}" title="${tr.names[h.p]}: ${esc(h.type)}"></i>`).join('')}</span><span class="small muted" style="text-align:right">${r.n} golpes · ${fmt(r.dur, 0)} s</span></button><button class="chip rally-tog" type="button" data-k="${r.key}" data-v="${r.valid ? 0 : 1}" title="${r.valid ? 'Cuenta como punto' : esc(r.reason || 'No cuenta como punto')}">${r.valid ? '✓ Punto' : '✗ ' + esc(r.reason || 'No es punto')}${r.manual ? ' ✎' : ''}</button></div>`).join('')}</div>
         <p class="small muted" style="margin-top:8px">Círculos: tus golpes · cuadrados: los del rival.</p></div>
       <div class="card"><div class="card-h"><h3>Resistencia</h3><p>Velocidad media en cada punto</p></div>
         <div class="overflow">${fatigueChart(pls)}</div>
@@ -2320,11 +2670,66 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     </div>
     <p class="small muted">Todas las medidas son estimaciones a partir de la postura detectada en el vídeo. Úsalas para ver tendencias y comparar partidos grabados igual.</p>`;
     root.dataset.built = String(S.sel);
+    $$('#resSens button').forEach((b) => (b.onclick = () => { tr.sens = b.dataset.v; reMatch(); }));
+    if ($('#undoEdits')) $('#undoEdits').onclick = () => { tr.edits = { add: [], del: [], type: {}, rally: {} }; reMatch(); };
+    $$('.rally-tog', root).forEach((b) => (b.onclick = () => { mEdits(tr).rally[b.dataset.k] = b.dataset.v === '1'; reMatch(); }));
+    $('#shotType').onchange = (e) => { S.shotType = e.target.value; S.shotN = 24; renderShots(); };
+    $('#shotFails').onclick = () => { S.shotFails = !S.shotFails; $('#shotFails').setAttribute('aria-pressed', S.shotFails); S.shotN = 24; renderShots(); };
+    $('#shotAll').onclick = () => { S.shotAll = !S.shotAll; $('#shotAll').setAttribute('aria-pressed', S.shotAll); S.shotN = 24; renderShots(); };
+    $('#shotMore').onclick = () => { S.shotN = (S.shotN || 24) + 24; renderShots(); };
     $$('#selSeg button').forEach((b) => (b.onclick = () => { S.sel = b.dataset.v === 'cmp' ? 'cmp' : +b.dataset.v; S.replay && S.replay.destroy(); S.replay = null; root.dataset.built = ''; renderResults(); }));
     $$('#heatSeg button').forEach((b) => (b.onclick = () => { S.heatMode = b.dataset.v; drawResultCanvases(); }));
     root.onclick = (e) => { const el = e.target.closest('[data-seek]'); if (el && S.replay) S.replay.seek(+el.dataset.seek); };
     S.replay = Replay($('#replayCard'));
+    $$('.addHit', root).forEach((b) => (b.onclick = () => { const i = frameAt(tr, S.replay.time()), p = +b.dataset.p, E = mEdits(tr); E.del = E.del.filter((e) => !(e.p === p && Math.abs(e.i - i) <= 3)); E.add.push({ p, i }); reMatch(); }));
+    $('.fsBtn', root).onclick = () => fsToggle($('.fsbox', root));
+    S.shotN = S.shotN || 24; renderShots();
     drawResultCanvases();
+  }
+  const mEdits = (tr) => { tr.edits = tr.edits || {}; ['add', 'del'].forEach((k) => (tr.edits[k] = tr.edits[k] || [])); tr.edits.type = tr.edits.type || {}; tr.edits.rally = tr.edits.rally || {}; return tr.edits; };
+  const nMEdits = (tr) => { const e = mEdits(tr); return e.add.length + e.del.length + Object.keys(e.type).length + Object.keys(e.rally).length; };
+  function reMatch() {
+    const y = window.scrollY, root = $('#v-resultados');
+    S.res = analyze(S.track);
+    S.replay && S.replay.destroy(); S.replay = null; root.dataset.built = ''; renderResults();
+    window.scrollTo(0, y);
+  }
+  const FORCE_C = { Fuerte: '--atk', Media: '--neu', Suave: '--def' };
+  function renderShots() {
+    const res = S.res, tr = S.track, grid = $('#shotGrid'); if (!grid) return;
+    const cmp = S.sel === 'cmp', list = res.hits.map((h, k) => ({ h, k })).filter(({ h }) => (cmp || h.p === +S.sel) && (S.shotAll || h.valid) && (!S.shotType || h.type === S.shotType) && (!S.shotFails || (h.checks || []).some((c) => !c.pass)));
+    const N = S.shotN || 24, show = list.slice(0, N);
+    grid.innerHTML = show.map(({ h, k }) => `<div class="rep-card${h.valid ? '' : ' off'}"><button class="rep-img" data-seek="${h.t - 0.8}" aria-label="Ver este golpe en la repetición"><canvas data-k="${k}" width="300" height="225"></canvas></button><div class="b"><div class="row" style="justify-content:space-between"><b>${esc(tr.names[h.p])} · ${esc(h.type)}${h.edited || h.manual ? ' <span class="pill" title="Corregido a mano">✎</span>' : ''}</b>${h.score !== null && h.score !== undefined ? `<span class="state ${h.score >= 80 ? 'good' : h.score >= 50 ? 'warn' : 'bad'}">${h.score}</span>` : ''}</div>
+      <span class="small muted">${mmss(h.t)} · ${fmt(h.h, 2)} m${h.v0 ? ` · ${Math.round(h.v0 * 3.6)} km/h` : ''}${h.jump ? ` · salto ${h.jump} cm` : ''}</span>
+      <span><span class="pill"><i class="sw" style="background:var(${FORCE_C[h.force]})"></i>${h.force}</span></span>
+      ${(h.checks || []).filter((c) => !c.pass).slice(0, 2).map((c) => `<span class="small" style="color:var(--bad)">✗ ${esc(c.n)}</span>`).join('')}
+      <select class="rep-edit m-edit" data-p="${h.p}" data-i="${h.i}" aria-label="Corregir este golpe">${EDIT_TYPES.map((x) => `<option ${x === h.type ? 'selected' : ''}>${x}</option>`).join('')}${EDIT_TYPES.includes(h.type) ? '' : `<option selected>${esc(h.type)}</option>`}<option value="__del">✗ No es un golpe</option></select></div></div>`).join('') || '<p class="muted">No hay golpes con este filtro.</p>';
+    $('#shotMore').hidden = list.length <= N; $('#shotMore').textContent = `Ver más golpes (${list.length - N})`;
+    $$('.m-edit', grid).forEach((sel) => (sel.onchange = () => { const E = mEdits(tr), p = +sel.dataset.p, i = +sel.dataset.i; if (sel.value === '__del') E.del.push({ p, i }); else E.type[`${p}:${i}`] = sel.value; reMatch(); }));
+    drawShotThumbs();
+  }
+  // Imagen del contacto: en la demo se dibuja la escena; con vídeo real se busca el fotograma en un vídeo oculto
+  let thumbVid = null, thumbBusy = false; const thumbQ = [];
+  function drawShotThumbs() {
+    thumbQ.length = 0;
+    $$('#shotGrid canvas').forEach((cv) => thumbQ.push(cv));
+    if (S.demo) { thumbQ.splice(0).forEach(paintThumb); return; }
+    pumpThumbs();
+  }
+  function hitBox(h) { const pl = S.track.frames[h.i] && S.track.frames[h.i].p[h.p]; if (!pl) return null; let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (let k = 0; k < NK; k++) { x0 = Math.min(x0, pl.img[k * 3]); x1 = Math.max(x1, pl.img[k * 3]); y0 = Math.min(y0, pl.img[k * 3 + 1]); y1 = Math.max(y1, pl.img[k * 3 + 1]); } const hh = Math.max(y1 - y0, 40) * 1.5, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2 - (y1 - y0) * 0.1; return { pl, cx, cy, hh }; }
+  function paintThumb(cv, src) {
+    const h = S.res.hits[+cv.dataset.k]; if (!h) return; const c = cv.getContext('2d'), W = cv.width, H = cv.height, b = hitBox(h); if (!b) return;
+    const s = H / b.hh, ox = W / 2 - b.cx * s, oy = H / 2 - b.cy * s;
+    c.fillStyle = '#0a1511'; c.fillRect(0, 0, W, H);
+    if (S.demo) { c.save(); c.translate(ox, oy); c.scale(s, s); paintDemoMatch(c, S.track.width, S.track.height, h.t); c.restore(); drawSkeleton(c, S.demo.skeletonAt(h.p, h.t).img, s, h.p === S.me ? '#e8962c' : '#8592ff', Math.max(2.5, 4 * s), ox, oy); }
+    else if (src) { const k = S.track.width / src.videoWidth; c.drawImage(src, ox, oy, src.videoWidth * k * s, src.videoHeight * k * s); drawSkeleton(c, b.pl.img, s, h.p === S.me ? '#e8962c' : '#8592ff', Math.max(2.5, 3 * s), ox, oy); }
+  }
+  async function pumpThumbs() {
+    if (thumbBusy || !S.url) return; thumbBusy = true;
+    if (!thumbVid) { thumbVid = document.createElement('video'); thumbVid.muted = true; thumbVid.playsInline = true; thumbVid.preload = 'auto'; }
+    if (thumbVid.src !== S.url) { thumbVid.src = S.url; await new Promise((ok) => { thumbVid.onloadeddata = ok; setTimeout(ok, 3000); }); }
+    while (thumbQ.length) { const cv = thumbQ.shift(); if (!cv.isConnected) continue; const h = S.res.hits[+cv.dataset.k]; if (!h) continue; await seek(thumbVid, h.t + (S.track.offset || 0)); paintThumb(cv, thumbVid); }
+    thumbBusy = false;
   }
   function metric(l, v, h, state) { return `<div class="metric"><span class="l">${l}</span><span class="v">${v}</span><span class="h">${h}</span>${state ? `<span><span class="state ${state[0]}">${state[1]}</span></span>` : ''}</div>`; }
   function techMetrics(pls, me) {
@@ -2353,8 +2758,8 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
   function timelineSVG() {
     const res = S.res, dur = S.track.duration; if (!dur) return '';
     let g = `<rect x="0" y="0" width="1000" height="64" fill="${css('--surface-2')}"/>`;
-    res.rallies.forEach((r) => (g += `<rect x="${r.start / dur * 1000 - 2}" y="6" width="${Math.max(3, (r.dur) / dur * 1000 + 4)}" height="52" rx="3" fill="${css('--accent')}" fill-opacity=".14"/>`));
-    res.hits.forEach((h) => { const y = h.p === S.me ? 44 : 20; g += `<rect x="${h.t / dur * 1000 - 1.5}" y="${y - 8}" width="3" height="16" rx="1.5" fill="${css(ROLE_COL[h.role])}"/>`; });
+    res.rallies.forEach((r) => (g += `<rect x="${r.start / dur * 1000 - 2}" y="6" width="${Math.max(3, (r.dur) / dur * 1000 + 4)}" height="52" rx="3" fill="${css(r.valid ? '--accent' : '--muted')}" fill-opacity="${r.valid ? '.14' : '.08'}"/>`));
+    res.hits.forEach((h) => { const y = h.p === S.me ? 44 : 20; g += `<rect x="${h.t / dur * 1000 - 1.5}" y="${y - 8}" width="3" height="16" rx="1.5" fill="${css(ROLE_COL[h.role])}" fill-opacity="${h.valid ? 1 : 0.25}"/>`; });
     g += `<line x1="0" x2="1000" y1="32" y2="32" stroke="${css('--line')}"/><g class="ph"><rect x="-1.5" y="0" width="3" height="64" fill="${css('--ink')}"/></g>`;
     return g;
   }
@@ -2707,7 +3112,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     <div class="card" id="replayCard">
       <div class="card-h"><h3>Repetición con ángulos</h3><div class="legend"><span><i class="sw" style="background:#3cc58c"></i>Codo</span><span><i class="sw" style="background:#9aa8ff"></i>Rodilla</span>${tr.demo ? '<span class="pill">Vídeo simulado</span>' : ''}</div></div>
       <div class="replay">
-        <div style="min-width:0">
+        <div style="min-width:0" class="fsbox">
           <div class="stage"><canvas class="ov"></canvas><span class="badge">${tr.demo ? 'Demostración' : 'Tu vídeo'}</span><span class="shot-pop"></span></div>
           <svg class="timeline diagram" viewBox="0 0 1000 40" preserveAspectRatio="none" role="img" aria-label="Golpes en el tiempo; toca para saltar"><rect width="1000" height="40" fill="${css('--surface-2')}"/>${R.reps.map((r) => `<rect x="${r.t / R.duration * 1000 - 2}" y="8" width="4" height="24" rx="2" fill="${css(r.score === null ? '--muted' : r.score >= 80 ? '--good' : r.score >= 50 ? '--warn' : '--bad')}"/>`).join('')}<g class="ph"><rect x="-1.5" width="3" height="40" fill="${css('--ink')}"/></g></svg>
           <div class="ctrls">
@@ -2716,7 +3121,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
             <button class="icon-btn nextHit" aria-label="Golpe siguiente"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
             <span class="num small tm">0:00</span><span style="flex:1"></span>
             <div class="seg"><button data-rate="0.25" aria-pressed="false">¼×</button><button data-rate="0.5" aria-pressed="false">½×</button><button data-rate="1" aria-pressed="true">1×</button></div>
-            <button class="chip" data-opt="angles" aria-pressed="true">Ángulos</button><button class="chip" data-opt="trail" aria-pressed="true">Rastro</button><button class="btn addHit" type="button">+ Golpe aquí</button>
+            <button class="chip" data-opt="angles" aria-pressed="true">Ángulos</button><button class="chip" data-opt="trail" aria-pressed="true">Rastro</button><button class="btn addHit" type="button">+ Golpe aquí</button>${FS_BTN}
           </div>
         </div>
         <div class="live"><span class="eyebrow">En este momento</span>
@@ -2729,14 +3134,14 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
       <p class="small muted" style="margin-top:8px">Marcas de la línea de tiempo: cada golpe, en verde si la técnica es buena, en naranja si es mejorable y en rojo si hay que trabajarla.</p>
     </div>
     <div class="card"><div class="card-h"><h3>Momento del contacto en cada golpe</h3><p>Toca uno para verlo en la repetición</p></div>
-      <div class="reps-grid">${R.reps.map((r, k) => `<div class="rep-card"><button class="rep-img" data-seek="${r.t - 0.8}" aria-label="Ver golpe ${k + 1} en la repetición"><canvas data-k="${k}" width="340" height="255"></canvas></button><div class="b"><div class="row" style="justify-content:space-between"><b>${k + 1}. ${esc(r.type)}${r.edited || r.manual ? ' <span class="pill" title="Corregido a mano">✎</span>' : ''}</b>${r.score !== null ? `<span class="state ${r.score >= 80 ? 'good' : r.score >= 50 ? 'warn' : 'bad'}">${r.score}</span>` : ''}</div><span class="small muted">${fmt(r.h, 2)} m · codo ${fmt(r.elbow, 0)}°${r.jump ? ` · salto ${r.jump} cm` : ''}</span>${r.checks.filter((c) => !c.pass).slice(0, 2).map((c) => `<span class="small" style="color:var(--bad)">✗ ${c.n}</span>`).join('')}<select class="rep-edit" data-i="${r.i}" aria-label="Corregir el golpe ${k + 1}">${EDIT_TYPES.map((x) => `<option value="${x}" ${x === r.type ? 'selected' : ''}>${x}</option>`).join('')}${EDIT_TYPES.includes(r.type) ? '' : `<option selected>${esc(r.type)}</option>`}<option value="__del">✗ No es un golpe</option></select></div></div>`).join('') || '<p class="muted">No se han detectado golpes. Prueba con una sensibilidad más alta o márcalos a mano con "+ Golpe aquí".</p>'}</div></div>
+      <div class="reps-grid">${R.reps.map((r, k) => `<div class="rep-card"><button class="rep-img" data-seek="${r.t - 0.8}" aria-label="Ver golpe ${k + 1} en la repetición"><canvas data-k="${k}" width="340" height="255"></canvas></button><div class="b"><div class="row" style="justify-content:space-between"><b>${k + 1}. ${esc(r.type)}${r.edited || r.manual ? ' <span class="pill" title="Corregido a mano">✎</span>' : ''}</b>${r.score !== null ? `<span class="state ${r.score >= 80 ? 'good' : r.score >= 50 ? 'warn' : 'bad'}">${r.score}</span>` : ''}</div><span class="small muted">${fmt(r.h, 2)} m · codo ${fmt(r.elbow, 0)}°${r.jump ? ` · salto ${r.jump} cm` : ''}</span><span><span class="pill"><i class="sw" style="background:var(${FORCE_C[r.force] || '--muted'})"></i>${r.force || ''}</span></span>${r.checks.filter((c) => !c.pass).slice(0, 2).map((c) => `<span class="small" style="color:var(--bad)">✗ ${c.n}</span>`).join('')}<select class="rep-edit" data-i="${r.i}" aria-label="Corregir el golpe ${k + 1}">${EDIT_TYPES.map((x) => `<option value="${x}" ${x === r.type ? 'selected' : ''}>${x}</option>`).join('')}${EDIT_TYPES.includes(r.type) ? '' : `<option selected>${esc(r.type)}</option>`}<option value="__del">✗ No es un golpe</option></select></div></div>`).join('') || '<p class="muted">No se han detectado golpes. Prueba con una sensibilidad más alta o márcalos a mano con "+ Golpe aquí".</p>'}</div></div>
     <div class="grid2">
       <div class="card"><div class="card-h"><h3>Qué haces bien y qué corregir</h3><p>% de golpes que lo cumplen</p></div>
         <div class="bars">${checkRows.map((c) => { const v = c.ok / c.tot, col = v >= 0.8 ? '--good' : v >= 0.5 ? '--warn' : '--bad'; return `<div class="bar-row" style="grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) 46px"><span>${esc(c.n)}</span><span class="track"><div style="width:${v * 100}%;background:${css(col)}"></div></span><span class="num" style="text-align:right">${Math.round(v * 100)}%</span></div>`; }).join('') || '<p class="muted">Sin comprobaciones.</p>'}</div></div>
       <div class="card"><div class="card-h"><h3>Consejos</h3></div><div class="tips">${R.tips.slice(0, 6).map((t) => `<div class="tip"><i style="background:${css(t.lvl === 'bien' ? '--good' : t.lvl === 'mejora' ? '--accent' : t.lvl === 'aviso' ? '--bad' : '--def')}"></i><div><b>${t.title}</b><span class="small">${t.body}</span></div></div>`).join('')}</div></div>
     </div>
     <div class="card"><div class="card-h"><h3>Altura de contacto en cada golpe</h3><p>Rojo: por arriba · naranja: media altura · azul: por abajo</p></div><div class="overflow">${repBars(R)}</div></div>
-    <div class="card"><div class="card-h"><h3>Detalle por golpe</h3></div><div class="overflow"><table class="t"><tr><th>#</th><th>Golpe</th><th>Altura</th><th>Codo</th><th>Mano</th><th>Rodilla</th><th>Vuelta</th><th>Nota</th></tr>${R.reps.map((r, k) => `<tr data-seek="${r.t - 0.8}" style="cursor:pointer"><td class="num">${k + 1}</td><td>${esc(r.type)}${r.jump ? ' · salto' : ''}</td><td class="num">${fmt(r.h, 2)} m</td><td class="num">${fmt(r.elbow, 0)}°</td><td class="num">${fmt(r.peak * 3.6, 0)} km/h</td><td class="num">${fmt(r.lunge ? r.lungeKnee : r.loadKnee, 0)}°</td><td class="num">${r.rec === null ? '—' : fmt(r.rec, 1) + ' s'}</td><td>${r.score === null ? '—' : `<span class="state ${r.score >= 80 ? 'good' : r.score >= 50 ? 'warn' : 'bad'}">${r.score}</span>`}</td></tr>`).join('')}</table></div></div>
+    <div class="card"><div class="card-h"><h3>Detalle por golpe</h3></div><div class="overflow"><table class="t"><tr><th>#</th><th>Golpe</th><th>Altura</th><th>Codo</th><th>Mano</th><th>Potencia</th><th>Rodilla</th><th>Vuelta</th><th>Nota</th></tr>${R.reps.map((r, k) => `<tr data-seek="${r.t - 0.8}" style="cursor:pointer"><td class="num">${k + 1}</td><td>${esc(r.type)}${r.jump ? ' · salto' : ''}</td><td class="num">${fmt(r.h, 2)} m</td><td class="num">${fmt(r.elbow, 0)}°</td><td class="num">${fmt(r.peak * 3.6, 0)} km/h</td><td>${r.force || '—'}</td><td class="num">${fmt(r.lunge ? r.lungeKnee : r.loadKnee, 0)}°</td><td class="num">${r.rec === null ? '—' : fmt(r.rec, 1) + ' s'}</td><td>${r.score === null ? '—' : `<span class="state ${r.score >= 80 ? 'good' : r.score >= 50 ? 'warn' : 'bad'}">${r.score}</span>`}</td></tr>`).join('')}</table></div></div>
     <div class="grid2">
       <div class="card"><div class="card-h"><h3>Desplazamientos</h3><p>Visto desde arriba (aproximado)</p></div>${traceChart(R)}
         <div class="metrics" style="margin-top:12px">
@@ -2762,6 +3167,7 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
     if ($('#undoEdits')) $('#undoEdits').onclick = () => { tr.edits = { add: [], del: [], type: {} }; reTrain(); };
     root.onclick = (e) => { const el = e.target.closest('[data-seek]'); if (el && S.replay) S.replay.seek(+el.dataset.seek); };
     S.replay = TReplay($('#replayCard'));
+    $('.fsBtn', root).onclick = () => fsToggle($('.fsbox', root));
     $('.addHit', root).onclick = () => { const i = frameAt(tr, S.replay.time()); tr.edits = tr.edits || { add: [], del: [], type: {} }; tr.edits.del = tr.edits.del.filter((x) => Math.abs(x - i) > 3); tr.edits.add.push(i); reTrain(); };
     drawRepThumbs();
   }
