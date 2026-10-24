@@ -428,6 +428,7 @@ body.noscroll { overflow: hidden; }
       </div>
     </div>
   </div>
+  <p class="small muted" style="text-align:center">Versión 5 · 24 de octubre de 2026</p>
 </section>
 
 <!-- ===== RESULTADOS ===== -->
@@ -629,6 +630,118 @@ body.noscroll { overflow: hidden; }
     return out;
   }
 
+  /* ---------- Seguimiento del volante ---------- */
+  // Entrada: en cada fotograma, puntos que cambian de brillo (candidatos) y los esqueletos de los jugadores.
+  // 1) Se quitan candidatos sobre el cuerpo de los jugadores (salvo cerca de la mano de la raqueta), fuera del
+  //    pasillo de la pista y los que se repiten en el mismo sitio (reflejos, pantallas, ruido del vídeo).
+  // 2) Se forman trayectorias: cada una predice dónde estará el volante en el siguiente fotograma.
+  // 3) Se quedan las trayectorias largas, suaves y que se mueven de verdad.
+  function trackShuttle(frames, t, W, H, court2img) {
+    const n = frames.length; if (!frames.some((f) => f.sh && f.sh.length)) return null;
+    const corridor = (x, y) => { // límites laterales de la pista (+1,5 m) a la altura de la imagen y
+      const a = applyH(court2img, -1.5, 0), b = applyH(court2img, -1.5, COURT.L), c = applyH(court2img, COURT.W + 1.5, 0), d = applyH(court2img, COURT.W + 1.5, COURT.L);
+      const lx = (yy) => a[0] + (b[0] - a[0]) * (yy - a[1]) / ((b[1] - a[1]) || 1), rx = (yy) => c[0] + (d[0] - c[0]) * (yy - c[1]) / ((d[1] - c[1]) || 1);
+      const yy = Math.min(Math.max(y, Math.min(b[1], d[1])), Math.max(a[1], c[1]));
+      return x > lx(yy) - 20 && x < rx(yy) + 20;
+    };
+    const C = frames.map((f, i) => {
+      const L = (f.sh || []).filter((c) => corridor(c[0], c[1]));
+      const bodies = (f.p || []).filter(Boolean).map((pl) => {
+        let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (let k = 1; k < NK; k++) { x0 = Math.min(x0, pl.img[k * 3]); x1 = Math.max(x1, pl.img[k * 3]); y0 = Math.min(y0, pl.img[k * 3 + 1]); y1 = Math.max(y1, pl.img[k * 3 + 1]); }
+        const hh = y1 - y0; return { b: [x0 - hh * 0.08, y0 - hh * 0.12, x1 + hh * 0.08, y1 + hh * 0.02], hands: [im(pl, K.lwr), im(pl, K.rwr)], hh };
+      });
+      return L.filter((c) => !bodies.some((B) => c[0] > B.b[0] && c[0] < B.b[2] && c[1] > B.b[1] && c[1] < B.b[3] && !B.hands.some((h) => Math.hypot(h[0] - c[0], h[1] - c[1]) < B.hh * 0.35)));
+    });
+    // Puntos que se repiten en el mismo sitio: no son el volante
+    for (let i = 0; i < n; i++) C[i] = C[i].filter((c) => { let same = 0; for (let j = Math.max(0, i - 6); j <= Math.min(n - 1, i + 6); j++) if (j !== i && C[j].some((q) => Math.hypot(q[0] - c[0], q[1] - c[1]) < 4)) same++; return same < 2; });
+    const tracks = [], active = [];
+    const vmax = W * 2.2; // px por segundo (un remate cruza la pantalla en menos de medio segundo)
+    for (let i = 0; i < n; i++) {
+      const used = new Set();
+      for (const tr of active) {
+        const L = tr.pts.length, last = tr.pts[L - 1], dtl = t[i] - last[0];
+        let px = last[1], py = last[2];
+        if (L >= 2) { const pr = tr.pts[L - 2], vx = (last[1] - pr[1]) / (last[0] - pr[0]), vy = (last[2] - pr[2]) / (last[0] - pr[0]); px += vx * dtl; py += vy * dtl; }
+        const gate = L >= 2 ? 25 + 0.25 * Math.hypot(px - last[1], py - last[2]) : vmax * dtl;
+        let best = -1, bd = gate;
+        C[i].forEach((c, k) => { if (used.has(k)) return; const d = Math.hypot(c[0] - px, c[1] - py); if (d < bd && Math.hypot(c[0] - last[1], c[1] - last[2]) > 1.5) { bd = d; best = k; } });
+        if (best >= 0) { used.add(best); tr.pts.push([t[i], C[i][best][0], C[i][best][1], C[i][best][2] || 0]); tr.miss = 0; } else tr.miss++;
+      }
+      for (let k = active.length - 1; k >= 0; k--) if (active[k].miss > 2) { tracks.push(active[k]); active.splice(k, 1); }
+      C[i].forEach((c, k) => { if (!used.has(k)) active.push({ pts: [[t[i], c[0], c[1], c[2] || 0]], miss: 0 }); });
+    }
+    tracks.push(...active);
+    // Calidad: largo, se mueve y es suave (aceleración pequeña comparada con el desplazamiento)
+    const good = tracks.filter((tr) => {
+      const P = tr.pts; if (P.length < 4) return false;
+      let path = 0, acc = 0; for (let k = 1; k < P.length; k++) path += Math.hypot(P[k][1] - P[k - 1][1], P[k][2] - P[k - 1][2]);
+      for (let k = 1; k < P.length - 1; k++) acc += Math.hypot(P[k + 1][1] - 2 * P[k][1] + P[k - 1][1], P[k + 1][2] - 2 * P[k][2] + P[k - 1][2]);
+      tr.score = P.length; tr.path = path; tr.rough = acc / (P.length - 2) / (path / (P.length - 1) + 1);
+      const con = P.reduce((s2, q) => s2 + (q[3] || 0), 0) / P.length; tr.con = con;
+      const hasCon = P.some((q) => q[3]);
+      // Solo trayectorias claras: suficientemente largas, suaves y con contraste alto (el volante es blanco y brilla)
+      return path > 40 && tr.rough < (G.__shRough || 0.8) && P.length >= (G.__shMinN || 5) && (!hasCon || con >= (G.__shCon || 100));
+    });
+    // Posición por fotograma: la de la trayectoria más larga activa en ese momento
+    const pos = new Array(n).fill(null);
+    good.sort((a, b) => b.score - a.score).forEach((tr) => tr.pts.forEach(([tt, x, y]) => { const i = t.indexOf(tt); if (i >= 0 && !pos[i]) pos[i] = [x, y]; }));
+    return { pos, tracks: good.map((tr) => tr.pts) };
+  }
+
+  /* ---------- Filtro de identidad de cada jugador ---------- */
+  // Decide si una persona detectada es el jugador que seguimos. Lo usa el procesado (en directo, para
+  // tapar a los demás) y el análisis (después). Reglas:
+  //  · sus pies tienen que estar en su media pista (con margen) y su tamaño encajar con la distancia;
+  //  · no puede "teletransportarse";
+  //  · si se ha perdido más de 1 s, solo se le vuelve a coger DENTRO de la pista (así no se engancha
+  //    a un juez, un marcador o alguien de la pista de al lado cuando el jugador sale un momento);
+  //  · su ropa (colores del tronco y las piernas) tiene que parecerse a la que llevaba;
+  //  · alguien sentado y quieto no es un jugador.
+  function colDist(a, b) {
+    // Por parche (tronco y pantalón): diferencia de tono (pesa menos si el parche es oscuro, porque ahí el color
+    // no es fiable) y de brillo (pesa poco: cambia con sombras y focos)
+    let d = 0;
+    for (let k = 0; k < 6; k += 3) {
+      const s1 = a[k] + a[k + 1] + a[k + 2] + 3, s2 = b[k] + b[k + 1] + b[k + 2] + 3, wgt = Math.min(1, Math.max(0, (Math.min(s1, s2) / 3 - 25) / 60));
+      d += wgt * 4 * (Math.abs(a[k] / s1 - b[k] / s2) + Math.abs(a[k + 1] / s1 - b[k + 1] / s2) + Math.abs(a[k + 2] / s1 - b[k + 2] / s2)) + 0.35 * Math.abs(Math.log(s1 / s2));
+    }
+    return d / 2;
+  }
+  function makeGate(track, court2img, img2court) {
+    const W = COURT.W, L = COURT.L, N = COURT.NET;
+    const st = [0, 1].map(() => ({ last: null, refs: [], low: null }));
+    function gate(p, pl, col, t) {
+      const g = st[p], S = (track.stature && track.stature[p]) || 1.75;
+      const la = im(pl, K.lan), ra = im(pl, K.ran), no = im(pl, K.nose);
+      const ax = (la[0] + ra[0]) / 2, ay = Math.max(la[1], ra[1]);
+      const [cx, cy] = applyH(img2court, ax, ay);
+      if (!Number.isFinite(cx) || !Number.isFinite(cy)) return 'fuera';
+      const inHalf = p === 0 ? cy > -1.6 && cy < N + 0.8 : cy < L + 1.6 && cy > N - 0.8;
+      if (!inHalf || cx < -1.6 || cx > W + 1.6) return 'fuera';
+      const a = applyH(court2img, cx - 0.5, cy), b = applyH(court2img, cx + 0.5, cy), pxm = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      const ratio = Math.hypot(no[0] - ax, no[1] - ay) / (S * pxm);
+      if (!(ratio > 0.3 && ratio < 1.9)) return 'tamaño';
+      const strictIn = cx > -0.4 && cx < W + 0.4 && (p === 0 ? cy > -0.6 && cy < N : cy > N && cy < L + 0.6);
+      const lost = !g.last || t - g.last.t > 1.0;
+      if (lost && !strictIn) return 'fuera';
+      if (!lost && Math.hypot(cx - g.last.x, cy - g.last.y) > 1.5 + 7 * (t - g.last.t)) return 'salto';
+      // La ropa solo se comprueba al volver a encontrar a un jugador perdido (mientras se le sigue, la posición manda)
+      if (lost && col && g.refs.length >= 5 && Math.min(...g.refs.map((r) => colDist(col, r))) > 0.6) return 'ropa';
+      // Sentado: caderas muy bajas respecto a la cabeza durante un rato, sin moverse del sitio
+      if (pl.w) {
+        const hipY = (pl.w[K.lhip * 3 + 1] + pl.w[K.rhip * 3 + 1]) / 2, ankY = Math.max(pl.w[K.lan * 3 + 1], pl.w[K.ran * 3 + 1]), noseY = pl.w[K.nose * 3 + 1];
+        const r = (ankY - hipY) / Math.max(0.2, ankY - noseY);
+        if (r < 0.36) { if (!g.low || Math.hypot(cx - g.low.x, cy - g.low.y) > 0.5) g.low = { t, x: cx, y: cy }; if (t - g.low.t > 1.2) return 'sentado'; } else g.low = null;
+      }
+      g.last = { x: cx, y: cy, t };
+      // Muestras de su ropa: hasta 24, guardando solo las que aportan algo nuevo
+      if (col && strictIn && !lost && (!g.refs.length || Math.min(...g.refs.map((r) => colDist(col, r))) > 0.12)) { g.refs.push(col); if (g.refs.length > 24) g.refs.shift(); }
+      return '';
+    }
+    gate.state = st;
+    return gate;
+  }
+
   /* ---------- Análisis principal ---------- */
   function analyze(track, opts) {
     opts = opts || {};
@@ -643,28 +756,10 @@ body.noscroll { overflow: hidden; }
     // encaja con lo que debería medir en ese punto de la pista y si no "salta" de sitio de golpe.
     // Así se ignora a quien pasa por delante o por detrás, y al rival detectado en la zona equivocada.
     let ignored = 0;
-    const gated = [0, 1].map((p) => {
-      const S = track.stature[p] || 1.75, list = raw.map((f) => f.p[p]), out = list.slice();
-      let last = null;
-      for (let i = 0; i < n; i++) {
-        const pl = list[i]; if (!pl) continue;
-        const la = im(pl, K.lan), ra = im(pl, K.ran), no = im(pl, K.nose);
-        const ax = (la[0] + ra[0]) / 2, ay = Math.max(la[1], ra[1]);
-        const [cx, cy] = applyH(img2court, ax, ay);
-        const own = p === 0 ? cy > -1.6 && cy < COURT.NET + 0.8 : cy < COURT.L + 1.6 && cy > COURT.NET - 0.8;
-        let okp = own && cx > -1.6 && cx < COURT.W + 1.6;
-        if (okp) {
-          const a = applyH(court2img, cx - 0.5, cy), b = applyH(court2img, cx + 0.5, cy), pxm = Math.hypot(b[0] - a[0], b[1] - a[1]);
-          const ratio = Math.hypot(no[0] - ax, no[1] - ay) / (S * pxm);
-          okp = ratio > 0.3 && ratio < 1.9;
-        }
-        if (okp && last && t[i] - last.t < 1.5 && Math.hypot(cx - last.x, cy - last.y) > 1.5 + 7 * (t[i] - last.t)) okp = false;
-        if (okp) last = { x: cx, y: cy, t: t[i] }; else { out[i] = null; ignored++; }
-      }
-      return out;
-    });
+    const gate = makeGate(track, court2img, img2court);
+    const gated = [0, 1].map((p) => raw.map((f, i) => { const pl = f.p[p]; if (!pl) return null; const why = gate(p, pl, f.col && f.col[p], t[i]); if (why) { ignored++; return null; } return pl; }));
     const cl = gated.map((list) => cleanSeq(list));
-    const frames = raw.map((f, i) => ({ t: f.t, p: [cl[0][i], cl[1][i]] }));
+    const frames = raw.map((f, i) => ({ t: f.t, sh: f.sh, p: [cl[0][i], cl[1][i]] }));
     const P = [0, 1].map((p) => perPlayer(p));
 
     function perPlayer(p) {
@@ -796,31 +891,74 @@ body.noscroll { overflow: hidden; }
     function stanceAt(p, i) { const pl = frames[i] && frames[i].p[p]; if (!pl || !pl.w) return NaN; const a = wd(pl, K.lan), b = wd(pl, K.ran), s1 = wd(pl, K.lsh), s2 = wd(pl, K.rsh); return Math.hypot(a[0] - b[0], a[2] - b[2]) / (Math.hypot(s1[0] - s2[0], s1[2] - s2[2]) || 0.35); }
 
     /* ---- Detección de golpes ---- */
+    // Candidatos: máximos locales de la velocidad de la muñeca (umbral bajo, relativo a cada jugador)
     let cands = [];
     for (const pp of P) {
-      const ws = pp.ws;
-      const v = ws.filter(Number.isFinite);
-      const med = median(v), mad = median(v.map((x) => Math.abs(x - med)));
-      const thr = Math.max(opts.minSwing || SENS[sens], med + 4 * mad);
-      const sep = Math.round(0.45 / dt);
+      const ws = pp.ws, v = ws.filter(Number.isFinite).sort((x, y) => x - y);
+      if (!v.length) continue;
+      const p90 = Math.max(v[Math.floor(v.length * 0.9)], 0.3), floor = Math.max(0.5 * p90, opts.minSwing ? opts.minSwing * 0.5 : 0);
       for (let i = 1; i < n - 1; i++) {
-        if (!(ws[i] > thr)) continue;
+        if (!(ws[i] > floor)) continue;
         let isMax = true;
-        for (let j = Math.max(0, i - sep); j <= Math.min(n - 1, i + sep); j++) if (j !== i && ws[j] > ws[i]) { isMax = false; break; }
-        if (isMax) cands.push({ p: pp.p, i, t: t[i], peak: ws[i] });
+        for (let j = Math.max(0, i - 2); j <= Math.min(n - 1, i + 2); j++) if (j !== i && ws[j] > ws[i]) { isMax = false; break; }
+        if (isMax) cands.push({ p: pp.p, i, t: t[i], peak: ws[i], s: ws[i] / p90 });
       }
     }
     const nearE = (list, p, i) => list.some((e) => e.p === p && Math.abs(e.i - i) <= Math.round(0.3 / dt));
     cands = cands.filter((c) => !nearE(edits.del, c.p, c.i));
-    edits.add.forEach((e) => { if (e.i > 0 && e.i < n - 1 && !cands.some((c) => c.p === e.p && Math.abs(c.i - e.i) <= Math.round(0.3 / dt))) cands.push({ p: e.p, i: e.i, t: t[e.i], peak: P[e.p].ws[e.i] || 0, manual: true }); });
+    edits.add.forEach((e) => { if (e.i > 0 && e.i < n - 1) { cands = cands.filter((c) => !(c.p === e.p && Math.abs(c.i - e.i) <= Math.round(0.3 / dt))); cands.push({ p: e.p, i: e.i, t: t[e.i], peak: P[e.p].ws[e.i] || 0, s: 50, manual: true }); } });
     cands.sort((a, b) => a.t - b.t);
-    // Alternancia: dos golpes seguidos del mismo jugador muy juntos -> quedarse con el más fuerte
-    const hits = [];
-    for (const c of cands) {
-      const last = hits[hits.length - 1];
-      if (!c.manual && last && !last.manual && last.p === c.p && c.t - last.t < 1.0) { if (c.peak > last.peak) hits[hits.length - 1] = c; continue; }
-      if (!c.manual && last && !last.manual && last.p !== c.p && c.t - last.t < 0.2) { if (c.peak > last.peak) hits[hits.length - 1] = c; continue; }
-      hits.push(c);
+    // Selección global con alternancia: dentro de un punto los golpes van de un jugador al otro
+    // (0,25–2,2 s entre golpes); un hueco >2,4 s permite empezar un punto nuevo con cualquiera.
+    const COST = { low: 1.1, normal: 0.9, high: 0.6 }[sens];
+    const hits = (() => {
+      const N = cands.length, best = new Array(N), prev = new Array(N);
+      let gb = -1e9, gi = -1;
+      for (let k = 0; k < N; k++) {
+        const c = cands[k], gain = c.s - COST;
+        let b = gain, pr = -1;
+        for (let j = 0; j < k; j++) {
+          const d = c.t - cands[j].t;
+          if (d > 2.4 && best[j] + gain > b) { b = best[j] + gain; pr = j; }
+          else if (cands[j].p !== c.p && d >= 0.25 && d <= 2.2 && best[j] + gain > b) { b = best[j] + gain; pr = j; }
+        }
+        best[k] = b; prev[k] = pr;
+        if (b > gb) { gb = b; gi = k; }
+      }
+      const out = []; for (let k = gi; k >= 0; k = prev[k]) out.push(cands[k]);
+      out.reverse();
+      // Golpes añadidos a mano siempre se mantienen
+      cands.forEach((c) => { if (c.manual && !out.includes(c)) out.push(c); });
+      return out.sort((a, b) => a.t - b.t);
+    })();
+    // Volante: confirma los golpes que coinciden con un cambio de dirección del volante junto a la raqueta,
+    // añade los que se habían escapado y quita gestos flojos cuando el volante se ve claramente en otro sitio.
+    const SH = trackShuttle(frames, t, track.width || 1280, track.height || 720, court2img);
+    const shOK = !!SH && SH.pos.filter(Boolean).length > n * 0.15;
+    const shHits = shOK && !!(opts && opts.shuttleHits) && !G.__noShHits;
+    let shAdded = 0, shRemoved = 0;
+    if (shHits) {
+      const hand = (p, i) => { const pl = frames[i] && frames[i].p[p]; if (!pl) return null; let y0 = 1e9, y1 = -1e9; for (let k = 0; k < NK; k++) { y0 = Math.min(y0, pl.img[k * 3 + 1]); y1 = Math.max(y1, pl.img[k * 3 + 1]); } return { h: im(pl, P[p].kW), hh: Math.max(30, y1 - y0) }; };
+      const near = (tt) => { let lo = 0, hi = n - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (t[m] < tt) lo = m + 1; else hi = m; } return lo; };
+      const ev = [];
+      for (const tr of SH.tracks) {
+        ev.push({ t: tr[0][0], x: tr[0][1], y: tr[0][2], kind: 'start', ang: 0 });
+        for (let k = 2; k < tr.length - 2; k++) {
+          const a = tr[k - 2], b = tr[k], c = tr[k + 2], v1 = [b[1] - a[1], b[2] - a[2]], v2 = [c[1] - b[1], c[2] - b[2]], n1 = Math.hypot(...v1), n2 = Math.hypot(...v2);
+          if (n1 < 4 || n2 < 4) continue;
+          const ang = Math.acos(clamp((v1[0] * v2[0] + v1[1] * v2[1]) / n1 / n2, -1, 1)) * 180 / Math.PI;
+          if (ang > 70) ev.push({ t: b[0], x: b[1], y: b[2], kind: 'turn', ang });
+        }
+      }
+      ev.forEach((e) => { const i = near(e.t); let best = null; for (const p of [0, 1]) for (let j = Math.max(0, i - 1); j <= Math.min(n - 1, i + 1); j++) { const H = hand(p, j); if (!H) continue; const d = Math.hypot(H.h[0] - e.x, H.h[1] - e.y) / H.hh; if (d < 0.9 && (!best || d < best.d)) best = { p, d, i: j }; } e.who = best; });
+      hits.forEach((h) => { if (ev.some((e) => e.who && e.who.p === h.p && Math.abs(e.t - h.t) < 0.35)) h.shConf = true; });
+      ev.filter((e) => e.who && e.kind === 'turn' && e.ang > 80).forEach((e) => { if (!hits.some((h) => Math.abs(h.t - e.t) < 0.5) && !nearE(edits.del, e.who.p, e.who.i)) { hits.push({ p: e.who.p, i: e.who.i, t: t[e.who.i], peak: P[e.who.p].ws[e.who.i] || 0, fromShuttle: true }); shAdded++; } });
+      for (let k = hits.length - 1; k >= 0; k--) {
+        const h = hits[k]; if (h.manual || h.shConf || h.fromShuttle) continue;
+        let far = 0, seen = 0; for (let j = h.i - 2; j <= h.i + 2; j++) { const q = SH.pos[j], H = hand(h.p, j); if (!q || !H) continue; seen++; if (Math.hypot(q[0] - H.h[0], q[1] - H.h[1]) / H.hh > 2.5) far++; }
+        if (seen >= 4 && far === seen && h.peak < 2.5 * SENS[sens]) { hits.splice(k, 1); shRemoved++; }
+      }
+      hits.sort((a, b) => a.t - b.t);
     }
     // Afinar el instante de contacto: altura máxima de la muñeca cerca del pico
     for (const h of hits) {
@@ -877,7 +1015,7 @@ body.noscroll { overflow: hidden; }
       if (h.nIn === 0) ty = rf !== undefined ? (rf < 2.9 ? 'Saque corto' : 'Saque largo') : (h.power < 0.4 ? 'Saque corto' : 'Saque largo');
       else if (h.cat === 'alto') {
         const fast = h.v0 ? mps2kmh(h.v0) > 150 && h.T < 0.8 : h.power >= 0.7;
-        if (dn < 2.2) ty = 'Remate en la red';
+        if (dn < 2.2) ty = fast || h.power >= 0.5 ? 'Remate en la red' : 'Dejada de red'; // arriba en la red pero flojo: toque
         else if (fast) ty = h.jump ? 'Remate en salto' : 'Remate';
         else if (rf !== undefined ? rf < 2.6 : h.power < 0.45) ty = 'Dejada desde el fondo';
         else ty = 'Clear';
@@ -910,8 +1048,10 @@ body.noscroll { overflow: hidden; }
       let inside = 0, tot = 0;
       for (let i = f.i; i < n && t[i] <= r.end; i++) for (const pp of P) { const x = pp.X[i], y = pp.Y[i]; if (!Number.isFinite(x)) continue; tot++; if (x > -0.6 && x < COURT.W + 0.6 && y > -0.6 && y < COURT.L + 0.6) inside++; }
       const insideShare = tot ? inside / tot : 1;
-      r.auto = serveLike && insideShare > 0.7;
-      r.reason = r.auto ? '' : !serveLike ? (r.n === 1 ? 'Golpe suelto sin saque' : 'No empieza con un saque') : 'Jugadores fuera de la pista';
+      // Un punto empieza con saque, pero el saque puede no detectarse o el vídeo puede empezar a mitad de punto:
+      // un intercambio de 3 o más golpes dentro de la pista también cuenta. Los golpes sueltos (devolver el volante) no.
+      r.auto = insideShare > 0.7 && (serveLike || r.n >= 3);
+      r.reason = r.auto ? '' : insideShare <= 0.7 ? 'Jugadores fuera de la pista' : r.n === 1 ? 'Golpe suelto' : 'Solo 2 golpes, sin saque';
       r.key = String(Math.round(r.start * 10));
       r.manual = r.key in edits.rally;
       r.valid = r.manual ? !!edits.rally[r.key] : r.auto;
@@ -1062,7 +1202,7 @@ body.noscroll { overflow: hidden; }
     const longest = vr.length ? vr.reduce((a, b) => (b.n > a.n ? b : a)) : null;
     const highestJump = hits.filter((h) => h.jump && h.valid).reduce((a, b) => (!a || b.jump > a.jump ? b : a), null);
     return {
-      version: 2, sens, ignored, noValid, inPlay, duration: dur, nFrames: n, dt, fps: 1 / dt, hits, rallies, players, shuttle: linkShuttle(),
+      version: 2, sens, ignored, noValid, inPlay, duration: dur, nFrames: n, dt, fps: 1 / dt, hits, rallies, players, shuttle: shOK ? { pos: SH.pos } : null, shAdded, shRemoved,
       highlights: { fastest, longest, highestJump },
       series: { t, X: P.map((q) => q.X), Y: P.map((q) => q.Y), spd: P.map((q) => q.spd), ws: P.map((q) => q.ws) },
     };
@@ -1088,7 +1228,7 @@ body.noscroll { overflow: hidden; }
     return T.sort((a, b) => order[a.lvl] - order[b.lvl]);
   }
 
-  G.BA = { hull, LM, homographyLS, cleanSeq, COURT, MP_IDX, K, NK, homography, applyH, courtHomographies, analyze, zoneOf, toHalf, basePoint, ROW_N, mean, median, pct, clamp, mps2kmh, DRAG_K };
+  G.BA = { trackShuttle, makeGate, colDist, hull, LM, homographyLS, cleanSeq, COURT, MP_IDX, K, NK, homography, applyH, courtHomographies, analyze, zoneOf, toHalf, basePoint, ROW_N, mean, median, pct, clamp, mps2kmh, DRAG_K };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 </script>
@@ -1697,8 +1837,8 @@ body.noscroll { overflow: hidden; }
     for (let tt = 0; tt <= dur; tt += 1 / fps) {
       const f = { t: +tt.toFixed(4), p: [playerFrame(0, tt, true), playerFrame(1, tt, true)], sh: [] };
       if (tt >= passT[0] && tt <= passT[1]) f.p[0] = passerby(tt); // el detector se queda con la persona más grande
-      const s3 = shuttleAt(tt); if (s3 && R() < 0.7) { const q = cam.project(s3); f.sh.push([q[0] + (R() - 0.5) * 4, q[1] + (R() - 0.5) * 4, 1]); }
-      for (let k = 0; k < 2; k++) if (R() < 0.5) f.sh.push([200 + R() * 880, 150 + R() * 450, 0.5]); // reflejos y ruido
+      const s3 = shuttleAt(tt); if (s3 && R() < 0.7) { const q = cam.project(s3); f.sh.push([q[0] + (R() - 0.5) * 4, q[1] + (R() - 0.5) * 4, 110 + R() * 60]); }
+      for (let k = 0; k < 2; k++) if (R() < 0.5) f.sh.push([200 + R() * 880, 150 + R() * 450, 40 + R() * 50]); // reflejos y ruido
       frames.push(f);
     }
     const corners = [[0, 0, 0], [COURT.W, 0, 0], [COURT.W, COURT.L, 0], [0, COURT.L, 0]].map((P) => cam.project(P).slice(0, 2));
@@ -2219,26 +2359,39 @@ body.noscroll { overflow: hidden; }
       const r = Math.hypot(img[K.nose * 3] - ax, img[K.nose * 3 + 1] - ay) / (1.75 * pxm);
       return r > 0.3 && r < 1.9;
     };
-    let boxes = [null, null];
+    let boxes = [null, null]; const boxT = [-9, -9], lastImg = [null, null], tcrop = [null, null], ignore = [];
+    const hMe0 = (+$('#hMe').value || 175) / 100, hOp0 = (+$('#hOp').value || 175) / 100;
+    const gate = BA.makeGate({ stature: +S.settings.side === 0 ? [hMe0, hOp0] : [hOp0, hMe0] }, court2img, img2court);
+    const overlap = (a2, b2) => a2 && b2 && a2[0] < b2[2] && b2[0] < a2[2] && a2[1] < b2[3] && b2[1] < a2[3];
     // Volante (experimental): diferencia entre tres fotogramas seguidos a baja resolución
     const SW = 480, SH = Math.round(SW * H / W), sk = W / SW;
     const scv = document.createElement('canvas'); scv.width = SW; scv.height = SH; const scx = scv.getContext('2d', { willReadFrequently: true });
     let g0 = null, g1 = null;
-    const gray = () => { scx.drawImage(work, 0, 0, SW, SH); const d = scx.getImageData(0, 0, SW, SH).data, g = new Uint8Array(SW * SH); for (let j = 0; j < g.length; j++) g[j] = (d[j * 4] * 3 + d[j * 4 + 1] * 5 + d[j * 4 + 2] * 2) / 10; return g; };
-    function shuttleCands(a0, a1, a2, bx) {
+    let small = null; // imagen pequeña del fotograma actual (RGBA)
+    const grab = () => { scx.drawImage(work, 0, 0, SW, SH); small = scx.getImageData(0, 0, SW, SH).data; };
+    const gray = () => { const d = small, g = new Uint8Array(SW * SH); for (let j = 0; j < g.length; j++) g[j] = (d[j * 4] * 3 + d[j * 4 + 1] * 5 + d[j * 4 + 2] * 2) / 10; return g; };
+    // Colores de la ropa: tronco y pantalón (media de un parche pequeño)
+    const patch = (x, y, r) => { let R = 0, G2 = 0, B = 0, n2 = 0; const x0 = Math.max(0, Math.round(x / sk - r)), x1 = Math.min(SW - 1, Math.round(x / sk + r)), y0 = Math.max(0, Math.round(y / sk - r)), y1 = Math.min(SH - 1, Math.round(y / sk + r)); for (let yy = y0; yy <= y1; yy++) for (let xx = x0; xx <= x1; xx++) { const o = (yy * SW + xx) * 4; R += small[o]; G2 += small[o + 1]; B += small[o + 2]; n2++; } return n2 ? [R / n2, G2 / n2, B / n2] : [0, 0, 0]; };
+    const colAt = (img) => { const P2 = (k) => [img[k * 3], img[k * 3 + 1]], m2 = (a2, b2) => [(a2[0] + b2[0]) / 2, (a2[1] + b2[1]) / 2]; const sh = m2(P2(K.lsh), P2(K.rsh)), hp = m2(P2(K.lhip), P2(K.rhip)), kn = m2(P2(K.lkn), P2(K.rkn)); const tl = Math.hypot(sh[0] - hp[0], sh[1] - hp[1]) / sk, r = Math.max(1, tl * 0.15); const tc = m2(sh, hp), lc = [hp[0] + (kn[0] - hp[0]) * 0.4, hp[1] + (kn[1] - hp[1]) * 0.4]; return [...patch(tc[0], tc[1], r), ...patch(lc[0], lc[1], r)]; };
+    // Candidatos: manchas pequeñas que aparecen solo en el fotograma central, más claras que el fondo,
+    // con buen contraste; fuera del cuerpo de los jugadores salvo junto a las manos. Ordenadas por contraste.
+    function shuttleCands(a0, a1, a2, bx, pls) {
       const out = [], seen = new Uint8Array(SW * SH), TH = 26;
-      const hot = (j) => { const d1 = a1[j] - a0[j], d2 = a1[j] - a2[j]; return (d1 > TH && d2 > TH) || (d1 < -TH && d2 < -TH); };
+      const hot = (j) => a1[j] - a0[j] > TH && a1[j] - a2[j] > TH;
+      const bodies = (pls || []).filter(Boolean).map((img) => { const b2 = boxOf(img); return { b: b2, hh: b2[3] - b2[1], hands: [[img[K.lwr * 3], img[K.lwr * 3 + 1]], [img[K.rwr * 3], img[K.rwr * 3 + 1]]] }; });
       for (let y = 1; y < SH - 1; y++) for (let x = 1; x < SW - 1; x++) {
         const j = y * SW + x; if (seen[j] || !hot(j)) continue;
-        const st = [j]; seen[j] = 1; let n2 = 0, sx = 0, sy = 0, x0 = x, x1 = x, y0 = y, y1 = y;
+        const st = [j]; seen[j] = 1; let n2 = 0, sx = 0, sy = 0, x0 = x, x1 = x, y0 = y, y1 = y, con = 0, bj = j;
         while (st.length && n2 < 80) { const q = st.pop(), qx = q % SW, qy = (q / SW) | 0; n2++; sx += qx; sy += qy; x0 = Math.min(x0, qx); x1 = Math.max(x1, qx); y0 = Math.min(y0, qy); y1 = Math.max(y1, qy);
-          for (const o of [1, -1, SW, -SW]) { const r2 = q + o; if (r2 >= 0 && r2 < seen.length && !seen[r2] && hot(r2)) { seen[r2] = 1; st.push(r2); } } }
-        if (n2 < 1 || n2 > 30 || x1 - x0 > 9 || y1 - y0 > 9) continue;
+          const c2 = Math.min(a1[q] - a0[q], a1[q] - a2[q]); if (c2 > con) { con = c2; bj = q; }
+          for (const o of [1, -1, SW, -SW, SW + 1, SW - 1, -SW + 1, -SW - 1]) { const r2 = q + o; if (r2 >= 0 && r2 < seen.length && !seen[r2] && hot(r2)) { seen[r2] = 1; st.push(r2); } } }
+        if (n2 > 30 || x1 - x0 > 9 || y1 - y0 > 9 || con < 40 || a1[bj] < 110) continue;
         const cx = (sx / n2) * sk, cy = (sy / n2) * sk;
-        if (bx.some((b) => b && cx > b[0] && cx < b[2] && cy > b[1] && cy < b[3])) continue; // dentro de un jugador: es la raqueta o el cuerpo
-        out.push([cx, cy, n2]);
+        if (bx.some((b) => b && cx > b[0] && cx < b[2] && cy > b[1] && cy < b[3])) continue; // personas descartadas
+        if (bodies.some((B) => cx > B.b[0] && cx < B.b[2] && cy > B.b[1] && cy < B.b[3] && !B.hands.some((h) => Math.hypot(h[0] - cx, h[1] - cy) < B.hh * 0.35))) continue;
+        out.push([Math.round(cx * 10) / 10, Math.round(cy * 10) / 10, Math.round(con)]);
       }
-      return out.sort((a, b) => b[2] - a[2]).slice(0, 6);
+      return out.sort((a, b) => b[2] - a[2]).slice(0, 10);
     }
     const work = document.createElement('canvas'); work.width = W; work.height = H; const wc = work.getContext('2d', { willReadFrequently: false });
     const ccs = [document.createElement('canvas'), document.createElement('canvas')];
@@ -2254,33 +2407,63 @@ body.noscroll { overflow: hidden; }
       if (S.cancel) { if (wake) wake.release().catch(() => {}); setStep(2); return; }
       await seek(v, times[i]);
       wc.drawImage(v, 0, 0, W, H);
-      const fr = { t: +(times[i] - a).toFixed(4), p: [null, null] };
+      const fr = { t: +(times[i] - a).toFixed(4), p: [null, null], col: [null, null] };
+      grab();
+      for (let k2 = ignore.length - 1; k2 >= 0; k2--) if (ignore[k2].until < fr.t) ignore.splice(k2, 1);
       for (let p = 0; p < 2; p++) {
-        const c = crops[p], up = clamp(640 / Math.max(c.w, c.h), 1, 3);
-        const cc = ccs[p], ccx = cc.getContext('2d'); if (cc.width !== Math.round(c.w * up)) { cc.width = Math.round(c.w * up); cc.height = Math.round(c.h * up); }
-        ccx.drawImage(work, c.x, c.y, c.w, c.h, 0, 0, cc.width, cc.height);
-        // Tapar lo que no puede ser este jugador: fuera de su zona y donde está el otro jugador
-        const T2 = (x, y) => [(x - c.x) * up, (y - c.y) * up];
-        ccx.save(); ccx.fillStyle = '#7f7f7f'; ccx.beginPath(); ccx.rect(0, 0, cc.width, cc.height);
-        zones[p].forEach((q, j) => (j ? ccx.lineTo(...T2(...q)) : ccx.moveTo(...T2(...q)))); ccx.closePath(); ccx.fill('evenodd');
-        const ob = boxes[1 - p]; if (ob) { const A2 = T2(ob[0], ob[1]), B2 = T2(ob[2], ob[3]); ccx.fillRect(A2[0], A2[1], B2[0] - A2[0], B2[1] - A2[1]); }
-        ccx.restore();
-        const r = await P[p].run(cc);
-        if (r && r.poseLandmarks && r.poseWorldLandmarks) {
+        // Dónde buscar: alrededor de donde estaba (recorte ajustado y ampliado, así un jugador lejano y pequeño
+        // se detecta bien); si se ha perdido, se recorre su media pista en tres trozos.
+        const tries = [];
+        const lb = boxes[p] && fr.t - boxT[p] < 1.2 ? boxes[p] : null;
+        if (lb) {
+          // El recorte se mantiene fijo mientras el jugador quede bien dentro: así el modelo sigue al jugador
+          // de un fotograma a otro sin tener que volver a buscarlo (mucho más rápido)
+          const tc = tcrop[p], inside = tc && lb[0] > tc.x + tc.w * 0.12 && lb[2] < tc.x + tc.w * 0.88 && lb[1] > tc.y + tc.h * 0.06 && lb[3] < tc.y + tc.h * 0.94 && (lb[3] - lb[1]) > tc.h * 0.35;
+          if (!inside) { const bh = Math.max(lb[3] - lb[1], 60), cx = (lb[0] + lb[2]) / 2, cy = (lb[1] + lb[3]) / 2, hh = bh * 1.6, ww = Math.max(hh * 1.3, (lb[2] - lb[0]) * 1.8); tcrop[p] = { x: cx - ww / 2, y: cy - hh / 2, w: ww, h: hh, fresh: true }; }
+          tries.push(tcrop[p]);
+        } else tcrop[p] = null;
+        const z = crops[p]; for (let k2 = 0; k2 < 3; k2++) tries.push({ x: z.x + z.w * 0.3 * k2, y: z.y, w: z.w * 0.4, h: z.h });
+        if (!lb) tries.push(z); // por si el jugador es grande en la imagen
+        let done = false;
+        for (const c0 of tries) {
+          if (done) break;
+          const c = { x: Math.max(0, c0.x), y: Math.max(0, c0.y) }; c.w = Math.min(W, c0.x + c0.w) - c.x; c.h = Math.min(H, c0.y + c0.h) - c.y;
+          if (c.w < 16 || c.h < 16) continue;
+          const up = clamp(400 / Math.max(c.w, c.h), 1, 4);
+          const cc = ccs[p], ccx = cc.getContext('2d'); if (cc.width !== Math.round(c.w * up) || cc.height !== Math.round(c.h * up)) { cc.width = Math.round(c.w * up); cc.height = Math.round(c.h * up); }
+          ccx.drawImage(work, c.x, c.y, c.w, c.h, 0, 0, cc.width, cc.height);
+          // Tapar lo que no puede ser este jugador: fuera de su zona, la silueta del otro jugador y personas ya descartadas
+          const T2 = (x, y) => [(x - c.x) * up, (y - c.y) * up];
+          ccx.save(); ccx.fillStyle = '#7f7f7f'; ccx.strokeStyle = '#7f7f7f'; ccx.lineCap = 'round'; ccx.beginPath(); ccx.rect(0, 0, cc.width, cc.height);
+          zones[p].forEach((q, j) => (j ? ccx.lineTo(...T2(...q)) : ccx.moveTo(...T2(...q)))); ccx.closePath(); ccx.fill('evenodd');
+          const oi = lastImg[1 - p] && fr.t - boxT[1 - p] < 0.6 ? lastImg[1 - p] : null;
+          if (oi) { const Q = (k) => T2(oi[k * 3], oi[k * 3 + 1]), tw = Math.hypot(oi[K.lsh * 3] - oi[K.rsh * 3], oi[K.lsh * 3 + 1] - oi[K.rsh * 3 + 1]) * up; ccx.lineWidth = Math.max(10, tw * 0.9);
+            for (const [a2, b2] of [[K.lsh, K.rsh], [K.lsh, K.lel], [K.lel, K.lwr], [K.rsh, K.rel], [K.rel, K.rwr], [K.lsh, K.lhip], [K.rsh, K.rhip], [K.lhip, K.rhip], [K.lhip, K.lkn], [K.lkn, K.lan], [K.rhip, K.rkn], [K.rkn, K.ran], [K.nose, K.lsh], [K.nose, K.rsh]]) { ccx.beginPath(); ccx.moveTo(...Q(a2)); ccx.lineTo(...Q(b2)); ccx.stroke(); }
+            ccx.beginPath(); ccx.arc(...Q(K.nose), Math.max(8, tw * 0.6), 0, 7); ccx.fill(); }
+          ignore.forEach((ig) => { if (overlap(ig.box, boxes[p])) return; const A2 = T2(ig.box[0], ig.box[1]), B2 = T2(ig.box[2], ig.box[3]); ccx.fillRect(A2[0], A2[1], B2[0] - A2[0], B2[1] - A2[1]); });
+          ccx.restore();
+          if (c0 !== tcrop[p] || c0.fresh) { try { P[p].pose.reset(); } catch (e) {} } // recorte nuevo: hay que buscar al jugador desde cero
+          if (c0 === tcrop[p]) c0.fresh = false;
+          const r = await P[p].run(cc);
+          if (!(r && r.poseLandmarks && r.poseWorldLandmarks)) { if (window.__plWhy) { const k3 = p + ':none' + (c0 === tcrop[p] ? ':track' : ':scan'); window.__plWhy[k3] = (window.__plWhy[k3] || 0) + 1; } if (c0 === tcrop[p]) c0.fresh = true; continue; }
           const img = new Float32Array(NK * 3), w = new Float32Array(NK * 3);
           BA.MP_IDX.forEach((m, j) => {
             const L = r.poseLandmarks[m], Wl = r.poseWorldLandmarks[m];
             img[j * 3] = c.x + L.x * c.w; img[j * 3 + 1] = c.y + L.y * c.h; img[j * 3 + 2] = L.visibility == null ? 0.9 : L.visibility;
             w[j * 3] = Wl.x; w[j * 3 + 1] = Wl.y; w[j * 3 + 2] = Wl.z;
           });
-          if (plausible(p, img)) { fr.p[p] = { img, w }; found[p]++; boxes[p] = boxOf(img); }
+          const col = colAt(img), why = gate(p, { img, w }, col, fr.t);
+          if (window.__plWhy) { const k3 = p + ':' + (why || 'ok') + (c0 === tcrop[p] ? ':track' : ':scan'); window.__plWhy[k3] = (window.__plWhy[k3] || 0) + 1; }
+          if (!why) { fr.p[p] = { img, w }; fr.col[p] = col; found[p]++; boxes[p] = boxOf(img); boxT[p] = fr.t; lastImg[p] = img; done = true; }
+          else { const bx = boxOf(img); if ((why === 'fuera' || why === 'sentado' || why === 'ropa') && !overlap(bx, boxes[p])) ignore.push({ box: bx, until: fr.t + 3 }); if (c0 === tcrop[p]) c0.fresh = true; }
         }
       }
       frames.push(fr);
       // Volante: candidatos del fotograma anterior (necesita el siguiente para comparar)
       const g2 = gray();
-      if (g0 && g1 && frames.length >= 2) frames[frames.length - 2].sh = shuttleCands(g0, g1, g2, boxes);
+      if (g0 && g1 && frames.length >= 2) { const fp = frames[frames.length - 2]; fp.sh = shuttleCands(g0, g1, g2, ignore.map((x) => x.box), fp.p.map((q) => q && q.img)); }
       g0 = g1; g1 = g2;
+      if (i % 3 !== 0) await new Promise((r2) => setTimeout(r2, 0));
       if (i % 3 === 0 || i === times.length - 1) {
         rc.drawImage(work, 0, 0);
         drawCourtLines(rc, court2img, 1, 'rgba(255,255,255,.5)', Math.max(1.5, W / 700));
@@ -2399,13 +2582,12 @@ body.noscroll { overflow: hidden; }
     }
     // Trayectoria estimada del volante (experimental)
     function drawShuttle() {
-      const hs = res.hits; let k = -1; for (let j = 0; j < hs.length; j++) { const h = hs[j]; if (h.t <= t && h.next !== undefined && hs[h.next].t >= t) { k = j; break; } }
-      const fl = k >= 0 && res.shuttle[k]; if (!fl) return;
-      const { s, ox, oy } = fit(), u = (t - hs[k].t) / (hs[hs[k].next].t - hs[k].t);
-      const at = (v) => [ox + (fl.A[0] + (fl.B[0] - fl.A[0]) * v) * s, oy + (fl.A[1] + (fl.B[1] - fl.A[1]) * v - fl.a * v * (1 - v)) * s];
-      ctx.save(); ctx.strokeStyle = 'rgba(255,230,120,.85)'; ctx.lineWidth = Math.max(2, 3 * s); ctx.setLineDash([6 * s + 2, 6 * s + 2]); ctx.beginPath();
-      for (let v = 0; v <= u; v += 0.03) { const q = at(v); v ? ctx.lineTo(...q) : ctx.moveTo(...q); } ctx.stroke(); ctx.setLineDash([]);
-      const q = at(u); ctx.fillStyle = '#ffe678'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(...q, Math.max(4, 6 * s), 0, 7); ctx.fill(); ctx.stroke(); ctx.restore();
+      // Volante detectado (beta): estela de los últimos fotogramas
+      const i = frameAt(track, t), pos = res.shuttle.pos, { s, ox, oy } = fit(), P2 = (q) => [ox + q[0] * s, oy + q[1] * s];
+      ctx.save(); ctx.lineCap = 'round';
+      let prev = null; for (let j = Math.max(0, i - 8); j <= i; j++) { const q = pos[j]; if (!q || track.frames[j].t > t + 0.05) { prev = null; continue; } const P3 = P2(q); if (prev) { ctx.strokeStyle = `rgba(255,230,120,${0.25 + 0.6 * (j - i + 8) / 8})`; ctx.lineWidth = Math.max(2, 3 * s); ctx.beginPath(); ctx.moveTo(...prev); ctx.lineTo(...P3); ctx.stroke(); } prev = P3; }
+      const q = pos[i]; if (q && Math.abs(track.frames[i].t - t) < 0.15) { ctx.fillStyle = '#ffe678'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(...P2(q), Math.max(4, 6 * s), 0, 7); ctx.fill(); ctx.stroke(); }
+      ctx.restore();
     }
     function drawMini() {
       const W = mini.width, H = mini.height, m = 14, sx = (W - 2 * m) / COURT.W, sy = (H - 2 * m) / COURT.L;
@@ -3181,6 +3363,7 @@ body.noscroll { overflow: hidden; }
   }
   const CATC = (r) => (r.cat === 'alto' ? '--atk' : r.cat === 'bajo' ? '--def' : '--neu');
 
+  try { if (/debug/.test(location.search)) { window.__plS = S; window.__plWhy = {}; } } catch (e) {}
   /* ---------- Arranque ---------- */
   const h0 = (location.hash || '').slice(1);
   go(VIEWS.includes(h0) ? h0 : 'analizar');
