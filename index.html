@@ -282,6 +282,21 @@ body.noscroll { overflow: hidden; }
 .rep-card.off { opacity: .55; }
 #shotType { border: 1px solid var(--line); background: var(--surface-2); border-radius: 10px; padding: 7px 10px; }
 
+/* Análisis guardados y a medias */
+#jobBox, #savedBox { margin-top: 18px; }
+.job-card { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; border: 2px solid var(--accent); }
+.saved-list { display: grid; gap: 8px; }
+.saved-it { display: flex; gap: 8px; align-items: center; }
+.saved-open { flex: 1; min-width: 0; display: flex; gap: 12px; align-items: center; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; color: inherit; font: inherit; cursor: pointer; }
+.saved-open:hover { border-color: var(--ink); }
+.saved-open > span:last-child { display: grid; min-width: 0; }
+.saved-open b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.saved-kind { flex: none; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; padding: 4px 8px; border-radius: 999px; background: var(--court); color: #fff; }
+.saved-kind.training { background: var(--accent); color: #241503; }
+.btn.icon { padding: 8px 12px; flex: none; }
+.novid { margin: 0 auto 12px; max-width: 1100px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.traj-chips { margin-top: 4px; }
+
 </style>
 
 <header class="top"><div class="top-in">
@@ -326,6 +341,7 @@ body.noscroll { overflow: hidden; }
     </svg>
   </div>
 
+  <div id="jobBox" hidden></div>
   <div id="flow" hidden>
     <div class="card" style="display:grid;gap:16px">
       <div class="row" style="justify-content:space-between">
@@ -392,6 +408,7 @@ body.noscroll { overflow: hidden; }
       <div class="err" id="flowErr" hidden></div>
     </div>
   </div>
+  <div id="savedBox" hidden></div>
 
   <div class="grid2">
     <div class="card"><div class="card-h"><h3>Cómo grabar el vídeo</h3></div>
@@ -428,10 +445,11 @@ body.noscroll { overflow: hidden; }
       </div>
     </div>
   </div>
-  <p class="small muted" style="text-align:center">Versión 5 · 24 de octubre de 2026</p>
+  <p class="small muted" style="text-align:center">Versión 6 · 26 de octubre de 2026</p>
 </section>
 
 <!-- ===== RESULTADOS ===== -->
+<div class="note novid" id="noVidNote" hidden><span>Este análisis está guardado sin el vídeo (no cabía en el móvil). Para ver la repetición con imagen, vuelve a elegir el mismo vídeo.</span> <label class="btn" for="noVidFile">Elegir vídeo</label><input type="file" id="noVidFile" accept="video/*" hidden></div>
 <section class="view" id="v-resultados" hidden></section>
 
 <!-- ===== APRENDE ===== -->
@@ -1915,21 +1933,36 @@ body.noscroll { overflow: hidden; }
       `<text x="${30 + w + 20}" y="172" class="s-muted">Marcador impar:</text><text x="${30 + w + 20}" y="189" class="s-muted">desde la izquierda.</text></g>` + `<text x="${30 + w + 20}" y="${264 + h / 2}" class="s-muted" font-size="12.5">Sin pasar la línea</text><text x="${30 + w + 20}" y="${264 + h / 2 + 17}" class="s-muted" font-size="12.5">de saque largo</text><text x="${30 + w + 20}" y="${264 + h / 2 + 34}" class="s-muted" font-size="12.5">de dobles.</text>` +
       `</svg>`;
   }
+  const TRAJ = [
+    ['Clear', 'st-def', (gy, nx, ex) => `M70 120 Q 380 -60 700 ${gy - 6}`, 520, 40],
+    ['Drop', 'st-neu', (gy, nx) => `M70 120 Q 330 120 ${nx + 50} ${gy - 6}`, 300, 128],
+    ['Remate', 'st-atk', (gy, nx) => `M90 112 L ${nx + 170} ${gy - 6}`, 200, 190],
+    ['Lob', 'st-def', (gy, nx, ex) => `M${nx - 40} ${gy - 30} Q ${nx + 120} -40 ${ex - 20} ${gy - 6}`, 600, 110],
+    ['Dejada de red', 'st-neu', (gy, nx) => `M${nx - 50} ${gy - 40} Q ${nx} ${gy - 120} ${nx + 30} ${gy - 6}`, 205, 238],
+    ['Drive', 'st-neu', (gy, nx, ex) => `M120 ${gy - 175} L ${ex - 60} ${gy - 150}`, 120, 114],
+  ];
   function trajectoryDiagram() {
     const gy = 300, nx = 380, sx = 30, ex = 730;
-    const P = (d, cls, lab, lx, ly) => `<path d="${d}" class="${cls}" stroke-width="3" fill="none" marker-end="url(#tr-${cls})"/><text x="${lx}" y="${ly}" font-size="13" font-weight="700" class="${cls.replace('st-', 's-')}">${lab}</text>`;
-    return `<svg viewBox="0 0 760 340" class="diagram" role="img" aria-label="Trayectorias de los golpes vistas de lado"><defs>${arrowDefs('tr-st-atk', 's-atk')}${arrowDefs('tr-st-def', 's-def')}${arrowDefs('tr-st-neu', 's-neu')}</defs>` +
+    const P = ([lab, cls, d, lx, ly], k) => `<g class="traj" data-traj="${k}"><path d="${d(gy, nx, ex)}" class="${cls}" stroke-width="3" fill="none" marker-end="url(#tr-${cls})"/><text x="${lx}" y="${ly}" font-size="13" font-weight="700" class="${cls.replace('st-', 's-')}">${lab}</text></g>`;
+    const chips = `<div class="chips traj-chips" role="group" aria-label="Elige qué trayectorias ver"><button class="chip" data-trajall="1" aria-pressed="true">Todas</button>` +
+      TRAJ.map(([lab], k) => `<button class="chip" data-trajk="${k}" aria-pressed="false">${lab}</button>`).join('') + `</div>` +
+      `<p class="small muted" style="margin:6px 0 10px">Toca uno o varios golpes para ver solo esas trayectorias.</p>`;
+    return chips + `<div class="overflow"><svg viewBox="0 0 760 340" class="diagram traj-svg" role="img" aria-label="Trayectorias de los golpes vistas de lado"><defs>${arrowDefs('tr-st-atk', 's-atk')}${arrowDefs('tr-st-def', 's-def')}${arrowDefs('tr-st-neu', 's-neu')}</defs>` +
       `<line x1="${sx}" y1="${gy}" x2="${ex}" y2="${gy}" class="st-muted" stroke-width="2"/>` +
       `<rect x="${nx - 3}" y="${gy - 78}" width="6" height="78" class="s-ink"/><text x="${nx}" y="${gy + 22}" text-anchor="middle" class="s-muted" font-size="12">red 1,55 m</text>` +
       `<text x="${sx}" y="${gy + 22}" class="s-muted" font-size="12">tu fondo</text><text x="${ex}" y="${gy + 22}" class="s-muted" font-size="12" text-anchor="end">fondo rival</text>` +
-      P(`M70 120 Q 380 -60 700 ${gy - 6}`, 'st-def', 'Clear', 520, 40) +
-      P(`M70 120 Q 330 120 ${nx + 50} ${gy - 6}`, 'st-neu', 'Drop', 300, 128) +
-      P(`M90 112 L ${nx + 170} ${gy - 6}`, 'st-atk', 'Remate', 200, 190) +
-      P(`M${nx - 40} ${gy - 30} Q ${nx + 120} -40 ${ex - 20} ${gy - 6}`, 'st-def', 'Lob', 600, 110) +
-      P(`M${nx - 50} ${gy - 40} Q ${nx} ${gy - 120} ${nx + 30} ${gy - 6}`, 'st-neu', 'Dejada de red', nx - 175, gy - 62) +
-      P(`M120 ${gy - 175} L ${ex - 60} ${gy - 150}`, 'st-neu', 'Drive', 120, gy - 186) +
-      `</svg>`;
+      TRAJ.map(P).join('') + `</svg></div>`;
   }
+  // Selector de trayectorias: "Todas" o los golpes elegidos
+  if (typeof document !== 'undefined') document.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('.traj-chips .chip'); if (!b) return;
+    const box = b.closest('.traj-chips'), all = box.querySelector('[data-trajall]'), ks = [...box.querySelectorAll('[data-trajk]')];
+    if (b === all) { ks.forEach((x) => x.setAttribute('aria-pressed', 'false')); all.setAttribute('aria-pressed', 'true'); }
+    else { b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true'); all.setAttribute('aria-pressed', ks.some((x) => x.getAttribute('aria-pressed') === 'true') ? 'false' : 'true'); }
+    const on = new Set(ks.filter((x) => x.getAttribute('aria-pressed') === 'true').map((x) => x.dataset.trajk)), showAll = !on.size;
+    const svg = box.parentElement.querySelector('.traj-svg');
+    svg.querySelectorAll('.traj').forEach((g) => { g.style.display = showAll || on.has(g.dataset.traj) ? '' : 'none'; });
+  });
   function cornersDiagram() {
     // media pista vista desde arriba, red arriba
     const x0 = 160, y0 = 30, s = 52, W = 6.1 * s, D = 6.7 * s;
@@ -2008,7 +2041,7 @@ body.noscroll { overflow: hidden; }
 
 <section class="learn-sec card" id="l-golpes"><h2><span>04</span>Golpes</h2>
   <p class="muted">Los golpes se agrupan por la altura a la que coges el volante, igual que en el análisis de vídeo: arriba ataca, abajo defiende.</p>
-  <div class="overflow">${trajectoryDiagram()}</div>
+  ${trajectoryDiagram()}
   <div class="legend"><span><i class="sw" style="background:var(--atk)"></i>Ataque</span><span><i class="sw" style="background:var(--neu)"></i>Neutral / preparación</span><span><i class="sw" style="background:var(--def)"></i>Defensa / ganar tiempo</span></div>
   <div class="shot-cards">${shotCards}</div>
 </section>
@@ -2106,6 +2139,38 @@ body.noscroll { overflow: hidden; }
   const mmss = (t) => { t = Math.max(0, t || 0); return `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`; };
   const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
 
+  /* ---------- Guardado en el móvil (IndexedDB) ---------- */
+  const DB = (() => {
+    let dbp = null;
+    const open = () => dbp || (dbp = new Promise((ok, ko) => {
+      const r = indexedDB.open('pluma-lab', 1);
+      r.onupgradeneeded = () => { const d = r.result; ['meta', 'analyses', 'videos', 'job'].forEach((n) => { if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); }); };
+      r.onsuccess = () => ok(r.result); r.onerror = () => { dbp = null; ko(r.error); };
+    }));
+    const tx = async (st, mode, fn) => { const d = await open(); return new Promise((ok, ko) => { const t = d.transaction(st, mode), r = fn(t.objectStore(st)); let out; if (r) r.onsuccess = () => (out = r.result); t.oncomplete = () => ok(out); t.onerror = () => ko(t.error); t.onabort = () => ko(t.error || new Error('abort')); }); };
+    return {
+      get: (st, k) => tx(st, 'readonly', (o) => o.get(k)), put: (st, k, v) => tx(st, 'readwrite', (o) => o.put(v, k)),
+      del: (st, k) => tx(st, 'readwrite', (o) => o.delete(k)), all: (st) => tx(st, 'readonly', (o) => o.getAll()),
+    };
+  })();
+  const vKey = (f) => f ? `${f.name}|${f.size}|${f.lastModified || 0}` : null;
+  let persistAsked = false;
+  // Guarda una copia del vídeo para poder retomar el análisis o ver la repetición más tarde (si cabe)
+  async function saveVideo(file) {
+    const key = vKey(file); if (!key) return null;
+    try {
+      if (await DB.get('videos', key)) return key;
+      if (!persistAsked && navigator.storage && navigator.storage.persist) { persistAsked = true; navigator.storage.persist().catch(() => {}); }
+      const est = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate() : null;
+      if (est && est.quota && file.size > (est.quota - (est.usage || 0)) * 0.6) return null;
+      await DB.put('videos', key, file); return key;
+    } catch (e) { return null; }
+  }
+  async function dropVideoIfUnused(key) {
+    if (!key) return;
+    try { const metas = await DB.all('meta'), job = await DB.get('job', 'run'); if (!metas.some((m) => m.videoKey === key) && !(job && job.videoKey === key)) await DB.del('videos', key); } catch (e) {}
+  }
+
   const S = { view: 'analizar', file: null, url: null, video: null, corners: [], track: null, res: null, demo: null, me: 0, sel: 0, heatMode: 'heat', settings: { side: 0, q: 'normal' }, chat: [] };
   const ROLE_COL = { ataque: '--atk', neutral: '--neu', defensa: '--def', saque: '--srv' };
   const ROLE_N = { ataque: 'Ataque', neutral: 'Neutral', defensa: 'Defensa', saque: 'Saque' };
@@ -2128,6 +2193,7 @@ body.noscroll { overflow: hidden; }
     $$('.tab').forEach((b) => b.setAttribute('aria-selected', b.dataset.view === v));
     VIEWS.forEach((x) => ($('#v-' + x).hidden = x !== v));
     if (v === 'resultados') renderResults();
+    updateNoVid();
     if (v === 'aprende' && !$('#v-aprende').innerHTML) renderLearn();
     if (v === 'asistente') initChat();
     if (v !== 'resultados' && S.replay) S.replay.pause();
@@ -2296,7 +2362,8 @@ body.noscroll { overflow: hidden; }
     $('#etaTxt').textContent = `≈ ${secs < 60 ? Math.max(5, Math.round(secs)) + ' s' : Math.round(secs / 60) + ' min'} en un móvil actual`;
   }
   $('#trimA').oninput = updateTrim; $('#trimB').oninput = updateTrim;
-  $('#runBtn').onclick = () => runVideo().catch((e) => { console.error(e); showErr(`<b>No se pudo completar el análisis.</b> ${esc(e.message || e)}<br><span class="small muted">Puedes probar el partido de demostración para ver cómo funciona.</span>`); setStep(2); });
+  const startMatch = (resume) => runVideo(resume).catch((e) => { console.error(e); showErr(`<b>No se pudo completar el análisis.</b> ${esc(e.message || e)}<br><span class="small muted">Puedes probar el partido de demostración para ver cómo funciona.</span>`); setStep(2); S.running = false; });
+  $('#runBtn').onclick = () => startMatch();
   $('#stopRun').onclick = () => { S.cancel = true; };
 
   /* ---------- Modelo de pose (MediaPipe, en el navegador) ---------- */
@@ -2316,12 +2383,17 @@ body.noscroll { overflow: hidden; }
   }
   async function getPose(mc) { const a = await makePose(0, mc), b = await makePose(1, mc); return [a, b]; }
 
-  async function runVideo() {
+  async function runVideo(resume) {
     showErr(''); setStep(3); S.cancel = false;
-    const v = S.video, q = QUAL[S.settings.q];
-    const me = +S.settings.side;
-    const W = Math.min(1280, v.videoWidth), H = Math.round(W * v.videoHeight / v.videoWidth), k = W / v.videoWidth;
-    const corners = calibData(k);
+    const v = S.video;
+    const cfg = resume ? resume.cfg : (() => {
+      const W = Math.min(1280, v.videoWidth), H = Math.round(W * v.videoHeight / v.videoWidth), me = +S.settings.side, [a, b] = trimRange();
+      const hMe = (+$('#hMe').value || 175) / 100, hOp = (+$('#hOp').value || 175) / 100;
+      return { kind: 'match', q: S.settings.q, me, W, H, corners: calibData(W / v.videoWidth), a, b,
+        stature: me === 0 ? [hMe, hOp] : [hOp, hMe], hand: me === 0 ? [$('#handMe').value, 'auto'] : ['auto', $('#handMe').value], names: me === 0 ? ['Tú', 'Rival'] : ['Rival', 'Tú'] };
+    })();
+    const q = QUAL[cfg.q], me = cfg.me, W = cfg.W, H = cfg.H, corners = cfg.corners;
+    const job = startJob(resume, cfg);
     const { court2img } = courtHomographies(corners);
     // Recortes por media pista (con altura de persona)
     const crop = (p) => {
@@ -2397,15 +2469,17 @@ body.noscroll { overflow: hidden; }
     const ccs = [document.createElement('canvas'), document.createElement('canvas')];
     const rcv = $('#runCv'); rcv.width = W; rcv.height = H; const rc = rcv.getContext('2d');
     $('#runTitle').textContent = 'Preparando el modelo de IA…'; $('#runBar').style.width = '2%';
-    let wake = null; try { wake = await navigator.wakeLock.request('screen'); } catch (e) {}
     let P;
     try { P = await getPose(q.mc); } catch (e) { throw new Error('El modelo de postura no se ha podido iniciar en este navegador (' + (e.message || e) + ').'); }
-    const [a, b] = trimRange(); const step = 1 / q.fps; const times = []; for (let t = a; t <= b; t += step) times.push(t);
-    const frames = []; const t0 = performance.now(); let found = [0, 0];
+    const a = cfg.a, b = cfg.b; const step = 1 / q.fps; const times = []; for (let t = a; t <= b; t += step) times.push(t);
+    const frames = resume ? resume.frames : [], i0 = resume ? resume.next : 0; const t0 = performance.now(); let found = resume ? resume.found : [0, 0];
     $('#runTitle').textContent = 'Analizando jugadas…';
-    for (let i = 0; i < times.length; i++) {
-      if (S.cancel) { if (wake) wake.release().catch(() => {}); setStep(2); return; }
+    for (let i = i0; i < times.length; i++) {
+      if (S.cancel) { job.stop(true); setStep(2); return; }
+      if (document.hidden) { await job.pause({ frames, next: i, found }); i--; continue; }
+      if (i > i0 && i % 60 === 0) job.save({ frames, next: i, found });
       await seek(v, times[i]);
+      if (document.hidden) { i--; continue; } // la app se fue a segundo plano mientras buscaba el fotograma
       wc.drawImage(v, 0, 0, W, H);
       const fr = { t: +(times[i] - a).toFixed(4), p: [null, null], col: [null, null] };
       grab();
@@ -2468,22 +2542,58 @@ body.noscroll { overflow: hidden; }
         rc.drawImage(work, 0, 0);
         drawCourtLines(rc, court2img, 1, 'rgba(255,255,255,.5)', Math.max(1.5, W / 700));
         fr.p.forEach((pl, p) => pl && drawSkeleton(rc, pl.img, 1, p === me ? '#e8962c' : '#8592ff', Math.max(2, W / 400)));
-        const el = (performance.now() - t0) / 1000, per = el / (i + 1), rest = per * (times.length - i - 1);
+        const el = (performance.now() - t0) / 1000, per = el / (i + 1 - i0), rest = per * (times.length - i - 1);
         $('#runBar').style.width = `${Math.round((i + 1) / times.length * 100)}%`;
         $('#runEta').textContent = `${i + 1}/${times.length} · quedan ${rest < 60 ? Math.round(rest) + ' s' : Math.round(rest / 60) + ' min'}`;
         $('#runInfo').textContent = `Jugador cercano visto en ${Math.round(found[0] / (i + 1) * 100)} % de los fotogramas · jugador lejano en ${Math.round(found[1] / (i + 1) * 100)} %.`;
         await new Promise((r) => setTimeout(r, 0));
       }
     }
-    if (wake) wake.release().catch(() => {});
-    if (found[0] < frames.length * 0.15 && found[1] < frames.length * 0.15) throw new Error('Casi no se han detectado jugadores. Revisa que las esquinas estén bien marcadas y que la pista se vea entera.');
-    const hMe = (+$('#hMe').value || 175) / 100, hOp = (+$('#hOp').value || 175) / 100;
-    const stature = me === 0 ? [hMe, hOp] : [hOp, hMe];
-    const hand = me === 0 ? [$('#handMe').value, 'auto'] : ['auto', $('#handMe').value];
-    const names = me === 0 ? ['Tú', 'Rival'] : ['Rival', 'Tú'];
-    S.track = { demo: false, width: W, height: H, duration: b - a, offset: a, corners, frames, stature, hand, names, sens: 'normal', edits: { add: [], del: [], type: {}, rally: {} } };
+    job.stop(false);
+    if (found[0] < frames.length * 0.15 && found[1] < frames.length * 0.15) { DB.del('job', 'run').catch(() => {}); throw new Error('Casi no se han detectado jugadores. Revisa que las esquinas estén bien marcadas y que la pista se vea entera.'); }
+    S.track = { demo: false, width: W, height: H, duration: b - a, offset: a, corners, frames, stature: cfg.stature, hand: cfg.hand, names: cfg.names, sens: 'normal', edits: { add: [], del: [], type: {}, rally: {} } };
     S.me = me; S.sel = me; S.demo = null;
-    finish();
+    finish(job);
+  }
+  // Trabajo en curso: pantalla encendida, pausa en segundo plano y copia del progreso para retomarlo
+  function startJob(resume, cfg) {
+    let wake = null;
+    const lock = async () => { try { if (!wake && navigator.wakeLock) { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => (wake = null)); } } catch (e) {} };
+    lock();
+    const info = resume ? resume.info : { name: S.file ? S.file.name : 'vídeo', videoKey: vKey(S.file), size: S.file ? S.file.size : 0 };
+    S.running = true; $('#jobBox') && ($('#jobBox').hidden = true);
+    if (!resume) DB.get('job', 'run').then((old) => { if (old && old.videoKey !== info.videoKey) DB.del('job', 'run').then(() => dropVideoIfUnused(old.videoKey)); }).catch(() => {});
+    const vp = S.file ? saveVideo(S.file) : Promise.resolve(resume ? resume.videoKey : null);
+    let saving = null, last = 0;
+    const save = (st) => {
+      if (saving) return saving;
+      const rec = { cfg, info, videoKey: info.videoKey, frames: st.frames, next: st.next, found: st.found, thumbs: st.thumbs, total: st.total || null, date: Date.now() };
+      saving = DB.put('job', 'run', rec).catch(() => {}).then(() => { saving = null; last = Date.now(); });
+      return saving;
+    };
+    return {
+      info, vp, save,
+      async pause(st) {
+        await save(st);
+        $('#runTitle').textContent = 'En pausa: vuelve a la app para seguir';
+        $('#runInfo').textContent = 'El móvil no deja analizar con la app en segundo plano o la pantalla bloqueada. El progreso está guardado: al volver sigue donde se quedó, aunque la app se haya cerrado.';
+        await new Promise((ok) => { const f = () => { if (!document.hidden) { document.removeEventListener('visibilitychange', f); ok(); } }; document.addEventListener('visibilitychange', f); });
+        await lock();
+        $('#runTitle').textContent = cfg.kind === 'training' ? 'Analizando el entrenamiento…' : 'Analizando jugadas…';
+      },
+      stop(cancelled) { S.running = false; if (wake) wake.release().catch(() => {}); wake = null; if (cancelled) DB.del('job', 'run').then(() => dropVideoIfUnused(info.videoKey)).catch(() => {}); },
+    };
+  }
+  async function saveAnalysis() {
+    const tr = S.track; if (!tr || tr.demo || S.demo) return;
+    try {
+      const id = tr.savedId || (tr.savedId = 'a' + Date.now());
+      const meta = { id, date: tr.savedDate || (tr.savedDate = Date.now()), mode: tr.mode === 'training' ? 'training' : 'match', name: tr.srcName || 'vídeo', videoKey: tr.videoKey || null, dur: tr.duration,
+        n: S.res ? (S.res.mode === 'training' ? (S.res.reps || []).length : (S.res.hits || []).length) : 0, drill: tr.drill || null };
+      await DB.put('analyses', id, { track: tr, me: S.me });
+      await DB.put('meta', id, meta);
+      renderSaved();
+    } catch (e) { console.warn('No se pudo guardar el análisis', e); }
   }
   function runDemo() {
     const btn = $('#demoBtn'); btn.disabled = true; btn.lastChild.textContent = 'Generando partido…';
@@ -2493,13 +2603,90 @@ body.noscroll { overflow: hidden; }
       finish();
     }, 30);
   }
-  function finish() {
+  function finish(job, opened) {
+    if (job) { S.track.srcName = job.info.name; S.track.videoKey = null; const tr = S.track; job.vp.then((k) => { if (k && S.track === tr) { tr.videoKey = k; saveAnalysis(); } }); }
     S.res = S.track.mode === 'training' ? BT.analyzeTraining(S.track) : analyze(S.track);
+    if (job) DB.del('job', 'run').catch(() => {}).then(renderJob);
+    if (!opened && !S.demo) saveAnalysis();
     $('#flow').hidden = true; $('#resDot').hidden = false;
     S.replay && S.replay.destroy(); S.replay = null;
     $('#v-resultados').innerHTML = '';
     go('resultados');
   }
+
+  /* ---------- Análisis guardados y análisis a medias ---------- */
+  const fdate = (d) => new Date(d).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  async function renderJob() {
+    const box = $('#jobBox'); if (!box) return;
+    let job = null; try { job = await DB.get('job', 'run'); } catch (e) {}
+    if (!job || S.running) { box.hidden = true; return; }
+    const pct = job.cfg && job.next ? Math.round(job.next / Math.max(1, Math.round((job.cfg.b - job.cfg.a) * (job.cfg.kind === 'training' ? TQUAL : QUAL)[job.cfg.q].fps) + 1) * 100) : 0;
+    box.hidden = false;
+    box.innerHTML = `<div class="card job-card"><div><b>Tienes un análisis a medias</b><p class="small muted">${job.cfg.kind === 'training' ? 'Entrenamiento' : 'Partido'} · ${esc(job.info.name)} · ${Math.min(99, pct)} % hecho · ${fdate(job.date)}</p></div>
+      <div class="row"><button class="btn primary" id="jobGo">Continuar</button><button class="btn" id="jobDrop">Descartar</button></div>
+      <input type="file" id="jobFile" accept="video/*" hidden></div>`;
+    $('#jobDrop').onclick = async () => { await DB.del('job', 'run').catch(() => {}); await dropVideoIfUnused(job.videoKey); renderJob(); };
+    $('#jobGo').onclick = async () => {
+      let blob = null; try { blob = job.videoKey ? await DB.get('videos', job.videoKey) : null; } catch (e) {}
+      if (blob) return resumeJob(job, blob);
+      // El vídeo no se pudo guardar: hay que volver a elegirlo
+      const fi = $('#jobFile'); fi.onchange = () => { const f = fi.files[0]; fi.value = ''; if (!f) return; if (job.info.size && f.size !== job.info.size) { alert('Ese no parece el mismo vídeo (' + job.info.name + '). Elige el mismo archivo para continuar.'); return; } resumeJob(job, f); };
+      alert('Elige otra vez el vídeo "' + job.info.name + '" para continuar donde lo dejaste.'); fi.click();
+    };
+  }
+  function loadVideoFrom(blob) {
+    return new Promise((ok, ko) => {
+      if (S.url) URL.revokeObjectURL(S.url);
+      S.file = blob instanceof File ? blob : null; S.url = URL.createObjectURL(blob);
+      const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = S.url; v.crossOrigin = 'anonymous';
+      v.onloadedmetadata = () => (v.videoWidth ? ok(v) : ko(new Error('No se puede leer el vídeo.'))); v.onerror = () => ko(new Error('No se puede leer el vídeo.'));
+      S.video = v;
+    });
+  }
+  async function resumeJob(job, blob) {
+    try { await loadVideoFrom(blob); } catch (e) { alert(e.message); return; }
+    $('#jobBox').hidden = true; S.mode = job.cfg.kind; $('#flow').hidden = false;
+    $('#flow').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (job.cfg.kind === 'training') startTrain(job); else startMatch(job);
+  }
+  async function renderSaved() {
+    const box = $('#savedBox'); if (!box) return;
+    let list = []; try { list = await DB.all('meta'); } catch (e) { box.hidden = true; return; }
+    list.sort((a, b) => b.date - a.date);
+    box.hidden = !list.length; if (!list.length) return;
+    box.innerHTML = `<div class="card"><h3 style="margin-bottom:10px">Tus análisis</h3><div class="saved-list">` + list.map((m) => `<div class="saved-it" data-id="${m.id}">
+      <button class="saved-open" data-open="${m.id}"><span class="saved-kind ${m.mode}">${m.mode === 'training' ? 'Entreno' : 'Partido'}</span><span><b>${esc(m.name)}</b><span class="small muted">${fdate(m.date)} · ${mmss(m.dur)} · ${m.n} ${m.mode === 'training' ? 'repeticiones' : 'golpes'}${m.videoKey ? '' : ' · sin vídeo guardado'}</span></span></button>
+      <button class="btn icon" data-delan="${m.id}" aria-label="Borrar este análisis" title="Borrar">✕</button></div>`).join('') + `</div><p class="small muted" style="margin-top:8px">Se guardan solo en este móvil.</p></div>`;
+    $$('[data-open]', box).forEach((b) => (b.onclick = () => openSaved(b.dataset.open)));
+    $$('[data-delan]', box).forEach((b) => (b.onclick = async () => {
+      if (!confirm('¿Borrar este análisis?')) return;
+      const m = list.find((x) => x.id === b.dataset.delan);
+      await DB.del('analyses', m.id).catch(() => {}); await DB.del('meta', m.id).catch(() => {}); await dropVideoIfUnused(m.videoKey);
+      if (S.track && S.track.savedId === m.id) { S.track = null; S.res = null; $('#resDot').hidden = true; $('#v-resultados').innerHTML = ''; }
+      renderSaved();
+    }));
+  }
+  async function openSaved(id) {
+    let rec = null; try { rec = await DB.get('analyses', id); } catch (e) {}
+    if (!rec) { alert('No se ha podido abrir este análisis.'); return; }
+    let blob = null; try { blob = rec.track.videoKey ? await DB.get('videos', rec.track.videoKey) : null; } catch (e) {}
+    if (S.url) URL.revokeObjectURL(S.url);
+    S.url = blob ? URL.createObjectURL(blob) : null; S.file = null; S.video = null;
+    S.demo = null; S.track = rec.track; S.me = rec.me || 0; S.sel = S.me;
+    finish(null, true);
+  }
+  // Repetición sin vídeo guardado: se puede volver a elegir el vídeo
+  function updateNoVid() {
+    const n = $('#noVidNote'); if (!n) return;
+    n.hidden = !(S.view === 'resultados' && S.res && !S.demo && !S.url);
+  }
+  if ($('#noVidFile')) $('#noVidFile').onchange = (e) => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    S.url = URL.createObjectURL(f);
+    saveVideo(f).then((k) => { if (k && S.track) { S.track.videoKey = k; saveAnalysis(); } });
+    S.replay && S.replay.destroy(); S.replay = null; $('#v-resultados').dataset.built = ''; $('#v-resultados').innerHTML = ''; renderResults(); updateNoVid();
+  };
+  renderJob(); renderSaved();
 
   /* ---------- Dibujo común ---------- */
   const BONES = [[K.lsh, K.rsh], [K.lsh, K.lel], [K.lel, K.lwr], [K.rsh, K.rel], [K.rel, K.rwr], [K.lsh, K.lhip], [K.rsh, K.rhip], [K.lhip, K.rhip], [K.lhip, K.lkn], [K.lkn, K.lan], [K.rhip, K.rkn], [K.rkn, K.ran]];
@@ -2872,7 +3059,7 @@ body.noscroll { overflow: hidden; }
   const nMEdits = (tr) => { const e = mEdits(tr); return e.add.length + e.del.length + Object.keys(e.type).length + Object.keys(e.rally).length; };
   function reMatch() {
     const y = window.scrollY, root = $('#v-resultados');
-    S.res = analyze(S.track);
+    S.res = analyze(S.track); saveAnalysis();
     S.replay && S.replay.destroy(); S.replay = null; root.dataset.built = ''; renderResults();
     window.scrollTo(0, y);
   }
@@ -3087,6 +3274,7 @@ body.noscroll { overflow: hidden; }
 
   /* ===================== MODO ENTRENAMIENTO ===================== */
   S.tset = { drill: 'mixed', view: 'side', q: 'normal', sens: 'normal' };
+  let startTrain = null;
   const TQUAL = { fast: { fps: 10, mc: 0 }, normal: { fps: 15, mc: 1 }, high: { fps: 24, mc: 1 } };
   const VIEW_N = { side: 'de lado', back: 'de espaldas', front: 'de frente' };
   (function bindTraining() {
@@ -3097,7 +3285,8 @@ body.noscroll { overflow: hidden; }
     const seg = (id, key) => $$('#' + id + ' button').forEach((b) => (b.onclick = () => { $$('#' + id + ' button').forEach((x) => x.setAttribute('aria-pressed', x === b)); S.tset[key] = b.dataset.v; updateTTrim(); }));
     seg('viewSeg', 'view'); seg('tqSeg', 'q'); seg('tsSeg', 'sens');
     $('#tTrimA').oninput = updateTTrim; $('#tTrimB').oninput = updateTTrim;
-    $('#runTBtn').onclick = () => runTraining().catch((e) => { console.error(e); showErr(`<b>No se pudo completar el análisis.</b> ${esc(e.message || e)}<br><span class="small muted">Puedes probar la demo de entrenamiento para ver cómo funciona.</span>`); showPanel('tset'); });
+    startTrain = (resume) => runTraining(resume).catch((e) => { console.error(e); showErr(`<b>No se pudo completar el análisis.</b> ${esc(e.message || e)}<br><span class="small muted">Puedes probar la demo de entrenamiento para ver cómo funciona.</span>`); showPanel('tset'); S.running = false; });
+    $('#runTBtn').onclick = () => startTrain();
     $('#demoTBtn').onclick = () => { const b = $('#demoTBtn'); b.disabled = true; setTimeout(() => { S.demo = BT.makeTrainingDemo(); S.track = S.demo.track; S.track.sens = 'normal'; S.track.edits = { add: [], del: [], type: {} }; S.me = 0; S.sel = 0; b.disabled = false; finish(); }, 30); };
   })();
   function tTrim() { const d = S.video ? S.video.duration : 0; let a = $('#tTrimA').value / 1000 * d, b = $('#tTrimB').value / 1000 * d; if (b < a) [a, b] = [b, a]; return [a, b]; }
@@ -3108,22 +3297,27 @@ body.noscroll { overflow: hidden; }
     const secs = (b - a) * q.fps * (q.mc ? 0.11 : 0.07);
     $('#tEtaTxt').textContent = `≈ ${secs < 60 ? Math.max(5, Math.round(secs)) + ' s' : Math.round(secs / 60) + ' min'} en un móvil actual`;
   }
-  async function runTraining() {
+  async function runTraining(resume) {
     showErr(''); showPanel('run'); S.cancel = false;
-    const v = S.video, q = TQUAL[S.tset.q];
-    const W = Math.min(960, v.videoWidth), H = Math.round(W * v.videoHeight / v.videoWidth);
+    const v = S.video;
+    const cfg = resume ? resume.cfg : (() => { const W = Math.min(960, v.videoWidth), [a, b] = tTrim(); return { kind: 'training', q: S.tset.q, W, H: Math.round(W * v.videoHeight / v.videoWidth), a, b, stature: (+$('#tH').value || 175) / 100, hand: $('#tHand').value, view: S.tset.view, drill: S.tset.drill, sens: S.tset.sens }; })();
+    const q = TQUAL[cfg.q], W = cfg.W, H = cfg.H;
+    const job = startJob(resume, cfg);
     const work = document.createElement('canvas'); work.width = W; work.height = H; const wc = work.getContext('2d');
     const th = document.createElement('canvas'); th.width = 320; th.height = Math.round(320 * H / W); const thc = th.getContext('2d');
     const rcv = $('#runCv'); rcv.width = W; rcv.height = H; const rc = rcv.getContext('2d');
     $('#runTitle').textContent = 'Preparando el modelo de IA…'; $('#runBar').style.width = '2%';
-    let wake = null; try { wake = await navigator.wakeLock.request('screen'); } catch (e) {}
     let P; try { P = await makePose(2, q.mc); } catch (e) { throw new Error('El modelo de postura no se ha podido iniciar en este navegador (' + (e.message || e) + ').'); }
-    const [a, b] = tTrim(), times = []; for (let t = a; t <= b; t += 1 / q.fps) times.push(t);
-    const frames = [], thumbs = [], t0 = performance.now(); let found = 0;
+    const a = cfg.a, b = cfg.b, times = []; for (let t = a; t <= b; t += 1 / q.fps) times.push(t);
+    const frames = resume ? resume.frames : [], thumbs = resume ? resume.thumbs : [], i0 = resume ? resume.next : 0, t0 = performance.now(); let found = resume ? resume.found : 0;
     $('#runTitle').textContent = 'Analizando el entrenamiento…';
-    for (let i = 0; i < times.length; i++) {
-      if (S.cancel) { if (wake) wake.release().catch(() => {}); showPanel('tset'); return; }
-      await seek(v, times[i]); wc.drawImage(v, 0, 0, W, H);
+    for (let i = i0; i < times.length; i++) {
+      if (S.cancel) { job.stop(true); showPanel('tset'); return; }
+      if (document.hidden) { await job.pause({ frames, thumbs, next: i, found }); i--; continue; }
+      if (i > i0 && i % 60 === 0) job.save({ frames, thumbs, next: i, found });
+      await seek(v, times[i]);
+      if (document.hidden) { i--; continue; }
+      wc.drawImage(v, 0, 0, W, H);
       const r = await P.run(work), fr = { t: +(times[i] - a).toFixed(4), p: null };
       if (r && r.poseLandmarks && r.poseWorldLandmarks) {
         const img = new Float32Array(NK * 3), w = new Float32Array(NK * 3);
@@ -3134,17 +3328,17 @@ body.noscroll { overflow: hidden; }
       thc.drawImage(work, 0, 0, th.width, th.height); thumbs.push(th.toDataURL('image/jpeg', 0.62));
       if (i % 3 === 0 || i === times.length - 1) {
         rc.drawImage(work, 0, 0); if (fr.p) drawSkeleton(rc, fr.p.img, 1, '#e8962c', Math.max(3, W / 250));
-        const el = (performance.now() - t0) / 1000, rest = el / (i + 1) * (times.length - i - 1);
+        const el = (performance.now() - t0) / 1000, rest = el / (i + 1 - i0) * (times.length - i - 1);
         $('#runBar').style.width = `${Math.round((i + 1) / times.length * 100)}%`;
         $('#runEta').textContent = `${i + 1}/${times.length} · quedan ${rest < 60 ? Math.round(rest) + ' s' : Math.round(rest / 60) + ' min'}`;
         $('#runInfo').textContent = `Jugador detectado en el ${Math.round(found / (i + 1) * 100)} % de los fotogramas.`;
         await new Promise((r2) => setTimeout(r2, 0));
       }
     }
-    if (wake) wake.release().catch(() => {});
-    if (found < frames.length * 0.3) throw new Error('Casi no se ha detectado al jugador. Comprueba que se vea entero, de la cabeza a los pies, y que no haya otras personas delante.');
-    S.track = { mode: 'training', demo: false, width: W, height: H, duration: b - a, offset: a, frames, thumbs, stature: (+$('#tH').value || 175) / 100, hand: $('#tHand').value, view: S.tset.view, drill: S.tset.drill, sens: S.tset.sens, edits: { add: [], del: [], type: {} }, name: 'Tú' };
-    S.demo = null; finish();
+    job.stop(false);
+    if (found < frames.length * 0.3) { DB.del('job', 'run').catch(() => {}); throw new Error('Casi no se ha detectado al jugador. Comprueba que se vea entero, de la cabeza a los pies, y que no haya otras personas delante.'); }
+    S.track = { mode: 'training', demo: false, width: W, height: H, duration: b - a, offset: a, frames, thumbs, stature: cfg.stature, hand: cfg.hand, view: cfg.view, drill: cfg.drill, sens: cfg.sens, edits: { add: [], del: [], type: {} }, name: 'Tú' };
+    S.demo = null; finish(job);
   }
 
   // --- dibujo de la escena de demo (vista lateral) ---
@@ -3357,7 +3551,7 @@ body.noscroll { overflow: hidden; }
   const nEdits = (tr) => (tr.edits ? tr.edits.add.length + tr.edits.del.length + Object.keys(tr.edits.type).length : 0);
   function reTrain() {
     const y = window.scrollY, root = $('#v-resultados');
-    S.res = BT.analyzeTraining(S.track);
+    S.res = BT.analyzeTraining(S.track); saveAnalysis();
     S.replay && S.replay.destroy(); S.replay = null; root.dataset.built = ''; renderResults();
     window.scrollTo(0, y);
   }
