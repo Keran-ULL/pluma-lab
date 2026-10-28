@@ -385,6 +385,9 @@ body.noscroll { overflow: hidden; }
       <!-- Paso 2: ajustes -->
       <div id="p-settings" hidden style="display:grid;gap:16px">
         <h3>Ajustes del análisis</h3>
+        <div class="field"><label>Tipo de análisis</label>
+          <div class="seg" id="modeSeg"><button aria-pressed="true" data-v="fast">Rápido</button><button aria-pressed="false" data-v="precise">Preciso: sigue el volante</button></div>
+          <p class="small muted" id="modeInfo" style="margin-top:6px">Rápido: detecta los golpes por el movimiento del brazo. Tarda poco, pero falla bastante.</p></div>
         <div class="grid3">
           <div class="field"><label>¿Dónde juegas tú?</label><div class="seg" id="sideSeg"><button aria-pressed="true" data-v="0">Lado cercano</button><button aria-pressed="false" data-v="1">Lado lejano</button></div></div>
           <div class="field"><label for="hMe">Tu estatura (cm)</label><input type="number" id="hMe" value="175" min="120" max="220"></div>
@@ -445,7 +448,7 @@ body.noscroll { overflow: hidden; }
       </div>
     </div>
   </div>
-  <p class="small muted" style="text-align:center">Versión 6 · 26 de octubre de 2026</p>
+  <p class="small muted" style="text-align:center">Versión 7 · 27 de octubre de 2026</p>
 </section>
 
 <!-- ===== RESULTADOS ===== -->
@@ -869,7 +872,7 @@ body.noscroll { overflow: hidden; }
       // (al andar o colocarse se mueven los dos brazos parecido)
       const ws = wSpd[side].map((v, i) => (Number.isFinite(v) && Number.isFinite(wSpd[1 - side][i]) && v < 1.35 * wSpd[1 - side][i] ? v * 0.5 : v));
       const kW = side ? K.rwr : K.lwr, kE = side ? K.rel : K.lel, kS = side ? K.rsh : K.lsh;
-      return { p, stat, scale, bPx, X, Y, spd: spdS, dist, rise, air, ws, side, kW, kE, kS, rawX, rawY };
+      return { p, stat, scale, bPx, X, Y, spd: spdS, dist, rise, air, ws, side, kW, kE, kS, rawX, rawY, ankPx };
     }
 
     // Altura de contacto (m) en el fotograma i
@@ -929,7 +932,23 @@ body.noscroll { overflow: hidden; }
     // Selección global con alternancia: dentro de un punto los golpes van de un jugador al otro
     // (0,25–2,2 s entre golpes); un hueco >2,4 s permite empezar un punto nuevo con cualquiera.
     const COST = { low: 1.1, normal: 0.9, high: 0.6 }[sens];
-    const hits = (() => {
+    // Modo preciso: los golpes salen de la trayectoria del volante (modelo TrackNet a 30 fps)
+    const SH30 = track.sh30 && G.BSH ? track.sh30 : null;
+    const poseIdx = (tt) => { let lo = 0, hi = n - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (t[m] < tt) lo = m + 1; else hi = m; } if (lo > 0 && Math.abs(t[lo - 1] - tt) < Math.abs(t[lo] - tt)) lo--; return lo; };
+    let SHC = null;
+    if (SH30) {
+      const X = Float32Array.from(SH30.x, (q) => (q == null ? NaN : q)), Y = Float32Array.from(SH30.y, (q) => (q == null ? NaN : q));
+      SHC = G.BSH.clean(X, Y, SH30.fps);
+    }
+    const hits = SH30 ? (() => {
+      const fps = SH30.fps;
+      const poseAt = (k, p) => { const i = poseIdx(k / fps); if (Math.abs(t[i] - k / fps) > 0.12) return null; const pl = gated[p][i]; return pl ? pl.img : null; };
+      const sens2 = { low: { th: 2.6, cost: 0.9 }, normal: { th: 2, cost: 0.6 }, high: { th: 1.6, cost: 0.4 } }[sens];
+      let hs = G.BSH.detect(SHC, fps, poseAt, sens2).map((d) => { const i = poseIdx(d.k / fps); return { p: d.p, i, t: d.k / fps, peak: P[d.p].ws[i] || 0, sh: true, shk: d.k, kind: d.kind }; });
+      hs = hs.filter((c) => !nearE(edits.del, c.p, c.i));
+      edits.add.forEach((e) => { if (e.i > 0 && e.i < n - 1) { hs = hs.filter((c) => !(Math.abs(c.i - e.i) <= Math.round(0.25 / dt))); hs.push({ p: e.p, i: e.i, t: t[e.i], peak: P[e.p].ws[e.i] || 0, manual: true, sh: true, shk: Math.round(t[e.i] * fps) }); } });
+      return hs.sort((a, b) => a.t - b.t);
+    })() : (() => {
       const N = cands.length, best = new Array(N), prev = new Array(N);
       let gb = -1e9, gi = -1;
       for (let k = 0; k < N; k++) {
@@ -951,7 +970,7 @@ body.noscroll { overflow: hidden; }
     })();
     // Volante: confirma los golpes que coinciden con un cambio de dirección del volante junto a la raqueta,
     // añade los que se habían escapado y quita gestos flojos cuando el volante se ve claramente en otro sitio.
-    const SH = trackShuttle(frames, t, track.width || 1280, track.height || 720, court2img);
+    const SH = SH30 ? null : trackShuttle(frames, t, track.width || 1280, track.height || 720, court2img);
     const shOK = !!SH && SH.pos.filter(Boolean).length > n * 0.15;
     const shHits = shOK && !!(opts && opts.shuttleHits) && !G.__noShHits;
     let shAdded = 0, shRemoved = 0;
@@ -984,8 +1003,9 @@ body.noscroll { overflow: hidden; }
       // Contacto por arriba: punto más alto con el brazo más estirado cerca del pico de velocidad
       let best = h.i, bh = contactH(pp, h.i), hb = bh;
       for (let j = Math.max(0, h.i - 2); j <= h.i; j++) hb = Math.max(hb, contactH(pp, j) || 0);
-      if (hb > pp.stat * 1.0) { let sc0 = -1e9; for (let j = Math.max(0, h.i - 2); j <= Math.min(n - 1, h.i + 2); j++) { const ch = contactH(pp, j), e = elbowAt(pp, j); if (!Number.isFinite(ch)) continue; const sc = ch + 0.004 * (Number.isFinite(e) ? e : 120); if (sc > sc0) { sc0 = sc; bh = ch; best = j; } } }
-      h.i = best; h.t = t[best];
+      if (h.sh) { if (!Number.isFinite(bh)) { for (let j = Math.max(0, h.i - 2); j <= Math.min(n - 1, h.i + 2); j++) if (Number.isFinite(contactH(pp, j))) { bh = contactH(pp, j); break; } } }
+      else if (hb > pp.stat * 1.0) { let sc0 = -1e9; for (let j = Math.max(0, h.i - 2); j <= Math.min(n - 1, h.i + 2); j++) { const ch = contactH(pp, j), e = elbowAt(pp, j); if (!Number.isFinite(ch)) continue; const sc = ch + 0.004 * (Number.isFinite(e) ? e : 120); if (sc > sc0) { sc0 = sc; bh = ch; best = j; } } }
+      if (!h.sh) { h.i = best; h.t = t[best]; }
       h.h = bh;
       techAt(pp, h);
       const xs = pp.X[best], ys = pp.Y[best];
@@ -1019,6 +1039,35 @@ body.noscroll { overflow: hidden; }
         h.recvDn = toHalf(nx.p, nx.x, nx.y).dn; h.recvCat = nx.cat;
       }
     });
+    // Modo preciso: vuelo en 3D de cada golpe (cámara deducida de la pista)
+    if (SH30 && SHC) {
+      const fps = SH30.fps, cam = G.BSH.camera(court2img, track.width || 1280, track.height || 720), N30 = SHC.x.length;
+      const okq = (k) => k >= 0 && k < N30 && Number.isFinite(SHC.x[k]);
+      const nearQ = (k) => { for (let d = 0; d < 6; d++) for (const j of [k - d, k + d]) if (okq(j)) return [SHC.x[j], SHC.y[j], j]; return null; };
+      // posición en el suelo: el fotograma cercano con los pies más bajos en la imagen (así no cuenta el salto)
+      const ground = (p, i) => { const pp = P[p]; let best = -1, by = -1e9; for (let j = Math.max(0, i - 3); j <= Math.min(n - 1, i + 3); j++) if (Number.isFinite(pp.rawX[j]) && pp.ankPx[j] > by) { by = pp.ankPx[j]; best = j; } return best >= 0 ? [pp.rawX[best], pp.rawY[best]] : Number.isFinite(pp.X[i]) ? [pp.X[i], pp.Y[i]] : null; };
+      const dnOf = (p, xy) => (p === 0 ? COURT.NET - xy[1] : xy[1] - COURT.NET);
+      hits.forEach((h, k) => {
+        if (!h.sh) return;
+        const F = ground(h.p, h.i), q = nearQ(h.shk); if (!F || !q) return;
+        const P0 = G.BSH.pointAbove(cam, q[0], q[1], F[0], F[1]); h.z0 = P0[2];
+        const nx = hits[k + 1]; let P1 = null, T = null, FR = null;
+        if (nx && nx.rally === h.rally && nx.p !== h.p) {
+          FR = ground(nx.p, nx.i); const q2 = nearQ(nx.shk);
+          if (FR && q2 && q2[2] > q[2]) { P1 = G.BSH.pointAbove(cam, q2[0], q2[1], FR[0], FR[1]); T = (q2[2] - q[2]) / fps; }
+        } else {
+          // último golpe del punto: donde cae el volante (último punto visto, llevado al suelo)
+          let last = -1; for (let j = q[2] + 1; j < Math.min(N30, q[2] + fps * 2.5); j++) { if (okq(j)) last = j; else if (last > 0 && j - last > fps * 0.4) break; }
+          if (last > q[2] + 3) { const d = cam.ray(SHC.x[last], SHC.y[last]); if (d[2] < -1e-3) { const s2 = -cam.C[2] / d[2]; P1 = [cam.C[0] + s2 * d[0], cam.C[1] + s2 * d[1], 0]; T = (last - q[2]) / fps + 0.1; FR = [P1[0], P1[1]]; } }
+        }
+        if (!P1 || !(T > 0.12)) return;
+        const obs = []; for (let j = q[2] + 1; j < q[2] + T * fps; j++) if (okq(j)) obs.push({ t: (j - q[2]) / fps, u: SHC.x[j], v: SHC.y[j] });
+        const sol = G.BSH.solveShot(cam, P0, P1, T, obs);
+        h.v0 = T >= 0.25 && sol.speed < 95 ? sol.speed : h.v0; h.angle = sol.angle; h.apex = sol.apex; h.Tf = T;
+        h.dnHit = dnOf(h.p, F); h.dnRecv = dnOf(1 - h.p, FR); h.vh = Math.hypot(FR[0] - F[0], FR[1] - F[1]) / T;
+        if (h.next === undefined && P1[2] === 0) h.landing = [P1[0], P1[1]];
+      });
+    }
     // Potencia del golpe: velocidad de salida del volante (si se conoce) y velocidad de la mano
     const refPeak = pct(hits.map((h) => h.peak), 0.85) || 1;
     hits.forEach((h) => {
@@ -1030,7 +1079,8 @@ body.noscroll { overflow: hidden; }
       const prev = hits[k - 1] && hits[k - 1].rally === h.rally ? hits[k - 1] : null;
       const dn = h.zone.dn, rf = h.recvDn; // rf: distancia a la red del rival cuando la recibe
       let ty;
-      if (h.nIn === 0) ty = rf !== undefined ? (rf < 2.9 ? 'Saque corto' : 'Saque largo') : (h.power < 0.4 ? 'Saque corto' : 'Saque largo');
+      if (h.sh && Number.isFinite(h.angle)) ty = G.BSH.classify({ serve: h.nIn === 0 && h.still !== false && !(h.z0 > 1.45), prevSmash: !!(prev && /Remate/.test(prev.type)), z0: h.z0, over: h.cat === 'alto', dnHit: h.dnHit, dnRecv: h.dnRecv, T: h.Tf, vh: h.vh, angle: h.angle, apex: h.apex, jump: h.jump });
+      else if (h.nIn === 0) ty = rf !== undefined ? (rf < 2.9 ? 'Saque corto' : 'Saque largo') : (h.power < 0.4 ? 'Saque corto' : 'Saque largo');
       else if (h.cat === 'alto') {
         const fast = h.v0 ? mps2kmh(h.v0) > 150 && h.T < 0.8 : h.power >= 0.7;
         if (dn < 2.2) ty = fast || h.power >= 0.5 ? 'Remate en la red' : 'Dejada de red'; // arriba en la red pero flojo: toque
@@ -1247,6 +1297,295 @@ body.noscroll { overflow: hidden; }
   }
 
   G.BA = { trackShuttle, makeGate, colDist, hull, LM, homographyLS, cleanSeq, COURT, MP_IDX, K, NK, homography, applyH, courtHomographies, analyze, zoneOf, toHalf, basePoint, ROW_N, mean, median, pct, clamp, mps2kmh, DRAG_K };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ===== Pluma Lab: estabilización de la imagen (la pista se queda fija aunque la cámara se mueva) =====
+   Se eligen puntos con textura del fotograma de referencia (el de la calibración) y en cada fotograma se buscan
+   de nuevo. Con los que coinciden se calcula un giro + escala + desplazamiento (transformación de semejanza)
+   que lleva el fotograma actual al de referencia. Se compara siempre con la referencia, así el error no se acumula. */
+(function (G) {
+  'use strict';
+  // Imagen en grises pequeña: Uint8Array w*h
+  function down2(g, w, h) { const W = w >> 1, H = h >> 1, o = new Uint8Array(W * H); for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = 2 * y * w + 2 * x; o[y * W + x] = (g[i] + g[i + 1] + g[i + w] + g[i + w + 1]) >> 2; } return { g: o, w: W, h: H }; }
+  // Puntos con textura en dos direcciones (menor valor propio del tensor de estructura)
+  function features(g, w, h, n, minD, mask) {
+    const R = [], b = 8;
+    for (let y = b; y < h - b; y += 2) for (let x = b; x < w - b; x += 2) {
+      if (mask && mask(x, y)) continue;
+      let xx = 0, yy = 0, xy = 0;
+      for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) { const k = (y + j) * w + x + i, gx = g[k + 1] - g[k - 1], gy = g[k + w] - g[k - w]; xx += gx * gx; yy += gy * gy; xy += gx * gy; }
+      const tr = xx + yy, det = xx * yy - xy * xy, l = tr / 2 - Math.sqrt(Math.max(0, tr * tr / 4 - det));
+      if (l > 2000) R.push([x, y, l]);
+    }
+    R.sort((a, c) => c[2] - a[2]);
+    const out = [];
+    for (const p of R) { if (out.every((q) => Math.abs(q[0] - p[0]) + Math.abs(q[1] - p[1]) > minD)) out.push(p); if (out.length >= n) break; }
+    return out;
+  }
+  // Diferencia de parches sin la media (aguanta cambios de luz)
+  function patch(g, w, x, y, r) { const o = new Float32Array((2 * r + 1) * (2 * r + 1)); let m = 0, k = 0; for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) { const v = g[(y + j) * w + x + i]; o[k++] = v; m += v; } m /= o.length; for (let i = 0; i < o.length; i++) o[i] -= m; return o; }
+  function zsad(P, g, w, h, x, y, r) {
+    if (x - r < 0 || y - r < 0 || x + r >= w || y + r >= h) return 1e9;
+    let m = 0; for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) m += g[(y + j) * w + x + i];
+    m /= P.length; let s = 0, k = 0;
+    for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) s += Math.abs(g[(y + j) * w + x + i] - m - P[k++]);
+    return s;
+  }
+  // Semejanza que lleva los puntos a -> b: b = [s c, -s s; s s, s c] a + t
+  function simFit(A, B, idx) {
+    let n = 0, ax = 0, ay = 0, bx = 0, by = 0; for (const i of idx) { ax += A[i][0]; ay += A[i][1]; bx += B[i][0]; by += B[i][1]; n++; }
+    ax /= n; ay /= n; bx /= n; by /= n;
+    let sxx = 0, sxy = 0, d = 0; for (const i of idx) { const x = A[i][0] - ax, y = A[i][1] - ay, u = B[i][0] - bx, v = B[i][1] - by; sxx += x * u + y * v; sxy += x * v - y * u; d += x * x + y * y; }
+    const a = sxx / d, b = sxy / d; return [a, -b, bx - a * ax + b * ay, b, a, by - b * ax - a * ay];
+  }
+  const ap = (T, x, y) => [T[0] * x + T[1] * y + T[2], T[3] * x + T[4] * y + T[5]];
+  const inv = (T) => { const det = T[0] * T[4] - T[1] * T[3], a = T[4] / det, b = -T[1] / det, c = -T[3] / det, d = T[0] / det; return [a, b, -(a * T[2] + b * T[5]), c, d, -(c * T[2] + d * T[5])]; };
+
+  function create(ref, w, h, opts) {
+    opts = opts || {};
+    const L1 = down2(ref, w, h), L2 = down2(L1.g, L1.w, L1.h);
+    const F = features(ref, w, h, opts.n || 70, opts.minD || 16, opts.mask).map(([x, y]) => ({ x, y, P: patch(ref, w, x, y, 5) }));
+    const C = []; // parches grandes de la imagen pequeña para el desplazamiento grueso
+    features(L2.g, L2.w, L2.h, 24, 10).forEach(([x, y]) => C.push({ x, y, P: patch(L2.g, L2.w, x, y, 4) }));
+    let last = [1, 0, 0, 0, 1, 0]; // actual -> referencia del fotograma anterior
+    function estimate(g) {
+      // 1) desplazamiento grueso a 1/4 de tamaño: voto de los parches grandes
+      const l1 = down2(g, w, h), l2 = down2(l1.g, l1.w, l1.h), li = inv(last);
+      const votes = [];
+      for (const c of C) {
+        const [px, py] = ap(li, c.x * 4, c.y * 4), cx = Math.round(px / 4), cy = Math.round(py / 4);
+        let best = 1e9, bx = 0, by = 0; for (let dy = -8; dy <= 8; dy++) for (let dx = -8; dx <= 8; dx++) { const s = zsad(c.P, l2.g, l2.w, l2.h, cx + dx, cy + dy, 4); if (s < best) { best = s; bx = dx; by = dy; } }
+        if (best < 1e9) votes.push([bx, by]);
+      }
+      let sx = 0, sy = 0;
+      if (votes.length) { const mx = votes.map((v) => v[0]).sort((a, b) => a - b), my = votes.map((v) => v[1]).sort((a, b) => a - b); sx = mx[mx.length >> 1] * 4; sy = my[my.length >> 1] * 4; }
+      // 2) búsqueda fina de cada punto alrededor de la predicción
+      const A = [], B = [];
+      for (const f of F) {
+        const [px, py] = ap(li, f.x, f.y), cx = Math.round(px + sx), cy = Math.round(py + sy);
+        let best = 1e9, bx = 0, by = 0; const S = {};
+        for (let dy = -5; dy <= 5; dy++) for (let dx = -5; dx <= 5; dx++) { const s = zsad(f.P, g, w, h, cx + dx, cy + dy, 5); S[dx + ',' + dy] = s; if (s < best) { best = s; bx = dx; by = dy; } }
+        if (best >= 1e9 || Math.abs(bx) === 5 || Math.abs(by) === 5) continue;
+        if (best / f.P.length > 14) continue; // no se parece lo suficiente (tapado por un jugador, etc.)
+        const sub = (a, c, b) => { const d = a - 2 * c + b; return d > 0 ? 0.5 * (a - b) / d : 0; };
+        const ox = sub(S[(bx - 1) + ',' + by], best, S[(bx + 1) + ',' + by]), oy = sub(S[bx + ',' + (by - 1)], best, S[bx + ',' + (by + 1)]);
+        A.push([cx + bx + ox, cy + by + oy]); B.push([f.x, f.y]);
+      }
+      // 3) RANSAC de dos puntos con semejanza
+      const n = A.length; if (n < 6) return { T: last, ok: false, inl: n, n: F.length };
+      let bestIn = []; let seed = 12345; const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+      for (let it = 0; it < 120; it++) {
+        const i = Math.floor(rnd() * n), j = Math.floor(rnd() * n); if (i === j) continue;
+        const da = Math.hypot(A[i][0] - A[j][0], A[i][1] - A[j][1]); if (da < 20) continue;
+        const T = simFit(A, B, [i, j]); const inl = [];
+        for (let k = 0; k < n; k++) { const q = ap(T, A[k][0], A[k][1]); if (Math.hypot(q[0] - B[k][0], q[1] - B[k][1]) < 1.6) inl.push(k); }
+        if (inl.length > bestIn.length) bestIn = inl;
+      }
+      if (bestIn.length < Math.max(6, n * 0.3)) return { T: last, ok: false, inl: bestIn.length, n: F.length };
+      let T = simFit(A, B, bestIn);
+      const inl2 = []; for (let k = 0; k < n; k++) { const q = ap(T, A[k][0], A[k][1]); if (Math.hypot(q[0] - B[k][0], q[1] - B[k][1]) < 1.2) inl2.push(k); }
+      if (inl2.length >= 6) T = simFit(A, B, inl2);
+      last = T;
+      return { T, ok: true, inl: inl2.length, n: F.length };
+    }
+    return { estimate, nFeatures: F.length };
+  }
+  // T calculada a escala de la imagen pequeña (sk = ancho real / ancho pequeño) -> escala real
+  const scaleT = (T, sk) => [T[0], T[1], T[2] * sk, T[3], T[4], T[5] * sk];
+  G.BS = { create, inv, ap, scaleT };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ===== Pluma Lab: análisis preciso a partir del volante =====
+   Entrada: posiciones del volante fotograma a fotograma (modelo TrackNet, 30 fps) y las posturas de los jugadores.
+   1) Limpia la trayectoria (quita puntos sueltos y rellena huecos cortos).
+   2) Detecta los golpes: el volante cambia de velocidad de forma brusca, o pasa junto a la mano de un jugador,
+      o desaparece junto a un jugador y reaparece en otra dirección. Una selección global obliga a que los golpes
+      se alternen entre los dos jugadores dentro de un punto.
+   3) Reconstruye cada golpe en 3D con la cámara deducida de la pista: altura de contacto, velocidad de salida,
+      ángulo, altura máxima y dónde cae; con eso decide el tipo de golpe. */
+(function (G) {
+  'use strict';
+  const BA = G.BA, { COURT, K, NK, applyH, DRAG_K, clamp } = BA;
+  const GRAV = 9.81;
+
+  /* ---------- 1) Limpieza ---------- */
+  function clean(X, Y, fps) {
+    const n = X.length, ok = (k) => k >= 0 && k < n && Number.isFinite(X[k]);
+    const sp = 2200 / fps; // px por fotograma como mucho (a 1280 de ancho)
+    const keep = new Uint8Array(n);
+    for (let k = 0; k < n; k++) {
+      if (!ok(k)) continue; let nb = 0;
+      for (let j = k - 3; j <= k + 3; j++) if (j !== k && ok(j) && Math.hypot(X[j] - X[k], Y[j] - Y[k]) < sp * Math.abs(j - k) + 20) nb++;
+      keep[k] = nb >= 1 ? 1 : 0;
+    }
+    const x = new Float32Array(n).fill(NaN), y = new Float32Array(n).fill(NaN);
+    for (let k = 0; k < n; k++) if (keep[k]) { x[k] = X[k]; y[k] = Y[k]; }
+    // fuera de lugar respecto a sus vecinos
+    const has = (k) => k >= 0 && k < n && Number.isFinite(x[k]);
+    for (let k = 1; k < n - 1; k++) {
+      if (!has(k)) continue; let a = -1, b = -1;
+      for (let j = k - 1; j >= Math.max(0, k - 3); j--) if (has(j)) { a = j; break; }
+      for (let j = k + 1; j <= Math.min(n - 1, k + 3); j++) if (has(j)) { b = j; break; }
+      if (a >= 0 && b >= 0) { const u = (k - a) / (b - a), ex = x[a] + (x[b] - x[a]) * u, ey = y[a] + (y[b] - y[a]) * u, dab = Math.hypot(x[b] - x[a], y[b] - y[a]); if (Math.hypot(x[k] - ex, y[k] - ey) > Math.max(80, dab * 1.5)) { x[k] = NaN; y[k] = NaN; } }
+    }
+    // rellenar huecos de hasta 4 fotogramas
+    const fx = Float32Array.from(x), fy = Float32Array.from(y);
+    for (let k = 0; k < n; k++) {
+      if (has(k)) continue; let a = -1, b = -1;
+      for (let j = k - 1; j >= Math.max(0, k - 4); j--) if (has(j)) { a = j; break; }
+      for (let j = k + 1; j <= Math.min(n - 1, k + 4); j++) if (has(j)) { b = j; break; }
+      if (a >= 0 && b >= 0 && b - a <= 5) { const u = (k - a) / (b - a); fx[k] = x[a] + (x[b] - x[a]) * u; fy[k] = y[a] + (y[b] - y[a]) * u; }
+    }
+    return { x: fx, y: fy };
+  }
+
+  /* ---------- 2) Golpes ---------- */
+  function boxOf(img) {
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (let k = 0; k < NK; k++) { x0 = Math.min(x0, img[k * 3]); x1 = Math.max(x1, img[k * 3]); y0 = Math.min(y0, img[k * 3 + 1]); y1 = Math.max(y1, img[k * 3 + 1]); }
+    return { x0, y0, x1, y1, h: Math.max(20, y1 - y0), w: [[img[K.lwr * 3], img[K.lwr * 3 + 1]], [img[K.rwr * 3], img[K.rwr * 3 + 1]]] };
+  }
+  // poseAt(k, p) -> img (Float32Array) o null, para el fotograma k del volante
+  function detect(S, fps, poseAt, opt) {
+    opt = opt || {};
+    const n = S.x.length, Q = (k) => (k >= 0 && k < n && Number.isFinite(S.x[k]) ? [S.x[k], S.y[k]] : null);
+    const w = Math.max(1, Math.round(fps / 15)), C = [];
+    // a) cambio brusco de velocidad (descontando la curvatura suave del vuelo)
+    const KS = new Float32Array(n);
+    for (let k = w; k < n - w; k++) {
+      const q = Q(k), a = Q(k - w), b = Q(k + w), a2 = Q(k - 2 * w), b2 = Q(k + 2 * w); if (!q || !a || !b) continue;
+      const vi = [(q[0] - a[0]) / w, (q[1] - a[1]) / w], vo = [(b[0] - q[0]) / w, (b[1] - q[1]) / w];
+      let ai = [0, 0], ao = [0, 0];
+      if (a2) ai = [(vi[0] - (a[0] - a2[0]) / w) / w, (vi[1] - (a[1] - a2[1]) / w) / w];
+      if (b2) ao = [((b2[0] - b[0]) / w - vo[0]) / w, ((b2[1] - b[1]) / w - vo[1]) / w];
+      const acc = [(ai[0] + ao[0]) / 2, (ai[1] + ao[1]) / 2];
+      const d = Math.hypot(vo[0] - vi[0] - acc[0] * w, vo[1] - vi[1] - acc[1] * w);
+      KS[k] = d / (1.5 + 0.15 * (Math.hypot(...vi) + Math.hypot(...vo))) * (fps / 30);
+    }
+    const TH = opt.th || 2;
+    for (let k = 1; k < n - 1; k++) if (KS[k] > TH && KS[k] >= KS[k - 1] && KS[k] >= KS[k + 1]) C.push({ k, s: Math.log(1 + KS[k]), kind: 'kink' });
+    // b) huecos: desaparece y reaparece con otra trayectoria
+    const seg = []; { let st = -1; for (let k = 0; k <= n; k++) { if (k < n && Q(k)) { if (st < 0) st = k; } else if (st >= 0) { seg.push([st, k - 1]); st = -1; } } }
+    for (let j = 0; j + 1 < seg.length; j++) { const a1 = seg[j][1], b0 = seg[j + 1][0]; if (b0 - a1 > fps * 0.5) continue; C.push({ k: Math.round((a1 + b0) / 2), s: 1.2, kind: 'gap', q: [(S.x[a1] + S.x[b0]) / 2, (S.y[a1] + S.y[b0]) / 2] }); }
+    // c) el volante pasa junto a la mano de un jugador
+    const dd = [new Float32Array(n).fill(9), new Float32Array(n).fill(9)], BX = [[], []];
+    for (let k = 0; k < n; k++) for (const p of [0, 1]) { const img = poseAt(k, p); const B = img ? boxOf(img) : null; BX[p][k] = B; const q = Q(k); if (B && q) dd[p][k] = Math.min(...B.w.map((u) => Math.hypot(u[0] - q[0], u[1] - q[1]))) / B.h; }
+    for (const p of [0, 1]) for (let k = 2; k < n - 2; k++) { const v = dd[p][k]; if (v < 0.45 && v <= dd[p][k - 1] && v <= dd[p][k + 1] && v <= dd[p][k - 2] && v <= dd[p][k + 2] && !C.some((c) => Math.abs(c.k - k) <= 3)) C.push({ k, s: 0.6 + 0.6 * (1 - v / 0.45), kind: 'prox' }); }
+    // Cercanía a cada jugador (cuerpo ampliado hacia arriba por la raqueta, o la mano)
+    const prox = (k, q) => [0, 1].map((p) => { let best = 9; for (let j = k - 2; j <= k + 2; j++) { const B = BX[p][j]; if (!B) continue; const dx = Math.max(B.x0 - q[0], 0, q[0] - B.x1), dy = Math.max(B.y0 - B.h * 0.6 - q[1], 0, q[1] - B.y1), dw = Math.min(...B.w.map((u) => Math.hypot(u[0] - q[0], u[1] - q[1]))); best = Math.min(best, Math.min(Math.hypot(dx, dy), dw) / B.h); } return best; });
+    C.forEach((c) => { const q = c.q || Q(c.k); c.d = q ? prox(c.k, q) : [9, 9]; });
+    // d) el volante cae al suelo y se para: fin del punto, no es un golpe
+    const landing = (k) => { let m = 0, last = null; for (let j = k + 1; j <= Math.min(n - 1, k + Math.round(fps * 0.7)); j++) { const q = Q(j); if (!q) continue; if (last) m += Math.hypot(q[0] - last[0], q[1] - last[1]); last = q; } return last && m < 25; };
+    let Kc = C.filter((c) => Math.min(...c.d) < 1.0 && !(c.kind !== 'gap' && landing(c.k)));
+    const NMS = Math.round(fps / 6);
+    Kc = Kc.filter((c) => !Kc.some((d) => d !== c && Math.abs(d.k - c.k) <= NMS && (d.s > c.s || (d.s === c.s && d.k < c.k))));
+    Kc.sort((a, b) => a.k - b.k);
+    // Selección global: alternancia dentro del punto (0,2–2,5 s entre golpes); hueco mayor = punto nuevo
+    const LAM = opt.lam || 2.5, COST = opt.cost || 0.6, gMin = Math.round(fps * 0.2), gMax = Math.round(fps * 2.5);
+    const st = [];
+    for (let i = 0; i < Kc.length; i++) for (const p of [0, 1]) {
+      const g = Kc[i].s - LAM * Kc[i].d[p] - COST; let b = g, pr = -1;
+      for (let j = i - 1; j >= 0; j--) {
+        const df = Kc[i].k - Kc[j].k;
+        for (const q of [0, 1]) { const Sx = st[j * 2 + q]; if (!Sx) continue; if (df > gMax ? Sx.v + g > b : q !== p && df >= gMin && Sx.v + g > b) { b = Sx.v + g; pr = j * 2 + q; } }
+        if (df > gMax * 4 && j < i - 60) break; // basta con mirar atrás un rato
+      }
+      st[i * 2 + p] = { v: b, pr };
+    }
+    let bi = -1, bv = -1e9; st.forEach((Sx, i) => { if (Sx && Sx.v > bv) { bv = Sx.v; bi = i; } });
+    const out = []; for (let i = bi; i >= 0; i = st[i].pr) { const c = Kc[i >> 1]; out.push({ k: c.k, p: i & 1, kind: c.kind, score: c.s, d: c.d[i & 1] }); }
+    return out.reverse();
+  }
+
+  /* ---------- 3) Cámara y vuelo en 3D ---------- */
+  function camera(court2img, W, H) {
+    const cx = W / 2, cy = H / 2, h = court2img;
+    const M = [h[0] - cx * h[6], h[1] - cx * h[7], h[2] - cx * h[8], h[3] - cy * h[6], h[4] - cy * h[7], h[5] - cy * h[8], h[6], h[7], h[8]];
+    const c1 = [M[0], M[3], M[6]], c2 = [M[1], M[4], M[7]], c3 = [M[2], M[5], M[8]];
+    const f2s = [];
+    const a = -(c1[0] * c2[0] + c1[1] * c2[1]) / (c1[2] * c2[2]); if (a > 0) f2s.push(a);
+    const b = (c2[0] ** 2 + c2[1] ** 2 - c1[0] ** 2 - c1[1] ** 2) / (c1[2] ** 2 - c2[2] ** 2); if (b > 0) f2s.push(b);
+    let f = f2s.length ? Math.sqrt(f2s.reduce((s, v) => s + v, 0) / f2s.length) : W;
+    f = clamp(f, W * 0.4, W * 4);
+    const ki = (c) => [c[0] / f, c[1] / f, c[2]];
+    let r1 = ki(c1), r2 = ki(c2), t = ki(c3);
+    const lam = 2 / (Math.hypot(...r1) + Math.hypot(...r2)); r1 = r1.map((v) => v * lam); r2 = r2.map((v) => v * lam); t = t.map((v) => v * lam);
+    if (t[2] < 0) { r1 = r1.map((v) => -v); r2 = r2.map((v) => -v); t = t.map((v) => -v); }
+    const nr = (v) => { const l = Math.hypot(...v); return v.map((x) => x / l); };
+    r1 = nr(r1); const d12 = r1[0] * r2[0] + r1[1] * r2[1] + r1[2] * r2[2]; r2 = nr([r2[0] - d12 * r1[0], r2[1] - d12 * r1[1], r2[2] - d12 * r1[2]]);
+    let r3 = [r1[1] * r2[2] - r1[2] * r2[1], r1[2] * r2[0] - r1[0] * r2[2], r1[0] * r2[1] - r1[1] * r2[0]];
+    // Centro de la cámara C = -R^T t ; la altura de la cámara tiene que salir positiva
+    const Rt = (v) => [r1[0] * v[0] + r1[1] * v[1] + r1[2] * v[2], r2[0] * v[0] + r2[1] * v[1] + r2[2] * v[2], r3[0] * v[0] + r3[1] * v[1] + r3[2] * v[2]];
+    let C = Rt(t).map((v) => -v);
+    if (C[2] < 0) { r3 = r3.map((v) => -v); C = Rt(t).map((v) => -v); }
+    const proj = (X) => { const c = [r1[0] * X[0] + r2[0] * X[1] + r3[0] * X[2] + t[0], r1[1] * X[0] + r2[1] * X[1] + r3[1] * X[2] + t[1], r1[2] * X[0] + r2[2] * X[1] + r3[2] * X[2] + t[2]]; return [cx + f * c[0] / c[2], cy + f * c[1] / c[2], c[2]]; };
+    const ray = (u, v) => { const d = Rt([(u - cx) / f, (v - cy) / f, 1]), l = Math.hypot(...d); return d.map((x) => x / l); };
+    return { f, C, proj, ray };
+  }
+  // Punto 3D del volante en la imagen (u,v) que está encima del jugador (pies en fx, fy)
+  function pointAbove(cam, u, v, fx, fy) {
+    const d = cam.ray(u, v), C = cam.C, hh = d[0] * d[0] + d[1] * d[1];
+    const s = hh > 1e-9 ? ((fx - C[0]) * d[0] + (fy - C[1]) * d[1]) / hh : 0;
+    return [C[0] + s * d[0], C[1] + s * d[1], clamp(C[2] + s * d[2], 0.05, 4.5)];
+  }
+  // Vuelo con rozamiento (pasos de 1/120 s)
+  function fly(P0, v0, T, cb) {
+    let p = P0.slice(), v = v0.slice(); const h = 1 / 120; let t = 0, apex = p[2];
+    while (t < T - 1e-9) { const dt = Math.min(h, T - t), s = Math.hypot(...v); v = [v[0] - DRAG_K * s * v[0] * dt, v[1] - DRAG_K * s * v[1] * dt, v[2] - (GRAV + DRAG_K * s * v[2]) * dt]; p = [p[0] + v[0] * dt, p[1] + v[1] * dt, p[2] + v[2] * dt]; t += dt; apex = Math.max(apex, p[2]); if (cb) cb(t, p); }
+    return { p, apex };
+  }
+  // Velocidad de salida para ir de P0 a P1 en T segundos (Newton) y ajustada a lo visto en la imagen
+  function solveShot(cam, P0, P1, T, obs) {
+    let v = [(P1[0] - P0[0]) / T, (P1[1] - P0[1]) / T, (P1[2] - P0[2]) / T + 0.5 * GRAV * T];
+    const err = (vv) => {
+      const r = []; const end = fly(P0, vv, T, obs && obs.length ? (t, p) => { for (const o of obs) if (!o.u0 && Math.abs(o.t - t) < 1 / 240) { const q = cam.proj(p); o.e = [(q[0] - o.u) / 40, (q[1] - o.v) / 40]; } } : null).p;
+      r.push(end[0] - P1[0], end[1] - P1[1], end[2] - P1[2]);
+      if (obs) for (const o of obs) { if (o.e) r.push(o.e[0] * 0.5, o.e[1] * 0.5); o.e = null; }
+      return r;
+    };
+    for (let it = 0; it < 10; it++) {
+      const r0 = err(v), J = [];
+      for (let c = 0; c < 3; c++) { const dv = v.slice(); dv[c] += 0.05; const r1 = err(dv); J.push(r1.map((x, i) => (x - r0[i]) / 0.05)); }
+      // ecuaciones normales 3x3
+      const A = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], g = [0, 0, 0];
+      for (let i = 0; i < r0.length; i++) for (let a = 0; a < 3; a++) { g[a] += J[a][i] * r0[i]; for (let b = 0; b < 3; b++) A[a][b] += J[a][i] * J[b][i]; }
+      for (let a = 0; a < 3; a++) A[a][a] += 1e-4;
+      const det = (m) => m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+      const D = det(A); if (Math.abs(D) < 1e-12) break;
+      const step = [0, 1, 2].map((c) => { const m = A.map((row, i) => row.map((x, j) => (j === c ? g[i] : x))); return det(m) / D; });
+      v = v.map((x, i) => x - clamp(step[i], -15, 15));
+      if (Math.hypot(...step) < 0.02) break;
+    }
+    const sp = Math.hypot(...v), hor = Math.hypot(v[0], v[1]);
+    const end = fly(P0, v, T);
+    return { v, speed: sp, angle: Math.atan2(v[2], hor) * 180 / Math.PI, apex: end.apex };
+  }
+
+  /* ---------- Tipo de golpe ---------- */
+  // f: { serve, prevSmash, z0, dnHit, dnRecv, speed (m/s), angle (grados), apex, T, jump }
+  function classify(f) {
+    // f: serve, prevSmash, z0 (altura de contacto), over (contacto por encima de la cabeza según la postura),
+    //    dnHit / dnRecv (distancia a la red del que golpea / del que recibe), T (tiempo de vuelo), vh (m/s en horizontal),
+    //    angle (grados, + hacia arriba), apex (altura máxima), jump
+    const up = f.angle > 6, down = f.angle < -4, high = f.over || f.z0 >= 2.0;
+    if (f.serve) return f.dnRecv < 2.9 || (f.T < 0.9 && f.apex < 2.6) ? 'Saque corto' : 'Saque largo';
+    if (high) {
+      if (f.dnHit < 2.0 && f.vh > 7 && !up) return 'Remate en la red';
+      if ((f.vh >= 9 && f.T < 0.9 && !up) || (down && f.vh > 12)) return f.jump ? 'Remate en salto' : 'Remate';
+      if (f.dnRecv < 3.0) return 'Dejada desde el fondo';
+      if (f.T >= 0.95 || f.apex > 3.5) return 'Clear';
+      return f.vh >= 9 ? (f.jump ? 'Remate en salto' : 'Remate') : 'Drive';
+    }
+    if (f.prevSmash) return f.apex > 3 || f.T > 1.05 ? 'Defensa larga' : f.vh > 10 && f.T < 0.6 && f.dnRecv > 2.6 ? 'Drive' : 'Bloqueo';
+    if (f.T > 1.2 && f.apex > 3.2) return 'Lob';
+    if (f.dnRecv > 3.6 && (f.T > 1.0 || up || f.apex > 3)) return 'Lob';
+    if (f.dnHit < 2.6 && f.dnRecv < 3.0) return 'Dejada de red';
+    if (f.vh > 9 && f.T < 0.85) return 'Drive';
+    if (f.dnRecv < 3.0) return 'Bloqueo';
+    return f.apex > 3 || up ? 'Lob' : 'Drive';
+  }
+
+  G.BSH = { clean, detect, camera, pointAbove, fly, solveShot, classify, boxOf };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 </script>
@@ -2171,7 +2510,7 @@ body.noscroll { overflow: hidden; }
     try { const metas = await DB.all('meta'), job = await DB.get('job', 'run'); if (!metas.some((m) => m.videoKey === key) && !(job && job.videoKey === key)) await DB.del('videos', key); } catch (e) {}
   }
 
-  const S = { view: 'analizar', file: null, url: null, video: null, corners: [], track: null, res: null, demo: null, me: 0, sel: 0, heatMode: 'heat', settings: { side: 0, q: 'normal' }, chat: [] };
+  const S = { view: 'analizar', file: null, url: null, video: null, corners: [], track: null, res: null, demo: null, me: 0, sel: 0, heatMode: 'heat', settings: { side: 0, q: 'normal', mode: 'fast' }, chat: [] };
   const ROLE_COL = { ataque: '--atk', neutral: '--neu', defensa: '--def', saque: '--srv' };
   const ROLE_N = { ataque: 'Ataque', neutral: 'Neutral', defensa: 'Defensa', saque: 'Saque' };
   const roleOf = (h) => h.role;
@@ -2326,7 +2665,7 @@ body.noscroll { overflow: hidden; }
     C.pts.forEach((q, i) => { if (!q) return; const d = Math.hypot(q[0] * k - p[0], q[1] * k - p[1]); if (d < bd) { bd = d; best = i; } });
     if (best >= 0) { drag = best; grabOff = [C.pts[best][0] * k - p[0], C.pts[best][1] * k - p[1]]; }
     else { const ps = pendingStep(); if (ps < 0) { C.sel = -1; drawCalib(); return; } C.pts[ps] = [p[0] / k, p[1] / k]; C.order.push(ps); drag = ps; grabOff = [0, 0]; }
-    C.sel = drag; $('#altBox').hidden = true;
+    C.sel = drag; C.t = S.video.currentTime; $('#altBox').hidden = true;
     cvc.setPointerCapture(e.pointerId); drawCalib();
   });
   cvc.addEventListener('pointermove', (e) => { if (drag < 0) return; const p = evPt(e), k = calibScale(); S.calib.pts[drag] = [(p[0] + grabOff[0]) / k, (p[1] + grabOff[1]) / k]; drawCalib(); });
@@ -2358,9 +2697,20 @@ body.noscroll { overflow: hidden; }
     if (!S.video || !Number.isFinite(S.video.duration)) return;
     const [a, b] = trimRange(), q = QUAL[S.settings.q];
     $('#trimTxt').textContent = `${mmss(a)} – ${mmss(b)} (${Math.round(b - a)} s)`;
-    const secs = (b - a) * q.fps * (q.mc ? 0.26 : 0.16);
-    $('#etaTxt').textContent = `≈ ${secs < 60 ? Math.max(5, Math.round(secs)) + ' s' : Math.round(secs / 60) + ' min'} en un móvil actual`;
+    let secs = (b - a) * q.fps * (q.mc ? 0.26 : 0.16);
+    if (S.settings.mode === 'precise') secs += (b - a) * 30 * 0.6 * 0.3; // ~0,3 s por fotograma con la GPU de un móvil actual, saltando pausas
+    $('#etaTxt').textContent = `≈ ${secs < 60 ? Math.max(5, Math.round(secs)) + ' s' : secs < 5400 ? Math.round(secs / 60) + ' min' : (secs / 3600).toFixed(1) + ' h'} en un móvil actual${S.settings.mode === 'precise' ? ' (depende mucho del móvil; se mide al empezar)' : ''}`;
   }
+  $$('#modeSeg button').forEach((b) => (b.onclick = async () => {
+    $$('#modeSeg button').forEach((x) => x.setAttribute('aria-pressed', x === b)); S.settings.mode = b.dataset.v; updateTrim();
+    const info = $('#modeInfo');
+    if (b.dataset.v === 'fast') { info.textContent = 'Rápido: detecta los golpes por el movimiento del brazo. Tarda poco, pero falla bastante.'; return; }
+    info.textContent = 'Comprobando tu móvil…';
+    const gpu = await gpuOk();
+    info.innerHTML = gpu
+      ? 'Preciso: un modelo de IA sigue el volante en cada fotograma y de ahí salen los golpes, quién los da y de qué tipo son. <b>Tarda mucho más</b> (ver la duración estimada); déjalo cargando y con la app abierta. Si sales de la app se pausa y sigue al volver.'
+      : '<b>Este navegador no deja usar la tarjeta gráfica</b>, así que el modo preciso iría muy lento (horas por cada minuto de vídeo). Usa Chrome actualizado en Android, o abre la app en un ordenador con Chrome o Edge.';
+  }));
   $('#trimA').oninput = updateTrim; $('#trimB').oninput = updateTrim;
   const startMatch = (resume) => runVideo(resume).catch((e) => { console.error(e); showErr(`<b>No se pudo completar el análisis.</b> ${esc(e.message || e)}<br><span class="small muted">Puedes probar el partido de demostración para ver cómo funciona.</span>`); setStep(2); S.running = false; });
   $('#runBtn').onclick = () => startMatch();
@@ -2389,7 +2739,7 @@ body.noscroll { overflow: hidden; }
     const cfg = resume ? resume.cfg : (() => {
       const W = Math.min(1280, v.videoWidth), H = Math.round(W * v.videoHeight / v.videoWidth), me = +S.settings.side, [a, b] = trimRange();
       const hMe = (+$('#hMe').value || 175) / 100, hOp = (+$('#hOp').value || 175) / 100;
-      return { kind: 'match', q: S.settings.q, me, W, H, corners: calibData(W / v.videoWidth), a, b,
+      return { kind: 'match', q: S.settings.q, precise: S.settings.mode === 'precise', me, W, H, corners: calibData(W / v.videoWidth), a, b, calibT: S.calib.t || 0,
         stature: me === 0 ? [hMe, hOp] : [hOp, hMe], hand: me === 0 ? [$('#handMe').value, 'auto'] : ['auto', $('#handMe').value], names: me === 0 ? ['Tú', 'Rival'] : ['Rival', 'Tú'] };
     })();
     const q = QUAL[cfg.q], me = cfg.me, W = cfg.W, H = cfg.H, corners = cfg.corners;
@@ -2471,6 +2821,11 @@ body.noscroll { overflow: hidden; }
     $('#runTitle').textContent = 'Preparando el modelo de IA…'; $('#runBar').style.width = '2%';
     let P;
     try { P = await getPose(q.mc); } catch (e) { throw new Error('El modelo de postura no se ha podido iniciar en este navegador (' + (e.message || e) + ').'); }
+    // Estabilización: el fotograma en el que se marcó la pista es la referencia
+    const stabCv = document.createElement('canvas'); stabCv.width = SW; stabCv.height = SH; const stx = stabCv.getContext('2d', { willReadFrequently: true });
+    const rawGray = () => { stx.drawImage(v, 0, 0, SW, SH); const d = stx.getImageData(0, 0, SW, SH).data, g = new Uint8Array(SW * SH); for (let j = 0; j < g.length; j++) g[j] = (d[j * 4] * 3 + d[j * 4 + 1] * 5 + d[j * 4 + 2] * 2) / 10; return g; };
+    await seek(v, cfg.calibT || 0);
+    const STAB = BS.create(rawGray(), SW, SH); let stabBad = resume && resume.stabBad || 0;
     const a = cfg.a, b = cfg.b; const step = 1 / q.fps; const times = []; for (let t = a; t <= b; t += step) times.push(t);
     const frames = resume ? resume.frames : [], i0 = resume ? resume.next : 0; const t0 = performance.now(); let found = resume ? resume.found : [0, 0];
     $('#runTitle').textContent = 'Analizando jugadas…';
@@ -2480,8 +2835,11 @@ body.noscroll { overflow: hidden; }
       if (i > i0 && i % 60 === 0) job.save({ frames, next: i, found });
       await seek(v, times[i]);
       if (document.hidden) { i--; continue; } // la app se fue a segundo plano mientras buscaba el fotograma
-      wc.drawImage(v, 0, 0, W, H);
-      const fr = { t: +(times[i] - a).toFixed(4), p: [null, null], col: [null, null] };
+      // Fotograma enderezado para que la pista quede donde se marcó
+      const st = STAB.estimate(rawGray()); if (!st.ok) stabBad++;
+      const T = BS.scaleT(st.T, sk);
+      wc.setTransform(T[0], T[3], T[1], T[4], T[2], T[5]); wc.fillStyle = '#000'; wc.fillRect(-W, -H, 3 * W, 3 * H); wc.drawImage(v, 0, 0, W, H); wc.setTransform(1, 0, 0, 1, 0, 0);
+      const fr = { t: +(times[i] - a).toFixed(4), p: [null, null], col: [null, null], T: T.map((x) => +x.toFixed(5)) };
       grab();
       for (let k2 = ignore.length - 1; k2 >= 0; k2--) if (ignore[k2].until < fr.t) ignore.splice(k2, 1);
       for (let p = 0; p < 2; p++) {
@@ -2544,16 +2902,119 @@ body.noscroll { overflow: hidden; }
         fr.p.forEach((pl, p) => pl && drawSkeleton(rc, pl.img, 1, p === me ? '#e8962c' : '#8592ff', Math.max(2, W / 400)));
         const el = (performance.now() - t0) / 1000, per = el / (i + 1 - i0), rest = per * (times.length - i - 1);
         $('#runBar').style.width = `${Math.round((i + 1) / times.length * 100)}%`;
-        $('#runEta').textContent = `${i + 1}/${times.length} · quedan ${rest < 60 ? Math.round(rest) + ' s' : Math.round(rest / 60) + ' min'}`;
+        $('#runEta').textContent = `${cfg.precise ? 'Paso 1 de 2 · ' : ''}${i + 1}/${times.length} · quedan ${rest < 60 ? Math.round(rest) + ' s' : Math.round(rest / 60) + ' min'}`;
         $('#runInfo').textContent = `Jugador cercano visto en ${Math.round(found[0] / (i + 1) * 100)} % de los fotogramas · jugador lejano en ${Math.round(found[1] / (i + 1) * 100)} %.`;
         await new Promise((r) => setTimeout(r, 0));
       }
     }
+    if (found[0] < frames.length * 0.15 && found[1] < frames.length * 0.15) { job.stop(false); DB.del('job', 'run').catch(() => {}); throw new Error('Casi no se han detectado jugadores. Revisa que las esquinas estén bien marcadas y que la pista se vea entera.'); }
+    // Modo preciso: segunda pasada con el modelo que sigue el volante (30 fotogramas por segundo)
+    let sh30 = null;
+    if (cfg.precise) { sh30 = await shuttlePass({ v, W, H, a, b, cfg, STAB, rawGray, frames, found, job, resume, rc, court2img, me }); if (sh30 === 'cancel') return; }
     job.stop(false);
-    if (found[0] < frames.length * 0.15 && found[1] < frames.length * 0.15) { DB.del('job', 'run').catch(() => {}); throw new Error('Casi no se han detectado jugadores. Revisa que las esquinas estén bien marcadas y que la pista se vea entera.'); }
-    S.track = { demo: false, width: W, height: H, duration: b - a, offset: a, corners, frames, stature: cfg.stature, hand: cfg.hand, names: cfg.names, sens: 'normal', edits: { add: [], del: [], type: {}, rally: {} } };
+    S.track = { demo: false, width: W, height: H, duration: b - a, offset: a, corners, frames, sh30, precise: !!sh30, stature: cfg.stature, hand: cfg.hand, names: cfg.names, sens: 'normal', edits: { add: [], del: [], type: {}, rally: {} } };
     S.me = me; S.sel = me; S.demo = null;
     finish(job);
+  }
+
+  /* ---------- Modo preciso: modelo del volante (TrackNet) ---------- */
+  const ORT_VER = '1.23.0', ORT_CDN = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VER}/dist/`;
+  let ortReady = null, tnSession = null, tnEP = null;
+  async function gpuOk() { try { return !!(navigator.gpu && await navigator.gpu.requestAdapter()); } catch (e) { return false; } }
+  function loadOrt() {
+    if (ortReady) return ortReady;
+    ortReady = (async () => {
+      let base = new URL('ort/', location.href).href;
+      try { await loadScript('ort/ort.min.js'); } catch (e) { base = ORT_CDN; await loadScript(ORT_CDN + 'ort.min.js'); }
+      window.ort.env.wasm.wasmPaths = base; window.ort.env.wasm.numThreads = 1;
+      return window.ort;
+    })();
+    ortReady.catch(() => { ortReady = null; });
+    return ortReady;
+  }
+  async function getTrackNet() {
+    if (tnSession) return tnSession;
+    const ort = await loadOrt();
+    const buf = await (await fetch('mp/tracknet.wasm')).arrayBuffer();
+    const eps = (await gpuOk()) ? ['webgpu', 'wasm'] : ['wasm'];
+    for (const ep of eps) { try { tnSession = await ort.InferenceSession.create(buf, { executionProviders: [ep], graphOptimizationLevel: 'all' }); tnEP = ep; break; } catch (e) { console.warn('TrackNet', ep, e); } }
+    if (!tnSession) throw new Error('No se pudo iniciar el modelo del volante en este navegador.');
+    return tnSession;
+  }
+  // Tramos con juego: se saltan las pausas largas entre puntos (los dos jugadores casi quietos)
+  function activeRanges(frames, dur) {
+    const n = frames.length; if (n < 3) return [[0, dur]];
+    const mv = new Float32Array(n);
+    for (let i = 1; i < n; i++) { let m = 0; for (const p of [0, 1]) { const A = frames[i - 1].p[p], B = frames[i].p[p]; if (!A || !B) continue; const dt = frames[i].t - frames[i - 1].t || 0.08, h = Math.max(30, Math.abs(B.img[K.lan * 3 + 1] - B.img[K.nose * 3 + 1])); let s = 0; for (const k of [K.lwr, K.rwr, K.lan, K.ran]) s = Math.max(s, Math.hypot(B.img[k * 3] - A.img[k * 3], B.img[k * 3 + 1] - A.img[k * 3 + 1]) / h / dt); m = Math.max(m, s); } mv[i] = m; }
+    // activo si en ±1,5 s hay un movimiento claro de alguno de los dos
+    const act = [], win = 1.5; let lastAct = -1e9;
+    for (let i = 0; i < n; i++) if (mv[i] > 1.4) lastAct = frames[i].t, act.push(frames[i].t);
+    if (!act.length) return [[0, dur]];
+    const R = []; let s0 = Math.max(0, act[0] - win), e0 = act[0] + win;
+    for (const t of act) { if (t - win <= e0 + 3) e0 = t + win; else { R.push([s0, Math.min(dur, e0)]); s0 = Math.max(0, t - win); e0 = t + win; } }
+    R.push([s0, Math.min(dur, e0)]);
+    return R;
+  }
+  async function shuttlePass(c) {
+    const { v, W, H, a, b, STAB, rawGray, frames, job, resume, rc, court2img } = c;
+    const FPS = 30, n = Math.floor((b - a) * FPS) + 1;
+    let shx, shy, next = 0;
+    if (resume && resume.sh && resume.sh.n === n) { shx = Float32Array.from(resume.sh.x); shy = Float32Array.from(resume.sh.y); next = resume.sh.next; }
+    else { shx = new Float32Array(n).fill(NaN); shy = new Float32Array(n).fill(NaN); }
+    $('#runTitle').textContent = 'Preparando el modelo del volante…'; $('#runBar').style.width = '0%';
+    $('#runInfo').textContent = 'Se descarga una vez (unos 9 MB, y el motor de IA unos 24 MB) y queda guardado.';
+    // Para no pasarse de memoria: los modelos de postura ya no hacen falta en esta pasada
+    for (const sl of [0, 1]) if (poseP[sl]) { poseP[sl].then((Px) => { try { Px.pose.close(); } catch (e) {} }).catch(() => {}); poseP[sl] = null; }
+    let lowBat = false; try { const bt = navigator.getBattery ? await navigator.getBattery() : null; lowBat = !!(bt && !bt.charging && bt.level < 0.3); } catch (e) {}
+    const sess = await getTrackNet();
+    const ranges = activeRanges(frames, b - a);
+    const todo = []; for (let k = 0; k < n; k++) { const t = k / FPS; if (ranges.some(([s, e]) => t >= s && t <= e)) todo.push(k); }
+    const skipped = 1 - todo.length / n;
+    const IW = 512, IH = 288, cv = document.createElement('canvas'); cv.width = IW; cv.height = IH; const cx = cv.getContext('2d', { willReadFrequently: true }); cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
+    const sc = IW / W, buf = [], heat = new Uint8Array(IW * IH), lab = new Int32Array(IW * IH);
+    const grabSmall = (T) => { cx.setTransform(sc * T[0], sc * T[3], sc * T[1], sc * T[4], sc * T[2], sc * T[5]); cx.fillStyle = '#000'; cx.fillRect(-IW, -IH, 3 * IW / sc, 3 * IH / sc); cx.drawImage(v, 0, 0, W, H); cx.setTransform(1, 0, 0, 1, 0, 0); const d = cx.getImageData(0, 0, IW, IH).data, g = new Float32Array(IW * IH); for (let j = 0; j < g.length; j++) g[j] = (d[j * 4] * 0.299 + d[j * 4 + 1] * 0.587 + d[j * 4 + 2] * 0.114) / 255; return g; };
+    const blob = (h) => { // mancha más grande por encima de 0,5
+      for (let j = 0; j < h.length; j++) heat[j] = h[j] > 0.5 ? 1 : 0;
+      lab.fill(0); let best = null, id = 0;
+      for (let j = 0; j < heat.length; j++) { if (!heat[j] || lab[j]) continue; id++; const st = [j]; lab[j] = id; let cnt = 0, sx = 0, sy = 0;
+        while (st.length) { const q = st.pop(), x = q % IW, y = (q / IW) | 0; cnt++; sx += x; sy += y; for (const o of [1, -1, IW, -IW]) { const r = q + o; if (r >= 0 && r < heat.length && heat[r] && !lab[r] && Math.abs((r % IW) - x) <= 1) { lab[r] = id; st.push(r); } } }
+        if (!best || cnt > best.cnt) best = { cnt, x: sx / cnt, y: sy / cnt }; }
+      return best;
+    };
+    const t0 = performance.now(); let done = 0, lastK = -9, startNext = next;
+    $('#runTitle').textContent = 'Siguiendo el volante…';
+    for (let ti = 0; ti < todo.length; ti++) {
+      const k = todo[ti]; if (k < next) continue;
+      if (S.cancel) { job.stop(true); setStep(2); return 'cancel'; }
+      const st = () => ({ frames, next: frames.length, found: c.found, sh: { n, x: Array.from(shx), y: Array.from(shy), next: k } });
+      if (document.hidden) { await job.pause(st()); ti--; continue; }
+      if (done && done % 150 === 0) job.save(st());
+      // los dos fotogramas anteriores hacen falta como contexto
+      if (k - lastK !== 1) { buf.length = 0; for (const kk of [k - 2, k - 1]) { if (kk < 0) continue; await seek(v, a + (kk + 0.5) / FPS); buf.push(grabSmall(BS.scaleT(STAB.estimate(rawGray()).T, W / 480))); } }
+      await seek(v, a + (k + 0.5) / FPS); // a mitad del fotograma: así no se repite ni se salta ninguno
+      if (document.hidden) { ti--; lastK = -9; continue; }
+      const T = BS.scaleT(STAB.estimate(rawGray()).T, W / 480);
+      buf.push(grabSmall(T)); while (buf.length > 3) buf.shift(); lastK = k;
+      if (buf.length === 3) {
+        const inp = new Float32Array(3 * IW * IH); inp.set(buf[0], 0); inp.set(buf[1], IW * IH); inp.set(buf[2], 2 * IW * IH);
+        const r = await sess.run({ input: new window.ort.Tensor('float32', inp, [1, 3, IH, IW]) });
+        const h = r.heat.getData ? await r.heat.getData() : r.heat.data; const bl = blob(h);
+        if (bl) { shx[k] = bl.x / sc; shy[k] = bl.y / sc; }
+      }
+      done++;
+      if (done % 4 === 0 || ti === todo.length - 1) {
+        const el = (performance.now() - t0) / 1000, per = el / Math.max(1, done), rest = per * (todo.length - ti - 1);
+        const pct = Math.round((ti + 1) / todo.length * 100);
+        $('#runBar').style.width = pct + '%';
+        $('#runEta').textContent = `Paso 2 de 2 · ${pct} % · quedan ${rest < 90 ? Math.round(rest) + ' s' : rest < 5400 ? Math.round(rest / 60) + ' min' : (rest / 3600).toFixed(1) + ' h'}`;
+        $('#runInfo').textContent = `Motor: ${tnEP === 'webgpu' ? 'tarjeta gráfica del móvil' : 'procesador (lento)'} · ${Math.round(per * 1000)} ms por fotograma · se saltan las pausas entre puntos (${Math.round(skipped * 100)} % del vídeo).${lowBat ? ' Batería baja: conviene enchufar el móvil.' : ''}`;
+        rc.drawImage(v, 0, 0, rc.canvas.width, rc.canvas.height);
+        rc.fillStyle = '#ffe678'; for (let j = Math.max(0, k - 12); j <= k; j++) if (Number.isFinite(shx[j])) { rc.beginPath(); rc.arc(shx[j], shy[j], Math.max(4, W / 220), 0, 7); rc.fill(); }
+        await new Promise((r2) => setTimeout(r2, 0));
+      }
+    }
+    try { await tnSession.release(); } catch (e) {} tnSession = null; // libera la memoria de la tarjeta gráfica
+    return { fps: FPS, n, x: Array.from(shx, (q) => (Number.isFinite(q) ? Math.round(q * 10) / 10 : null)), y: Array.from(shy, (q) => (Number.isFinite(q) ? Math.round(q * 10) / 10 : null)), skipped, ep: tnEP };
   }
   // Trabajo en curso: pantalla encendida, pausa en segundo plano y copia del progreso para retomarlo
   function startJob(resume, cfg) {
@@ -2567,7 +3028,7 @@ body.noscroll { overflow: hidden; }
     let saving = null, last = 0;
     const save = (st) => {
       if (saving) return saving;
-      const rec = { cfg, info, videoKey: info.videoKey, frames: st.frames, next: st.next, found: st.found, thumbs: st.thumbs, total: st.total || null, date: Date.now() };
+      const rec = { cfg, info, videoKey: info.videoKey, frames: st.frames, next: st.next, found: st.found, thumbs: st.thumbs, sh: st.sh || null, total: st.total || null, date: Date.now() };
       saving = DB.put('job', 'run', rec).catch(() => {}).then(() => { saving = null; last = Date.now(); });
       return saving;
     };
@@ -2752,15 +3213,22 @@ body.noscroll { overflow: hidden; }
     // Transformación imagen -> lienzo (object-fit: contain)
     function fit() { const s = Math.min(cv.width / track.width, cv.height / track.height); return { s, ox: (cv.width - track.width * s) / 2, oy: (cv.height - track.height * s) / 2 }; }
     function drawDemoScene(tt) { return paintDemoMatch(ctx, cv.width, cv.height, tt); }
+    // El vídeo se endereza igual que durante el análisis, así las líneas y los esqueletos coinciden aunque la cámara se mueva
+    function stabVideo() {
+      if (!video) return; const f = track.frames[frameAt(track, t)], T = f && f.T; if (!T) { video.style.transform = ''; return; }
+      const d = cv.width / (stage.clientWidth || cv.width), { s, ox, oy } = fit(), S2 = s / d, X = ox / d, Y = oy / d;
+      video.style.transformOrigin = '0 0';
+      video.style.transform = `matrix(${T[0]},${T[3]},${T[1]},${T[4]},${X + S2 * T[2] - (T[0] * X + T[1] * Y)},${Y + S2 * T[5] - (T[3] * X + T[4] * Y)})`;
+    }
     function draw() {
-      ctx.clearRect(0, 0, cv.width, cv.height);
+      ctx.clearRect(0, 0, cv.width, cv.height); stabVideo();
       if (demo) drawDemoScene(t);
       else if (opt.court || opt.skel) {
         const { s, ox, oy } = fit();
         if (opt.court) drawCourtLines(ctx, court2img, s, 'rgba(255,255,255,.55)', Math.max(1.5, 2 * s), ox, oy);
         if (opt.skel) { const f = track.frames[frameAt(track, t)]; if (f && Math.abs(f.t - t) < 0.3) f.p.forEach((pl, p) => pl && drawSkeleton(ctx, pl.img, s, p === S.me ? '#e8962c' : '#8592ff', Math.max(2.5, 3.5 * s), ox, oy)); }
       }
-      if (opt.shuttle && res.shuttle) drawShuttle();
+      if (opt.shuttle && track.sh30 && !demo) drawShuttle30(); else if (opt.shuttle && res.shuttle) drawShuttle();
       drawMini(); drawPlayhead();
       // golpe actual
       const hs = res.hits; let cur = -1; for (let i = 0; i < hs.length; i++) { if (hs[i].t <= t + 0.02) cur = i; else break; }
@@ -2774,6 +3242,14 @@ body.noscroll { overflow: hidden; }
       ctx.save(); ctx.lineCap = 'round';
       let prev = null; for (let j = Math.max(0, i - 8); j <= i; j++) { const q = pos[j]; if (!q || track.frames[j].t > t + 0.05) { prev = null; continue; } const P3 = P2(q); if (prev) { ctx.strokeStyle = `rgba(255,230,120,${0.25 + 0.6 * (j - i + 8) / 8})`; ctx.lineWidth = Math.max(2, 3 * s); ctx.beginPath(); ctx.moveTo(...prev); ctx.lineTo(...P3); ctx.stroke(); } prev = P3; }
       const q = pos[i]; if (q && Math.abs(track.frames[i].t - t) < 0.15) { ctx.fillStyle = '#ffe678'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(...P2(q), Math.max(4, 6 * s), 0, 7); ctx.fill(); ctx.stroke(); }
+      ctx.restore();
+    }
+    // Modo preciso: volante seguido por el modelo, fotograma a fotograma
+    function drawShuttle30() {
+      const S3 = track.sh30, k = Math.round(t * S3.fps), { s, ox, oy } = fit(), P2 = (j) => [ox + S3.x[j] * s, oy + S3.y[j] * s], has = (j) => j >= 0 && j < S3.n && S3.x[j] != null;
+      ctx.save(); ctx.lineCap = 'round'; ctx.lineWidth = Math.max(2, 3 * s);
+      for (let j = Math.max(1, k - 10); j <= k; j++) { if (!has(j) || !has(j - 1)) continue; ctx.strokeStyle = `rgba(255,230,120,${0.2 + 0.7 * (j - k + 10) / 10})`; ctx.beginPath(); ctx.moveTo(...P2(j - 1)); ctx.lineTo(...P2(j)); ctx.stroke(); }
+      if (has(k)) { ctx.fillStyle = '#ffe678'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(...P2(k), Math.max(4, 6 * s), 0, 7); ctx.fill(); ctx.stroke(); }
       ctx.restore();
     }
     function drawMini() {
@@ -2955,7 +3431,7 @@ body.noscroll { overflow: hidden; }
     const myHits = (cmp ? res.hits : res.hits.filter((h) => h.p === sel)).filter((h) => h.valid);
     const nV = res.rallies.filter((r) => r.valid).length, nX = res.rallies.length - nV;
     root.innerHTML = `
-    <div class="res-top"><div><h2>${tr.demo ? 'Partido de demostración' : 'Tu partido'}</h2><p class="muted">${mmss(tr.duration)} analizados · ${nV} puntos${nX ? ` (${nX} ${nX === 1 ? 'peloteo descartado' : 'peloteos descartados'})` : ''} · ${res.hits.filter((h) => h.valid).length} golpes${tr.demo ? ' · datos simulados' : ''}</p></div>
+    <div class="res-top"><div><h2>${tr.demo ? 'Partido de demostración' : 'Tu partido'}</h2><p class="muted">${tr.demo ? '' : tr.precise ? '<b>Análisis preciso</b> (volante seguido con IA) · ' : 'Análisis rápido · '}${mmss(tr.duration)} analizados · ${nV} puntos${nX ? ` (${nX} ${nX === 1 ? 'peloteo descartado' : 'peloteos descartados'})` : ''} · ${res.hits.filter((h) => h.valid).length} golpes${tr.demo ? ' · datos simulados' : ''}</p></div>
       <div class="row"><div class="seg" id="selSeg"><button data-v="${me}" aria-pressed="${S.sel === me}">Tú</button><button data-v="${op}" aria-pressed="${S.sel === op}">Rival</button><button data-v="cmp" aria-pressed="${cmp}">Comparar</button></div>
       <span class="small muted">Detección de golpes:</span><div class="seg" id="resSens" title="Sensibilidad para detectar golpes"><button data-v="low" aria-pressed="${res.sens === 'low'}">Baja</button><button data-v="normal" aria-pressed="${res.sens === 'normal'}">Normal</button><button data-v="high" aria-pressed="${res.sens === 'high'}">Alta</button></div></div></div>
     <div class="card fixbar"><details><summary><b>¿Algo mal detectado?</b> <span class="small muted">Cómo corregirlo</span></summary><span class="small muted">En "Golpes uno a uno" puedes cambiar el tipo de un golpe o quitarlo; con "+ Golpe" en la repetición añades uno que falte. En "Puntos jugados" puedes marcar si un peloteo es un punto o no: solo los puntos cuentan en las estadísticas. La sensibilidad (arriba) cambia cuántos golpes se detectan.${res.ignored ? ` Se han ignorado ${res.ignored} detecciones de personas fuera de su media pista o que no encajaban (por ejemplo, alguien pasando).` : ''}${res.noValid ? ' <b>No se ha reconocido ningún punto con saque: se usan todos los golpes.</b>' : ''}</span></details>${nMEdits(tr) ? `<button class="btn" id="undoEdits">Deshacer ${nMEdits(tr)} ${nMEdits(tr) === 1 ? 'corrección' : 'correcciones'}</button>` : ''}</div>
@@ -3091,7 +3567,7 @@ body.noscroll { overflow: hidden; }
     const s = H / b.hh, ox = W / 2 - b.cx * s, oy = H / 2 - b.cy * s;
     c.fillStyle = '#0a1511'; c.fillRect(0, 0, W, H);
     if (S.demo) { c.save(); c.translate(ox, oy); c.scale(s, s); paintDemoMatch(c, S.track.width, S.track.height, h.t); c.restore(); drawSkeleton(c, S.demo.skeletonAt(h.p, h.t).img, s, h.p === S.me ? '#e8962c' : '#8592ff', Math.max(2.5, 4 * s), ox, oy); }
-    else if (src) { const k = S.track.width / src.videoWidth; c.drawImage(src, ox, oy, src.videoWidth * k * s, src.videoHeight * k * s); drawSkeleton(c, b.pl.img, s, h.p === S.me ? '#e8962c' : '#8592ff', Math.max(2.5, 3 * s), ox, oy); }
+    else if (src) { const k = S.track.width / src.videoWidth, T = S.track.frames[h.i] && S.track.frames[h.i].T; c.save(); c.translate(ox, oy); c.scale(s, s); if (T) c.transform(T[0], T[3], T[1], T[4], T[2], T[5]); c.drawImage(src, 0, 0, src.videoWidth * k, src.videoHeight * k); c.restore(); drawSkeleton(c, b.pl.img, s, h.p === S.me ? '#e8962c' : '#8592ff', Math.max(2.5, 3 * s), ox, oy); }
   }
   async function pumpThumbs() {
     if (thumbBusy || !S.url) return; thumbBusy = true;
