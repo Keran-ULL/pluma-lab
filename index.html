@@ -296,6 +296,8 @@ body.noscroll { overflow: hidden; }
 .btn.icon { padding: 8px 12px; flex: none; }
 .novid { margin: 0 auto 12px; max-width: 1100px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .traj-chips { margin-top: 4px; }
+.gpu-steps { margin: 6px 0 4px 18px; padding: 0; display: grid; gap: 3px; }
+.gpu-steps code { font-size: 12px; background: var(--surface-2); padding: 1px 5px; border-radius: 5px; }
 
 </style>
 
@@ -448,7 +450,7 @@ body.noscroll { overflow: hidden; }
       </div>
     </div>
   </div>
-  <p class="small muted" style="text-align:center">Versión 7 · 27 de octubre de 2026</p>
+  <p class="small muted" style="text-align:center">Versión 8 · 28 de octubre de 2026</p>
 </section>
 
 <!-- ===== RESULTADOS ===== -->
@@ -933,7 +935,11 @@ body.noscroll { overflow: hidden; }
     // (0,25–2,2 s entre golpes); un hueco >2,4 s permite empezar un punto nuevo con cualquiera.
     const COST = { low: 1.1, normal: 0.9, high: 0.6 }[sens];
     // Modo preciso: los golpes salen de la trayectoria del volante (modelo TrackNet a 30 fps)
-    const SH30 = track.sh30 && G.BSH ? track.sh30 : null;
+    let SH30 = track.sh30 && G.BSH ? track.sh30 : null, shCov = null, shWeak = false;
+    if (SH30) { // ¿se ha visto el volante lo suficiente? Si no, se usan los golpes del modo rápido
+      const seen = SH30.x.filter((q) => q != null).length; shCov = seen / Math.max(1, SH30.n * (1 - (SH30.skipped || 0)));
+      if (shCov < 0.15) { SH30 = null; shWeak = true; }
+    }
     const poseIdx = (tt) => { let lo = 0, hi = n - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (t[m] < tt) lo = m + 1; else hi = m; } if (lo > 0 && Math.abs(t[lo - 1] - tt) < Math.abs(t[lo] - tt)) lo--; return lo; };
     let SHC = null;
     if (SH30) {
@@ -1270,7 +1276,7 @@ body.noscroll { overflow: hidden; }
     const longest = vr.length ? vr.reduce((a, b) => (b.n > a.n ? b : a)) : null;
     const highestJump = hits.filter((h) => h.jump && h.valid).reduce((a, b) => (!a || b.jump > a.jump ? b : a), null);
     return {
-      version: 2, sens, ignored, noValid, inPlay, duration: dur, nFrames: n, dt, fps: 1 / dt, hits, rallies, players, shuttle: shOK ? { pos: SH.pos } : null, shAdded, shRemoved,
+      version: 2, sens, ignored, shCov, shWeak, noValid, inPlay, duration: dur, nFrames: n, dt, fps: 1 / dt, hits, rallies, players, shuttle: shOK ? { pos: SH.pos } : null, shAdded, shRemoved,
       highlights: { fastest, longest, highestJump },
       series: { t, X: P.map((q) => q.X), Y: P.map((q) => q.Y), spd: P.map((q) => q.spd), ws: P.map((q) => q.ws) },
     };
@@ -2637,8 +2643,12 @@ body.noscroll { overflow: hidden; }
     // Lupa: lejos del dedo, con la pista dibujada y una cruz en el punto exacto
     const lp = drag >= 0 && C.pts[drag];
     if (lp) {
-      const px = lp[0] * k, py = lp[1] * k, R = Math.round(cv.width / 7), Z = 4, mg = 14;
-      const zx = px < cv.width / 2 ? cv.width - R - mg : R + mg, zy = py > cv.height / 2 ? R + mg + cv.height * 0.07 : cv.height - R - mg;
+      // La lupa no tapa el texto de ayuda: si va arriba, empieza justo debajo del texto (y se encoge si hace falta)
+      const tipEl = $('#calibTip'), sc2 = cv.width / (cv.clientWidth || cv.width), mg = 14;
+      const tipBottom = tipEl && !tipEl.hidden ? (tipEl.offsetTop + tipEl.offsetHeight) * sc2 : 0;
+      const px = lp[0] * k, py = lp[1] * k, Z = 4, top = py > cv.height / 2;
+      const R = Math.round(Math.max(cv.width / 14, Math.min(cv.width / 7, top ? (cv.height - tipBottom - 2 * mg) / 2 * 0.92 : (cv.height - 2 * mg) / 2)));
+      const zx = px < cv.width / 2 ? cv.width - R - mg : R + mg, zy = top ? tipBottom + mg + R : cv.height - R - mg;
       out.save(); out.beginPath(); out.arc(zx, zy, R, 0, 7); out.clip(); out.fillStyle = '#000'; out.fillRect(zx - R, zy - R, 2 * R, 2 * R);
       out.drawImage(v, (px - R / Z) / k, (py - R / Z) / k, 2 * R / Z / k, 2 * R / Z / k, zx - R, zy - R, 2 * R, 2 * R); // vídeo limpio, sin marcas encima
       out.strokeStyle = '#ff3b6b'; out.lineWidth = 2; out.beginPath(); out.moveTo(zx - R, zy); out.lineTo(zx - 8, zy); out.moveTo(zx + 8, zy); out.lineTo(zx + R, zy); out.moveTo(zx, zy - R); out.lineTo(zx, zy - 8); out.moveTo(zx, zy + 8); out.lineTo(zx, zy + R); out.stroke(); out.restore();
@@ -2709,7 +2719,7 @@ body.noscroll { overflow: hidden; }
     const gpu = await gpuOk();
     info.innerHTML = gpu
       ? 'Preciso: un modelo de IA sigue el volante en cada fotograma y de ahí salen los golpes, quién los da y de qué tipo son. <b>Tarda mucho más</b> (ver la duración estimada); déjalo cargando y con la app abierta. Si sales de la app se pausa y sigue al volver.'
-      : '<b>Este navegador no deja usar la tarjeta gráfica</b>, así que el modo preciso iría muy lento (horas por cada minuto de vídeo). Usa Chrome actualizado en Android, o abre la app en un ordenador con Chrome o Edge.';
+      : gpuHelp();
   }));
   $('#trimA').oninput = updateTrim; $('#trimB').oninput = updateTrim;
   const startMatch = (resume) => runVideo(resume).catch((e) => { console.error(e); showErr(`<b>No se pudo completar el análisis.</b> ${esc(e.message || e)}<br><span class="small muted">Puedes probar el partido de demostración para ver cómo funciona.</span>`); setStep(2); S.running = false; });
@@ -2918,6 +2928,17 @@ body.noscroll { overflow: hidden; }
   }
 
   /* ---------- Modo preciso: modelo del volante (TrackNet) ---------- */
+  // Pasos para activar la tarjeta gráfica (WebGPU) según el móvil
+  function gpuHelp() {
+    const ua = navigator.userAgent, ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && 'ontouchend' in document), android = /Android/.test(ua);
+    const head = '<b>La tarjeta gráfica está desactivada en este navegador.</b> Sin ella el modo preciso va muy lento (horas por cada minuto de vídeo). Con ella, unas 8 veces más rápido. La app instalada usa el navegador con el que la instalaste, así que se activa ahí:';
+    const steps = ios
+      ? '<ol class="gpu-steps"><li>Con iOS 26 o posterior ya viene activada: actualiza en Ajustes › General › Actualización de software.</li><li>Con una versión anterior: Ajustes › Apps › Safari › Avanzado › Feature Flags › activa <b>WebGPU</b>.</li><li>Cierra Safari y Pluma Lab del todo (también de las apps recientes) y vuelve a abrir.</li></ol>'
+      : android
+        ? '<ol class="gpu-steps"><li>Actualiza Chrome en Play Store.</li><li>Abre Chrome, escribe <code>chrome://flags</code> en la barra de direcciones y busca <b>Unsafe WebGPU Support</b>.</li><li>Ponlo en <b>Enabled</b> y pulsa <b>Relaunch</b>.</li><li>Cierra Pluma Lab del todo (también de las apps recientes) y vuelve a abrirla.</li></ol><p class="small muted">Si usas otro navegador (Samsung Internet, Firefox…), prueba con Chrome.</p>'
+        : '<ol class="gpu-steps"><li>Usa Chrome o Edge actualizados.</li><li>Si aun así no va: escribe <code>chrome://flags</code> (o <code>edge://flags</code>), busca <b>Unsafe WebGPU Support</b>, ponlo en <b>Enabled</b> y reinicia el navegador.</li></ol>';
+    return head + steps;
+  }
   const ORT_VER = '1.23.0', ORT_CDN = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VER}/dist/`;
   let ortReady = null, tnSession = null, tnEP = null;
   async function gpuOk() { try { return !!(navigator.gpu && await navigator.gpu.requestAdapter()); } catch (e) { return false; } }
@@ -2971,8 +2992,20 @@ body.noscroll { overflow: hidden; }
     const todo = []; for (let k = 0; k < n; k++) { const t = k / FPS; if (ranges.some(([s, e]) => t >= s && t <= e)) todo.push(k); }
     const skipped = 1 - todo.length / n;
     const IW = 512, IH = 288, cv = document.createElement('canvas'); cv.width = IW; cv.height = IH; const cx = cv.getContext('2d', { willReadFrequently: true }); cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
-    const sc = IW / W, buf = [], heat = new Uint8Array(IW * IH), lab = new Int32Array(IW * IH);
-    const grabSmall = (T) => { cx.setTransform(sc * T[0], sc * T[3], sc * T[1], sc * T[4], sc * T[2], sc * T[5]); cx.fillStyle = '#000'; cx.fillRect(-IW, -IH, 3 * IW / sc, 3 * IH / sc); cx.drawImage(v, 0, 0, W, H); cx.setTransform(1, 0, 0, 1, 0, 0); const d = cx.getImageData(0, 0, IW, IH).data, g = new Float32Array(IW * IH); for (let j = 0; j < g.length; j++) g[j] = (d[j * 4] * 0.299 + d[j * 4 + 1] * 0.587 + d[j * 4 + 2] * 0.114) / 255; return g; };
+    // Ventana 16:9 que ve el modelo. En vídeos apaisados es el fotograma entero (como en su entrenamiento).
+    // En vídeos verticales o cuadrados se recorta la zona de la pista (más el aire por encima) sin deformarla,
+    // con la pista a un tamaño parecido al de los vídeos con los que se entrenó el modelo.
+    const win = (() => {
+      if (W / H >= 1.6) return { x: 0, y: 0, w: W, h: W * 9 / 16 };
+      const cs = [[0, 0], [COURT.W, 0], [COURT.W, COURT.L], [0, COURT.L]].map(([x, y]) => applyH(court2img, x, y));
+      const x0 = Math.min(...cs.map((q) => q[0])), x1 = Math.max(...cs.map((q) => q[0])), yb = Math.max(...cs.map((q) => q[1])), yf = Math.min(...cs.map((q) => q[1]));
+      const near = Math.hypot(cs[1][0] - cs[0][0], cs[1][1] - cs[0][1]);
+      const top = yf - (yb - yf) * 0.9, bw = (x1 - x0) * 1.08, bh = yb - top + 20;
+      const w = Math.max(bw, bh * 16 / 9, near / 0.65), h = w * 9 / 16;
+      return { x: (x0 + x1) / 2 - w / 2, y: Math.min(yb + 20 - h, (top + yb) / 2 - h / 2) , w, h };
+    })();
+    const sc = IW / win.w, buf = [], heat = new Uint8Array(IW * IH), lab = new Int32Array(IW * IH);
+    const grabSmall = (T) => { cx.setTransform(sc * T[0], sc * T[3], sc * T[1], sc * T[4], sc * (T[2] - win.x), sc * (T[5] - win.y)); cx.fillStyle = '#000'; cx.fillRect(-W, -H, 3 * W, 3 * H); cx.drawImage(v, 0, 0, W, H); cx.setTransform(1, 0, 0, 1, 0, 0); const d = cx.getImageData(0, 0, IW, IH).data, g = new Float32Array(IW * IH); for (let j = 0; j < g.length; j++) g[j] = (d[j * 4] * 0.299 + d[j * 4 + 1] * 0.587 + d[j * 4 + 2] * 0.114) / 255; return g; };
     const blob = (h) => { // mancha más grande por encima de 0,5
       for (let j = 0; j < h.length; j++) heat[j] = h[j] > 0.5 ? 1 : 0;
       lab.fill(0); let best = null, id = 0;
@@ -2999,7 +3032,7 @@ body.noscroll { overflow: hidden; }
         const inp = new Float32Array(3 * IW * IH); inp.set(buf[0], 0); inp.set(buf[1], IW * IH); inp.set(buf[2], 2 * IW * IH);
         const r = await sess.run({ input: new window.ort.Tensor('float32', inp, [1, 3, IH, IW]) });
         const h = r.heat.getData ? await r.heat.getData() : r.heat.data; const bl = blob(h);
-        if (bl) { shx[k] = bl.x / sc; shy[k] = bl.y / sc; }
+        if (bl) { shx[k] = bl.x / sc + win.x; shy[k] = bl.y / sc + win.y; }
       }
       done++;
       if (done % 4 === 0 || ti === todo.length - 1) {
@@ -3007,7 +3040,7 @@ body.noscroll { overflow: hidden; }
         const pct = Math.round((ti + 1) / todo.length * 100);
         $('#runBar').style.width = pct + '%';
         $('#runEta').textContent = `Paso 2 de 2 · ${pct} % · quedan ${rest < 90 ? Math.round(rest) + ' s' : rest < 5400 ? Math.round(rest / 60) + ' min' : (rest / 3600).toFixed(1) + ' h'}`;
-        $('#runInfo').textContent = `Motor: ${tnEP === 'webgpu' ? 'tarjeta gráfica del móvil' : 'procesador (lento)'} · ${Math.round(per * 1000)} ms por fotograma · se saltan las pausas entre puntos (${Math.round(skipped * 100)} % del vídeo).${lowBat ? ' Batería baja: conviene enchufar el móvil.' : ''}`;
+        $('#runInfo').textContent = `Motor: ${tnEP === 'webgpu' ? 'tarjeta gráfica del móvil' : 'procesador (lento)'} · ${Math.round(per * 1000)} ms por fotograma · se saltan las pausas entre puntos (${Math.round(skipped * 100)} % del vídeo).${lowBat ? ' Batería baja: conviene enchufar el móvil.' : ''}${tnEP !== 'webgpu' ? ' Va lento porque no se está usando la tarjeta gráfica: cancela y mira en Ajustes, en "Tipo de análisis", cómo activarla.' : ''}`;
         rc.drawImage(v, 0, 0, rc.canvas.width, rc.canvas.height);
         rc.fillStyle = '#ffe678'; for (let j = Math.max(0, k - 12); j <= k; j++) if (Number.isFinite(shx[j])) { rc.beginPath(); rc.arc(shx[j], shy[j], Math.max(4, W / 220), 0, 7); rc.fill(); }
         await new Promise((r2) => setTimeout(r2, 0));
@@ -3431,7 +3464,7 @@ body.noscroll { overflow: hidden; }
     const myHits = (cmp ? res.hits : res.hits.filter((h) => h.p === sel)).filter((h) => h.valid);
     const nV = res.rallies.filter((r) => r.valid).length, nX = res.rallies.length - nV;
     root.innerHTML = `
-    <div class="res-top"><div><h2>${tr.demo ? 'Partido de demostración' : 'Tu partido'}</h2><p class="muted">${tr.demo ? '' : tr.precise ? '<b>Análisis preciso</b> (volante seguido con IA) · ' : 'Análisis rápido · '}${mmss(tr.duration)} analizados · ${nV} puntos${nX ? ` (${nX} ${nX === 1 ? 'peloteo descartado' : 'peloteos descartados'})` : ''} · ${res.hits.filter((h) => h.valid).length} golpes${tr.demo ? ' · datos simulados' : ''}</p></div>
+    <div class="res-top"><div><h2>${tr.demo ? 'Partido de demostración' : 'Tu partido'}</h2><p class="muted">${tr.demo ? '' : tr.precise ? (res.shWeak ? `<b>Análisis preciso fallido</b>: el volante solo se vio en el ${Math.round((res.shCov || 0) * 100)} % del vídeo, así que los golpes salen del modo rápido · ` : `<b>Análisis preciso</b> (volante visto en el ${Math.round((res.shCov || 0) * 100)} % de los fotogramas con juego) · `) : 'Análisis rápido · '}${mmss(tr.duration)} analizados · ${nV} puntos${nX ? ` (${nX} ${nX === 1 ? 'peloteo descartado' : 'peloteos descartados'})` : ''} · ${res.hits.filter((h) => h.valid).length} golpes${tr.demo ? ' · datos simulados' : ''}</p></div>
       <div class="row"><div class="seg" id="selSeg"><button data-v="${me}" aria-pressed="${S.sel === me}">Tú</button><button data-v="${op}" aria-pressed="${S.sel === op}">Rival</button><button data-v="cmp" aria-pressed="${cmp}">Comparar</button></div>
       <span class="small muted">Detección de golpes:</span><div class="seg" id="resSens" title="Sensibilidad para detectar golpes"><button data-v="low" aria-pressed="${res.sens === 'low'}">Baja</button><button data-v="normal" aria-pressed="${res.sens === 'normal'}">Normal</button><button data-v="high" aria-pressed="${res.sens === 'high'}">Alta</button></div></div></div>
     <div class="card fixbar"><details><summary><b>¿Algo mal detectado?</b> <span class="small muted">Cómo corregirlo</span></summary><span class="small muted">En "Golpes uno a uno" puedes cambiar el tipo de un golpe o quitarlo; con "+ Golpe" en la repetición añades uno que falte. En "Puntos jugados" puedes marcar si un peloteo es un punto o no: solo los puntos cuentan en las estadísticas. La sensibilidad (arriba) cambia cuántos golpes se detectan.${res.ignored ? ` Se han ignorado ${res.ignored} detecciones de personas fuera de su media pista o que no encajaban (por ejemplo, alguien pasando).` : ''}${res.noValid ? ' <b>No se ha reconocido ningún punto con saque: se usan todos los golpes.</b>' : ''}</span></details>${nMEdits(tr) ? `<button class="btn" id="undoEdits">Deshacer ${nMEdits(tr)} ${nMEdits(tr) === 1 ? 'corrección' : 'correcciones'}</button>` : ''}</div>
