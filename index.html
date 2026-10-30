@@ -264,6 +264,9 @@ table.t th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; 
 .checks { display: grid; gap: 8px; }
 
 .alt-box { border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 12px; padding: 12px; display: grid; gap: 8px; }
+.seed-box { border: 1px solid var(--line, rgba(127,127,127,.3)); border-radius: 12px; padding: 10px 12px; display: grid; gap: 4px; }
+.seed-box p { margin: 0; }
+#seedBtn[aria-pressed="true"] { background: var(--accent); color: #fff; }
 .nudge { display: flex; gap: 6px; }
 .nudge .icon-btn { font-size: 18px; font-weight: 800; }
 .nudge .icon-btn:disabled { opacity: .35; }
@@ -298,6 +301,25 @@ body.noscroll { overflow: hidden; }
 .traj-chips { margin-top: 4px; }
 .gpu-steps { margin: 6px 0 4px 18px; padding: 0; display: grid; gap: 3px; }
 .gpu-steps code { font-size: 12px; background: var(--surface-2); padding: 1px 5px; border-radius: 5px; }
+
+/* Informe del jugador */
+.scout-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.scout-box { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--surface); }
+.scout-box h4 { margin: 0 0 6px; }
+.scout-box.good { border-left: 5px solid #2f9e6b; } .scout-box.bad { border-left: 5px solid #d9534f; } .scout-box.adv { border-left: 5px solid var(--accent); }
+.scout-list { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.nchip { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-left: 4px; white-space: nowrap; background: var(--surface-2); color: var(--muted, #667); }
+.nchip.alta { background: rgba(47,158,107,.15); color: #1f7a50; } .nchip.media { background: rgba(232,150,44,.18); color: #9a5b10; } .nchip.baja { background: rgba(217,83,79,.14); color: #a8322e; }
+.scout-more { margin-top: 12px; } .scout-more summary { cursor: pointer; font-weight: 700; }
+.scout-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 6px 0 14px; }
+.scout-table th, .scout-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.scout-table th { font-size: 12px; color: var(--muted, #667); font-weight: 700; }
+.zone-svg { max-width: 320px; width: 100%; }
+.combo { display: grid; gap: 8px; margin-top: 10px; } .combo-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#darkOv { position: fixed; inset: 0; background: #000; z-index: 9999; display: grid; place-items: center; text-align: center; color: #555; padding: 24px; }
+#darkOv[hidden] { display: none; }
+#darkOv p { margin: 6px 0; }
+.doubt-acts { gap: 6px; margin-top: 6px; } .doubt-acts .btn { padding: 6px 10px; font-size: 13px; }
 
 </style>
 
@@ -376,25 +398,31 @@ body.noscroll { overflow: hidden; }
       </div>
       <!-- Paso 1: calibración -->
       <div id="p-calib" style="display:grid;gap:12px">
-        <div><h3>Marca 4 puntos de la pista</h3><p class="muted small">Toca las 4 esquinas en orden. Mientras arrastras un punto verás una lupa; después puedes afinarlo con las flechas. Si una esquina no se ve, cámbiala por otro cruce de líneas del mismo lateral.</p></div>
+        <div><h3>Marca 4 puntos de la pista</h3><p class="muted small">Toca las 4 esquinas en orden. Mientras arrastras un punto verás una lupa; después puedes afinarlo con las flechas. Si una esquina no se ve, cámbiala por otro cruce de líneas del mismo lateral o por la base de un poste de la red. En pabellones con líneas de varios deportes, fíjate en las de bádminton (las que pasan justo por debajo de los postes) y usa «Realzar líneas».</p></div>
+        <p class="note small" id="vidNote" hidden>Vídeo en vertical: se puede analizar, pero la próxima vez graba en horizontal, con el móvil quieto (apoyado o en trípode) y la pista entera a la vista. Se verán mejor las líneas, los jugadores y el volante.</p>
+        <div class="row"><span class="small muted">Dónde está la cámara:</span><div class="seg" id="camView"><button type="button" data-v="back" aria-pressed="true">Detrás de un fondo</button><button type="button" data-v="side" aria-pressed="false">En un lateral</button></div></div>
         <div class="row"><span class="small muted">Líneas que vas a marcar:</span><div class="seg" id="lineMode"><button type="button" data-v="d" aria-pressed="true">Dobles (exteriores)</button><button type="button" data-v="s" aria-pressed="false">Individual (laterales interiores)</button></div></div>
         <div class="calib-wrap" id="calibWrap"><canvas id="calibCv" width="1280" height="720"></canvas><div class="calib-tip" id="calibTip"><span class="n">1</span><span>Esquina cercana izquierda</span></div></div>
-        <div class="alt-box" id="altBox" hidden><b id="altTitle"></b><div class="chips" id="altChips"></div><p class="small muted">Los puntos que no son esquinas se dibujan en azul.</p></div>
+        <div class="alt-box" id="altBox" hidden><b id="altTitle"></b><div class="chips" id="altChips"></div><div class="row" id="altFree" style="margin-top:8px"></div><p class="small muted">Los puntos que no son esquinas se dibujan en azul.</p></div>
         <div class="row"><span class="small muted" id="selTxt"></span><span style="flex:1"></span><div class="nudge" id="nudge"><button class="icon-btn" type="button" data-d="-1,0" aria-label="Mover a la izquierda">←</button><button class="icon-btn" type="button" data-d="0,-1" aria-label="Mover arriba">↑</button><button class="icon-btn" type="button" data-d="0,1" aria-label="Mover abajo">↓</button><button class="icon-btn" type="button" data-d="1,0" aria-label="Mover a la derecha">→</button></div></div>
+        <div class="seed-box" id="seedBox" hidden><div class="row"><button class="btn" type="button" id="seedBtn" aria-pressed="false">Marcar a los jugadores</button><span class="small" id="seedTxt"></span></div><p class="small muted">Recomendado. Toca los pies de cada jugador (uno en cada campo). Así la app no los confunde con el juez de silla, el público o la gente de las pistas de al lado.</p></div>
         <div class="field"><label for="scrub">Elige un fotograma donde se vean bien las líneas</label><input type="range" id="scrub" class="range" min="0" max="1000" value="0"></div>
-        <div class="row"><button class="btn" id="undoPt">Deshacer punto</button><button class="btn" id="resetPt">Empezar de nuevo</button><button class="btn" id="hiddenPt">Un punto no se ve</button><span style="flex:1"></span><button class="btn primary" id="toSettings" disabled>Continuar</button></div>
+        <div class="row"><button class="btn" id="undoPt">Deshacer punto</button><button class="btn" id="resetPt">Empezar de nuevo</button><button class="btn" id="hiddenPt">Un punto no se ve</button><button class="btn" id="enhBtn" aria-pressed="false" title="Sube el contraste para ver mejor las líneas del suelo">Realzar líneas</button><span style="flex:1"></span><button class="btn primary" id="toSettings" disabled>Continuar</button></div>
       </div>
       <!-- Paso 2: ajustes -->
       <div id="p-settings" hidden style="display:grid;gap:16px">
         <h3>Ajustes del análisis</h3>
         <div class="field"><label>Tipo de análisis</label>
           <div class="seg" id="modeSeg"><button aria-pressed="true" data-v="fast">Rápido</button><button aria-pressed="false" data-v="precise">Preciso: sigue el volante</button></div>
+          <label class="small" style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" id="coolChk"> Modo fresco: hace pausas para que el móvil se caliente menos (tarda un 30–50 % más)</label>
           <p class="small muted" id="modeInfo" style="margin-top:6px">Rápido: detecta los golpes por el movimiento del brazo. Tarda poco, pero falla bastante.</p></div>
         <div class="grid3">
-          <div class="field"><label>¿Dónde juegas tú?</label><div class="seg" id="sideSeg"><button aria-pressed="true" data-v="0">Lado cercano</button><button aria-pressed="false" data-v="1">Lado lejano</button></div></div>
-          <div class="field"><label for="hMe">Tu estatura (cm)</label><input type="number" id="hMe" value="175" min="120" max="220"></div>
-          <div class="field"><label for="hOp">Estatura del rival (cm)</label><input type="number" id="hOp" value="175" min="120" max="220"></div>
-          <div class="field"><label for="handMe">Tu mano de juego</label><select id="handMe"><option value="auto">Detectar sola</option><option value="R">Diestro</option><option value="L">Zurdo</option></select></div>
+          <div class="field"><label>Jugador a analizar</label><div class="seg" id="sideSeg"><button aria-pressed="true" data-v="0">Lado cercano</button><button aria-pressed="false" data-v="1">Lado lejano</button></div><p class="small muted" style="margin-top:4px">El del primer punto del tramo. Si cambian de campo, la app lo sigue por el color de la ropa.</p></div>
+          <div class="field"><label for="nameMe">Nombre del jugador analizado</label><input type="text" id="nameMe" value="Tú" maxlength="24"></div>
+          <div class="field"><label for="nameOp">Nombre del otro jugador</label><input type="text" id="nameOp" value="Rival" maxlength="24"></div>
+          <div class="field"><label for="hMe">Estatura del analizado (cm)</label><input type="number" id="hMe" value="175" min="120" max="220"></div>
+          <div class="field"><label for="hOp">Estatura del otro (cm)</label><input type="number" id="hOp" value="175" min="120" max="220"></div>
+          <div class="field"><label for="handMe">Mano del analizado</label><select id="handMe"><option value="auto">Detectar sola</option><option value="R">Diestro</option><option value="L">Zurdo</option></select></div>
           <div class="field"><label>Precisión</label><div class="seg" id="qSeg"><button aria-pressed="false" data-v="fast">Rápida</button><button aria-pressed="true" data-v="normal">Normal</button><button aria-pressed="false" data-v="high">Alta</button></div></div>
           <div class="field"><label>Duración estimada</label><div class="num" id="etaTxt" style="padding-top:6px">—</div></div>
         </div>
@@ -408,7 +436,7 @@ body.noscroll { overflow: hidden; }
         <div class="progress"><div id="runBar"></div></div>
         <div class="stage"><canvas id="runCv" width="1280" height="720"></canvas><span class="badge" id="runBadge">IA trabajando en tu dispositivo</span></div>
         <p class="muted small" id="runInfo">El primer análisis descarga el modelo de postura (unos 6 MB). Mantén la pantalla encendida.</p>
-        <div class="row"><button class="btn" id="stopRun">Cancelar</button></div>
+        <div class="row"><button class="btn" id="stopRun">Cancelar</button><button class="btn" id="darkBtn">Oscurecer pantalla</button></div><div id="darkOv" hidden><div><p id="darkTxt">Analizando…</p><p class="small">Toca para volver</p></div></div>
       </div>
       <div class="err" id="flowErr" hidden></div>
     </div>
@@ -450,7 +478,7 @@ body.noscroll { overflow: hidden; }
       </div>
     </div>
   </div>
-  <p class="small muted" style="text-align:center">Versión 8 · 28 de octubre de 2026</p>
+  <p class="small muted" style="text-align:center">Versión 13 · 30 de octubre de 2026</p>
 </section>
 
 <!-- ===== RESULTADOS ===== -->
@@ -730,9 +758,13 @@ body.noscroll { overflow: hidden; }
     }
     return d / 2;
   }
+  // Píxeles por metro en un punto de la pista: el eje de la pista que se ve de frente (vale con la cámara detrás o en un lateral)
+  function pxPerM(H, x, y) { const a = applyH(H, x - 0.5, y), b = applyH(H, x + 0.5, y), c = applyH(H, x, y - 0.5), d = applyH(H, x, y + 0.5); return Math.max(Math.hypot(b[0] - a[0], b[1] - a[1]), Math.hypot(d[0] - c[0], d[1] - c[1])); }
   function makeGate(track, court2img, img2court) {
     const W = COURT.W, L = COURT.L, N = COURT.NET;
-    const st = [0, 1].map(() => ({ last: null, refs: [], low: null }));
+    // Colores de la ropa de los jugadores marcados al empezar (sirven para los dos lados: pueden cambiar de campo)
+    const seedCols = (track.seed || []).filter((q) => q && q.col).map((q) => q.col);
+    const st = [0, 1].map(() => ({ last: null, refs: seedCols.slice(), low: null, out: null }));
     function gate(p, pl, col, t) {
       const g = st[p], S = (track.stature && track.stature[p]) || 1.75;
       const la = im(pl, K.lan), ra = im(pl, K.ran), no = im(pl, K.nose);
@@ -741,7 +773,7 @@ body.noscroll { overflow: hidden; }
       if (!Number.isFinite(cx) || !Number.isFinite(cy)) return 'fuera';
       const inHalf = p === 0 ? cy > -1.6 && cy < N + 0.8 : cy < L + 1.6 && cy > N - 0.8;
       if (!inHalf || cx < -1.6 || cx > W + 1.6) return 'fuera';
-      const a = applyH(court2img, cx - 0.5, cy), b = applyH(court2img, cx + 0.5, cy), pxm = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      const pxm = pxPerM(court2img, cx, cy);
       const ratio = Math.hypot(no[0] - ax, no[1] - ay) / (S * pxm);
       if (!(ratio > 0.3 && ratio < 1.9)) return 'tamaño';
       const strictIn = cx > -0.4 && cx < W + 0.4 && (p === 0 ? cy > -0.6 && cy < N : cy > N && cy < L + 0.6);
@@ -749,7 +781,11 @@ body.noscroll { overflow: hidden; }
       if (lost && !strictIn) return 'fuera';
       if (!lost && Math.hypot(cx - g.last.x, cy - g.last.y) > 1.5 + 7 * (t - g.last.t)) return 'salto';
       // La ropa solo se comprueba al volver a encontrar a un jugador perdido (mientras se le sigue, la posición manda)
-      if (lost && col && g.refs.length >= 5 && Math.min(...g.refs.map((r) => colDist(col, r))) > 0.6) return 'ropa';
+      if (lost && col && g.refs.length >= (seedCols.length ? 1 : 5) && Math.min(...g.refs.map((r) => colDist(col, r))) > 0.6) return 'ropa';
+      // Quieto fuera de la pista durante un rato: es el juez de silla, un entrenador o alguien de la grada, no un jugador
+      // (un jugador solo sale de la pista un momento, persiguiendo el volante)
+      const outside = cx < -0.35 || cx > W + 0.35 || (p === 0 ? cy < -0.5 : cy > L + 0.5);
+      if (outside) { if (!g.out || Math.hypot(cx - g.out.x, cy - g.out.y) > 0.7) g.out = { t, x: cx, y: cy }; if (t - g.out.t > 2.0) return 'fuera'; } else g.out = null;
       // Sentado: caderas muy bajas respecto a la cabeza durante un rato, sin moverse del sitio
       if (pl.w) {
         const hipY = (pl.w[K.lhip * 3 + 1] + pl.w[K.rhip * 3 + 1]) / 2, ankY = Math.max(pl.w[K.lan * 3 + 1], pl.w[K.ran * 3 + 1]), noseY = pl.w[K.nose * 3 + 1];
@@ -758,7 +794,7 @@ body.noscroll { overflow: hidden; }
       }
       g.last = { x: cx, y: cy, t };
       // Muestras de su ropa: hasta 24, guardando solo las que aportan algo nuevo
-      if (col && strictIn && !lost && (!g.refs.length || Math.min(...g.refs.map((r) => colDist(col, r))) > 0.12)) { g.refs.push(col); if (g.refs.length > 24) g.refs.shift(); }
+      if (col && strictIn && !lost && (!g.refs.length || Math.min(...g.refs.map((r) => colDist(col, r))) > 0.12) && (!seedCols.length || Math.min(...seedCols.map((r) => colDist(col, r))) < 0.55)) { g.refs.push(col); if (g.refs.length > 24) g.refs.splice(seedCols.length, 1); }
       return '';
     }
     gate.state = st;
@@ -773,7 +809,7 @@ body.noscroll { overflow: hidden; }
     const { img2court, court2img } = courtHomographies(track.corners);
     const dur = n ? t[n - 1] - t[0] : 0;
     const dt = n > 1 ? dur / (n - 1) : 1 / 12;
-    const edits = track.edits || {}; ['add', 'del'].forEach((k) => (edits[k] = edits[k] || [])); edits.type = edits.type || {}; edits.rally = edits.rally || {};
+    const edits = track.edits || {}; ['add', 'del'].forEach((k) => (edits[k] = edits[k] || [])); edits.type = edits.type || {}; edits.rally = edits.rally || {}; edits.ok = edits.ok || [];
     const SENS = { low: 2.2, normal: 1.6, high: 1.2 }, sens = SENS[track.sens] ? track.sens : 'normal';
     // Filtro de personas: solo vale una detección si sus pies caen en su media pista, si su tamaño
     // encaja con lo que debería medir en ese punto de la pista y si no "salta" de sitio de golpe.
@@ -941,16 +977,28 @@ body.noscroll { overflow: hidden; }
       if (shCov < 0.15) { SH30 = null; shWeak = true; }
     }
     const poseIdx = (tt) => { let lo = 0, hi = n - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (t[m] < tt) lo = m + 1; else hi = m; } if (lo > 0 && Math.abs(t[lo - 1] - tt) < Math.abs(t[lo] - tt)) lo--; return lo; };
-    let SHC = null;
+    let SHC = null, pairFn = null;
     if (SH30) {
       const X = Float32Array.from(SH30.x, (q) => (q == null ? NaN : q)), Y = Float32Array.from(SH30.y, (q) => (q == null ? NaN : q));
+      // fuera del espacio de esta pista (otra pista, el público): no es nuestro volante
+      const inP = G.BSH.courtPrism(G.BSH.camera(court2img, track.width || 1280, track.height || 720));
+      for (let k = 0; k < X.length; k++) if (Number.isFinite(X[k]) && !inP(X[k], Y[k])) { X[k] = NaN; Y[k] = NaN; }
       SHC = G.BSH.clean(X, Y, SH30.fps);
     }
     const hits = SH30 ? (() => {
       const fps = SH30.fps;
       const poseAt = (k, p) => { const i = poseIdx(k / fps); if (Math.abs(t[i] - k / fps) > 0.12) return null; const pl = gated[p][i]; return pl ? pl.img : null; };
       const sens2 = { low: { th: 2.6, cost: 0.9 }, normal: { th: 2, cost: 0.6 }, high: { th: 1.6, cost: 0.4 } }[sens];
-      let hs = G.BSH.detect(SHC, fps, poseAt, sens2).map((d) => { const i = poseIdx(d.k / fps); return { p: d.p, i, t: d.k / fps, peak: P[d.p].ws[i] || 0, sh: true, shk: d.k, kind: d.kind }; });
+      // Coherencia del vuelo entre dos golpes seguidos (descarta el volante de otras pistas y los golpes mal atribuidos)
+      const cam0 = G.BSH.camera(court2img, track.width || 1280, track.height || 720), pairC = new Map();
+      const groundAt = (k, p) => { const i = poseIdx(k / fps); if (Math.abs(t[i] - k / fps) > 0.2) return null; const x = P[p].rawX[i], y = P[p].rawY[i]; return Number.isFinite(x) ? [x, y] : null; };
+      if (!G.__noPair) pairFn = sens2.pair = (k0, p0, k1, p1) => {
+        const key = k0 * 1e6 + k1 * 2 + p0; if (pairC.has(key)) return pairC.get(key);
+        const A = groundAt(k0, p0), B = groundAt(k1, p1); let v = 0;
+        if (A && B) { const sc = G.BSH.flightScore(cam0, SHC, k0, k1, A, B); if (sc !== null && sc < 0.7) v = -1.3 * (0.7 - sc) / 0.7; if (G.__pairLog) G.__pairLog.push([k0, p0, k1, p1, sc, A, B]); }
+        pairC.set(key, v); return v;
+      };
+      let hs = G.BSH.detect(SHC, fps, poseAt, sens2).map((d) => { const i = poseIdx(d.k / fps); return { p: d.p, i, t: d.k / fps, peak: P[d.p].ws[i] || 0, sh: true, shk: d.k, kind: d.kind, dScore: d.score, dNear: d.d }; });
       hs = hs.filter((c) => !nearE(edits.del, c.p, c.i));
       edits.add.forEach((e) => { if (e.i > 0 && e.i < n - 1) { hs = hs.filter((c) => !(Math.abs(c.i - e.i) <= Math.round(0.25 / dt))); hs.push({ p: e.p, i: e.i, t: t[e.i], peak: P[e.p].ws[e.i] || 0, manual: true, sh: true, shk: Math.round(t[e.i] * fps) }); } });
       return hs.sort((a, b) => a.t - b.t);
@@ -1064,7 +1112,9 @@ body.noscroll { overflow: hidden; }
         } else {
           // último golpe del punto: donde cae el volante (último punto visto, llevado al suelo)
           let last = -1; for (let j = q[2] + 1; j < Math.min(N30, q[2] + fps * 2.5); j++) { if (okq(j)) last = j; else if (last > 0 && j - last > fps * 0.4) break; }
-          if (last > q[2] + 3) { const d = cam.ray(SHC.x[last], SHC.y[last]); if (d[2] < -1e-3) { const s2 = -cam.C[2] / d[2]; P1 = [cam.C[0] + s2 * d[0], cam.C[1] + s2 * d[1], 0]; T = (last - q[2]) / fps + 0.1; FR = [P1[0], P1[1]]; } }
+          // Solo si el volante va bajando al final (si sale del encuadre por arriba no se sabe dónde cae)
+          const desc = (() => { let dn = 0, c = 0; for (let j = last - 4; j < last; j++) if (okq(j) && okq(j + 1)) { c++; if (SHC.y[j + 1] > SHC.y[j]) dn++; } return c >= 2 && dn / c >= 0.6; })();
+          if (last > q[2] + 3 && desc) { const d = cam.ray(SHC.x[last], SHC.y[last]); if (d[2] < -1e-3) { const s2 = -cam.C[2] / d[2], L = [cam.C[0] + s2 * d[0], cam.C[1] + s2 * d[1], 0]; if (L[0] > -3 && L[0] < COURT.W + 3 && L[1] > -3 && L[1] < COURT.L + 3) { P1 = L; T = (last - q[2]) / fps + 0.1; FR = [P1[0], P1[1]]; } } }
         }
         if (!P1 || !(T > 0.12)) return;
         const obs = []; for (let j = q[2] + 1; j < q[2] + T * fps; j++) if (okq(j)) obs.push({ t: (j - q[2]) / fps, u: SHC.x[j], v: SHC.y[j] });
@@ -1072,6 +1122,20 @@ body.noscroll { overflow: hidden; }
         h.v0 = T >= 0.25 && sol.speed < 95 ? sol.speed : h.v0; h.angle = sol.angle; h.apex = sol.apex; h.Tf = T;
         h.dnHit = dnOf(h.p, F); h.dnRecv = dnOf(1 - h.p, FR); h.vh = Math.hypot(FR[0] - F[0], FR[1] - F[1]) / T;
         if (h.next === undefined && P1[2] === 0) h.landing = [P1[0], P1[1]];
+      });
+      // Confianza de cada golpe (0–1): fuerza de la señal del volante, cercanía al jugador y si el vuelo desde el golpe
+      // anterior y hasta el siguiente encaja. Sirve para enseñar primero los golpes dudosos.
+      hits.forEach((h, k) => {
+        if (!h.sh || h.manual) { h.conf = 1; return; }
+        const pv = hits[k - 1] && hits[k - 1].rally === h.rally && hits[k - 1].p !== h.p ? hits[k - 1] : null, nx = hits[k + 1] && hits[k + 1].rally === h.rally && hits[k + 1].p !== h.p ? hits[k + 1] : null;
+        const fl = Math.min(pv && pairFn ? pairFn(pv.shk, pv.p, h.shk, h.p) : 0, nx && pairFn ? pairFn(h.shk, h.p, nx.shk, nx.p) : 0);
+        let c = 0.35 * clamp((h.dScore || 0) / 1.6, 0, 1) + 0.35 * (1 - clamp((h.dNear == null ? 1 : h.dNear) / 1.0, 0, 1)) + 0.3 * (1 + fl / 1.3);
+        if (!Number.isFinite(h.angle)) c -= 0.1;
+        if (!pv && !nx) c -= 0.15; // golpe suelto, sin otro antes ni después
+        // el brazo casi no se mueve: puede ser el volante de otra pista pasando por delante
+        const ref = pct(hits.filter((q) => q.p === h.p).map((q) => q.peak), 0.7) || 0; if (ref > 0 && h.peak < ref * 0.2) c -= 0.2;
+        h.conf = +clamp(c, 0, 1).toFixed(2);
+        if (nearE(edits.ok, h.p, h.i)) { h.conf = 1; h.confirmed = true; }
       });
     }
     // Potencia del golpe: velocidad de salida del volante (si se conoce) y velocidad de la mano
@@ -1140,7 +1204,8 @@ body.noscroll { overflow: hidden; }
     const players = P.map((pp) => {
       const vh = hits.filter((h) => h.valid), p = pp.p, my = vh.filter((h) => h.p === p), opp = vh.filter((h) => h.p !== p);
       const pos = [];
-      for (let i = 0; i < n; i++) if (inPlay[i] && Number.isFinite(pp.X[i]) && Number.isFinite(pp.Y[i])) pos.push([pp.X[i], pp.Y[i], t[i]]);
+      // Solo con los pies en el suelo (en el aire la proyección sobre la pista se va hacia atrás) y durante el juego
+      for (let i = 0; i < n; i++) if (inPlay[i] && Number.isFinite(pp.X[i]) && Number.isFinite(pp.Y[i]) && !(pp.rise[i] > 0.12)) pos.push([pp.X[i], pp.Y[i], t[i]]);
       let distP = 0; for (let i = 1; i < n; i++) if (inPlay[i] && inPlay[i - 1] && [pp.X[i - 1], pp.X[i], pp.Y[i - 1], pp.Y[i]].every(Number.isFinite)) { const d = Math.hypot(pp.X[i] - pp.X[i - 1], pp.Y[i] - pp.Y[i - 1]); if (d > 0.03 && d < 8 * dt * 1.5) distP += d; }
       const playT = inPlay.filter(Boolean).length * dt || dur;
       // Mapa de calor (rejilla 0,2 m)
@@ -1277,7 +1342,7 @@ body.noscroll { overflow: hidden; }
     const highestJump = hits.filter((h) => h.jump && h.valid).reduce((a, b) => (!a || b.jump > a.jump ? b : a), null);
     return {
       version: 2, sens, ignored, shCov, shWeak, noValid, inPlay, duration: dur, nFrames: n, dt, fps: 1 / dt, hits, rallies, players, shuttle: shOK ? { pos: SH.pos } : null, shAdded, shRemoved,
-      highlights: { fastest, longest, highestJump },
+      highlights: { fastest, longest, highestJump }, P, gfr: frames, me: track.me,
       series: { t, X: P.map((q) => q.X), Y: P.map((q) => q.Y), spd: P.map((q) => q.spd), ws: P.map((q) => q.ws) },
     };
   }
@@ -1302,7 +1367,7 @@ body.noscroll { overflow: hidden; }
     return T.sort((a, b) => order[a.lvl] - order[b.lvl]);
   }
 
-  G.BA = { trackShuttle, makeGate, colDist, hull, LM, homographyLS, cleanSeq, COURT, MP_IDX, K, NK, homography, applyH, courtHomographies, analyze, zoneOf, toHalf, basePoint, ROW_N, mean, median, pct, clamp, mps2kmh, DRAG_K };
+  G.BA = { pxPerM, trackShuttle, makeGate, colDist, hull, LM, homographyLS, cleanSeq, COURT, MP_IDX, K, NK, homography, applyH, courtHomographies, analyze, zoneOf, toHalf, basePoint, ROW_N, mean, median, pct, clamp, mps2kmh, DRAG_K };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* ===== Pluma Lab: estabilización de la imagen (la pista se queda fija aunque la cámara se mueva) =====
@@ -1493,7 +1558,13 @@ body.noscroll { overflow: hidden; }
       const g = Kc[i].s - LAM * Kc[i].d[p] - COST; let b = g, pr = -1;
       for (let j = i - 1; j >= 0; j--) {
         const df = Kc[i].k - Kc[j].k;
-        for (const q of [0, 1]) { const Sx = st[j * 2 + q]; if (!Sx) continue; if (df > gMax ? Sx.v + g > b : q !== p && df >= gMin && Sx.v + g > b) { b = Sx.v + g; pr = j * 2 + q; } }
+        for (const q of [0, 1]) {
+          const Sx = st[j * 2 + q]; if (!Sx) continue;
+          if (df > gMax) { if (Sx.v + g > b) { b = Sx.v + g; pr = j * 2 + q; } continue; }
+          if (q === p || df < gMin) continue;
+          const v2 = Sx.v + g + (opt.pair ? opt.pair(Kc[j].k, q, Kc[i].k, p) : 0);
+          if (v2 > b) { b = v2; pr = j * 2 + q; }
+        }
         if (df > gMax * 4 && j < i - 60) break; // basta con mirar atrás un rato
       }
       st[i * 2 + p] = { v: b, pr };
@@ -1501,6 +1572,32 @@ body.noscroll { overflow: hidden; }
     let bi = -1, bv = -1e9; st.forEach((Sx, i) => { if (Sx && Sx.v > bv) { bv = Sx.v; bi = i; } });
     const out = []; for (let i = bi; i >= 0; i = st[i].pr) { const c = Kc[i >> 1]; out.push({ k: c.k, p: i & 1, kind: c.kind, score: c.s, d: c.d[i & 1] }); }
     return out.reverse();
+  }
+
+  /* ---------- Coherencia de un vuelo entre dos golpes ----------
+     Sin viento, el volante vuela casi dentro del plano vertical que une al que golpea (A) con el que recibe (B): el
+     rozamiento frena en la dirección del movimiento y la gravedad es vertical. Así que nuestro volante está siempre
+     dentro de una "caja" alargada de A a B (algo más ancha por dónde se golpea respecto a los pies) y de hasta 9 m de
+     alto. Cada posición vista en la imagen es un rayo desde la cámara: si es nuestro volante, el rayo atraviesa esa caja.
+     El volante de otra pista casi nunca lo hace. Devuelve la parte de posiciones que encajan (0 a 1), o null si se ve poco. */
+  function flightScore(cam, S, k0, k1, A, B) {
+    const dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy); if (L < 1) return null;
+    const u = [dx / L, dy / L], w = [-u[1], u[0]], C = cam.C, c0 = [C[0] - A[0], C[1] - A[1]];
+    const o = [c0[0] * u[0] + c0[1] * u[1], c0[0] * w[0] + c0[1] * w[1], C[2]]; // cámara en ejes de la caja
+    const lo = [-1.2, -1.4, -0.3], hi = [L + 1.2, 1.4, 9];
+    let n = 0, good = 0;
+    for (let k = k0 + 2; k <= k1 - 2; k++) {
+      if (!Number.isFinite(S.x[k])) continue;
+      const d = cam.ray(S.x[k], S.y[k]), r = [d[0] * u[0] + d[1] * u[1], d[0] * w[0] + d[1] * w[1], d[2]];
+      let t0 = 0, t1 = 1e9;
+      for (let a = 0; a < 3 && t0 <= t1; a++) {
+        if (Math.abs(r[a]) < 1e-9) { if (o[a] < lo[a] || o[a] > hi[a]) t1 = -1; continue; }
+        let ta = (lo[a] - o[a]) / r[a], tb = (hi[a] - o[a]) / r[a]; if (ta > tb) [ta, tb] = [tb, ta];
+        t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
+      }
+      n++; if (t0 <= t1) good++;
+    }
+    return n >= 4 ? good / n : null;
   }
 
   /* ---------- 3) Cámara y vuelo en 3D ---------- */
@@ -1526,7 +1623,7 @@ body.noscroll { overflow: hidden; }
     if (C[2] < 0) { r3 = r3.map((v) => -v); C = Rt(t).map((v) => -v); }
     const proj = (X) => { const c = [r1[0] * X[0] + r2[0] * X[1] + r3[0] * X[2] + t[0], r1[1] * X[0] + r2[1] * X[1] + r3[1] * X[2] + t[1], r1[2] * X[0] + r2[2] * X[1] + r3[2] * X[2] + t[2]]; return [cx + f * c[0] / c[2], cy + f * c[1] / c[2], c[2]]; };
     const ray = (u, v) => { const d = Rt([(u - cx) / f, (v - cy) / f, 1]), l = Math.hypot(...d); return d.map((x) => x / l); };
-    return { f, C, proj, ray };
+    return { f, C, proj, ray, rot: Rt }; // rot: vector en ejes de la cámara -> ejes de la pista
   }
   // Punto 3D del volante en la imagen (u,v) que está encima del jugador (pies en fx, fy)
   function pointAbove(cam, u, v, fx, fy) {
@@ -1578,7 +1675,7 @@ body.noscroll { overflow: hidden; }
     if (high) {
       if (f.dnHit < 2.0 && f.vh > 7 && !up) return 'Remate en la red';
       if ((f.vh >= 9 && f.T < 0.9 && !up) || (down && f.vh > 12)) return f.jump ? 'Remate en salto' : 'Remate';
-      if (f.dnRecv < 3.0) return 'Dejada desde el fondo';
+      if (f.dnRecv < 3.0) return f.dnHit < 2.3 ? 'Dejada de red' : 'Dejada desde el fondo'; // arriba pero flojo: junto a la red es un toque de red
       if (f.T >= 0.95 || f.apex > 3.5) return 'Clear';
       return f.vh >= 9 ? (f.jump ? 'Remate en salto' : 'Remate') : 'Drive';
     }
@@ -1591,7 +1688,323 @@ body.noscroll { overflow: hidden; }
     return f.apex > 3 || up ? 'Lob' : 'Drive';
   }
 
-  G.BSH = { clean, detect, camera, pointAbove, fly, solveShot, classify, boxOf };
+  // Zona de la imagen donde puede estar el volante de esta pista: el "prisma" encima de la pista (con margen y hasta 10 m de altura).
+  // Sirve para no coger el volante de las pistas de al lado.
+  function courtPrism(cam) {
+    const pts = [];
+    for (const [x, y] of [[-1.5, -2.5], [COURT.W + 1.5, -2.5], [COURT.W + 1.5, COURT.L + 2.5], [-1.5, COURT.L + 2.5]]) for (const z of [0, 10]) { const q = cam.proj([x, y, z]); if (q[2] > 0.5) pts.push([q[0], q[1]]); }
+    const H = BA.hull(pts);
+    return (u, v) => { if (H.length < 3) return true; let s = 0; for (let i = 0; i < H.length; i++) { const a = H[i], b = H[(i + 1) % H.length], c = (b[0] - a[0]) * (v - a[1]) - (b[1] - a[1]) * (u - a[0]); if (c !== 0) { if (s === 0) s = Math.sign(c); else if (Math.sign(c) !== s) return false; } } return true; };
+  }
+  // Elegir entre varias manchas del modelo (puede haber volantes de otras pistas):
+  // primero la que sigue la trayectoria que llevábamos; si no hay trayectoria, la que está junto a nuestros jugadores.
+  function pickBlob(k, cands, st, boxes, W) {
+    if (!cands.length) return null;
+    let pick = null;
+    if (st.last && k - st.last[0] <= 4) {
+      const gap = k - st.last[0]; let pred = [st.last[1], st.last[2]];
+      if (st.prev && st.last[0] - st.prev[0] <= 3) { const d = st.last[0] - st.prev[0]; pred = [st.last[1] + (st.last[1] - st.prev[1]) / d * gap, st.last[2] + (st.last[2] - st.prev[2]) / d * gap]; }
+      let bd = W * (0.06 + 0.04 * gap); for (const c of cands) { const d = Math.hypot(c[0] - pred[0], c[1] - pred[1]); if (d < bd) { bd = d; pick = c; } }
+    }
+    if (!pick) {
+      let bd = 2.5; const B = (boxes || []).filter(Boolean);
+      if (!B.length) pick = cands.reduce((a, b) => (b[2] > a[2] ? b : a));
+      else for (const c of cands) for (const b of B) { const dx = Math.max(b.x0 - b.h * 0.6 - c[0], 0, c[0] - b.x1 - b.h * 0.6), dy = Math.max(b.y0 - b.h * 1.2 - c[1], 0, c[1] - b.y1), d = Math.hypot(dx, dy) / b.h; if (d < bd) { bd = d; pick = c; } }
+    }
+    if (pick) { st.prev = st.last; st.last = [k, pick[0], pick[1]]; }
+    return pick;
+  }
+  G.BSH = { flightScore, pickBlob, courtPrism, clean, detect, camera, pointAbove, fly, solveShot, classify, boxOf };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ===== Pluma Lab: informe de un jugador (patrones, puntos fuertes y débiles) =====
+   A partir del análisis de un partido saca, para cada golpe del jugador:
+   - desde qué zona golpea (red / medio / fondo × lado de la derecha / centro / lado del revés, según su mano),
+   - si golpea de derecha, de revés o rodeando la cabeza por el lado del revés (rectificado),
+   - si llega con la raqueta arriba o abajo,
+   - qué golpe hace, hacia dónde (paralelo / cruzado / al centro) y a qué profundidad,
+   - cuánto tarda en reaccionar al golpe del rival, cuánto se desplaza y a qué velocidad,
+   - cómo acaba el punto (golpe ganador, error o no se sabe).
+   También detecta los cambios de campo por el color de la ropa, para seguir siempre al mismo jugador.
+   Con todo eso escribe el informe. Cada conclusión lleva cuántos golpes la respaldan. */
+(function (G) {
+  'use strict';
+  const BA = G.BA, { COURT, K, colDist, toHalf, mean, median, clamp } = BA;
+  const DEF = ['Lob', 'Defensa larga', 'Bloqueo', 'Clear'];
+  const SHORT = ['Dejada de red', 'Dejada desde el fondo', 'Bloqueo', 'Saque corto'];
+  const HIGH = ['Clear', 'Lob', 'Defensa larga', 'Saque largo'];
+  const ATT = ['Remate', 'Remate en salto', 'Remate en la red', 'Drive'];
+  const ROWS = ['red', 'medio', 'fondo'], COLS = ['revés', 'centro', 'derecha'];
+  const ZN = (z) => (z.row === 1 && z.col === 1 ? 'centro de la pista' : `${ROWS[z.row] === 'medio' ? 'medio campo' : ROWS[z.row]}${z.col === 1 ? ' (centro)' : ` de ${COLS[z.col]}`}`);
+
+  const wv = (pl, k) => (pl && pl.w ? [pl.w[k * 3], pl.w[k * 3 + 1], pl.w[k * 3 + 2]] : null);
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+
+  /* ---------- Datos de un partido ---------- */
+  function extract(track, res, me) {
+    const P = res.P, fr = res.gfr, t = res.series.t, n = t.length, dt = res.dt || 1 / 12;
+    if (!P || !fr) return null;
+    const hits = res.hits.filter((h) => h.valid);
+    // 1) Cambios de campo: color de la ropa de cada media pista en cada punto
+    const rallies = res.rallies.map((r, ri) => ({ ri, start: r.start, end: r.end, valid: r.valid, swap: false }));
+    const colOf = (p, r) => { const acc = []; track.frames.forEach((f) => { if (f.t >= r.start - 1 && f.t <= r.end + 1 && f.col && f.col[p]) acc.push(f.col[p]); }); if (acc.length < 3) return null; return acc[0].map((_, j) => median(acc.map((c) => c[j]))); };
+    let A = null, B = null;
+    for (const r of rallies) {
+      const c0 = colOf(me, r), c1 = colOf(1 - me, r); r.c = [c0, c1];
+      if (!c0 || !c1) continue;
+      if (!A) { A = c0; B = c1; continue; }
+      if (colDist(A, B) < 0.25) continue; // ropa parecida: no se puede saber, se supone que no cambian
+      const keep = colDist(c0, A) + colDist(c1, B), swp = colDist(c0, B) + colDist(c1, A);
+      r.swap = swp < keep * 0.7;
+    }
+    const swapOf = (h) => (rallies[h.rally] ? rallies[h.rally].swap : false);
+    const isMe = (h) => (h.p === me) !== swapOf(h);
+
+    // 2) Datos de cada golpe
+    const pp = (p) => P[p];
+    // Mano de cada jugador (no de cada mitad: si cambian de campo, la mitad la ocupan los dos)
+    const handOfId = (id) => { const set = track.hand && track.hand[id === 'me' ? me : 1 - me]; return set === 'R' ? true : set === 'L' ? false : !!pp(id === 'me' ? me : 1 - me).side; };
+    const handR = (p, h) => handOfId(h && !isMe(h) ? 'op' : h ? 'me' : p === me ? 'me' : 'op');
+    const kWof = (p, h) => (handR(p, h) ? K.rwr : K.lwr), kSof = (p, h) => (handR(p, h) ? K.rsh : K.lsh);
+    const zone = (p, x, y, h) => { const z = toHalf(p, x, y); const row = z.dn < 2.3 ? 0 : z.dn < 4.6 ? 1 : 2; const side = z.hx < COURT.W / 3 ? 0 : z.hx < 2 * COURT.W / 3 ? 1 : 2; /* 0 = izquierda del jugador */ const col = side === 1 ? 1 : (side === 2) === handR(p, h) ? 2 : 0; return { row, col, dn: z.dn, hx: z.hx }; };
+    const ground = (p, i) => { const q = pp(p); let best = -1, by = -1e9; for (let j = Math.max(0, i - 3); j <= Math.min(n - 1, i + 3); j++) if (Number.isFinite(q.rawX[j]) && q.ankPx[j] > by) { by = q.ankPx[j]; best = j; } return best >= 0 ? [q.rawX[best], q.rawY[best]] : Number.isFinite(q.X[i]) ? [q.X[i], q.Y[i]] : null; };
+    // Derecha o revés: posición de la muñeca respecto a la cadera, girada a los ejes de la pista con la cámara
+    // (MediaPipe da el cuerpo en metros con los ejes de la cámara). Positivo = a la derecha del jugador mirando a la red.
+    const cam = G.BSH ? G.BSH.camera(BA.courtHomographies(track.corners).court2img, track.width || 1280, track.height || 720) : null;
+    const lateral = (p, i, kW) => { const pl = fr[i] && fr[i].p[p]; const w = wv(pl, kW), a = wv(pl, K.lhip), b = wv(pl, K.rhip), no = wv(pl, K.nose), sh = wv(pl, K.lsh); if (!w || !a || !b || !cam) return null; const v = cam.rot(sub(w, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2])); return { lat: v[0] * (p === 0 ? 1 : -1), above: no ? w[1] < no[1] - 0.05 : false }; };
+    const strokeSide = (h) => {
+      const q = pp(h.p), vals = [];
+      for (let j = h.i - 1; j <= h.i + 1; j++) { const r = lateral(h.p, j, kWof(h.p, h)); if (r) vals.push(r); }
+      if (!vals.length) return null;
+      const lat = median(vals.map((v) => v.lat)) * (handR(h.p, h) ? 1 : -1), above = vals.filter((v) => v.above).length * 2 > vals.length || h.cat === 'alto';
+      if (lat > 0.05) return 'derecha';
+      if (lat < -0.12) return above ? 'rectificado' : 'revés';
+      return above ? 'derecha' : null; // justo delante del cuerpo: no se puede decir
+    };
+    const racketUp = (h) => { // ¿llega con la raqueta preparada? muñeca a la altura del hombro o más arriba entre 0,5 y 0,08 s antes
+      let best = -9, seen = 0; const kW = kWof(h.p, h), kS = kSof(h.p, h);
+      for (let j = h.i - Math.round(0.5 / dt); j <= h.i - Math.max(1, Math.round(0.08 / dt)); j++) { const pl = fr[j] && fr[j].p[h.p]; const w = wv(pl, kW), s2 = wv(pl, kS); if (!w || !s2) continue; seen++; best = Math.max(best, s2[1] - w[1]); }
+      return seen >= 2 ? best > -0.02 : null;
+    };
+    const items = [];
+    hits.forEach((h, k) => {
+      const all = res.hits, idx = all.indexOf(h), prev = all[idx - 1], next = all[idx + 1];
+      const prevOpp = prev && prev.rally === h.rally && prev.p !== h.p ? prev : null;
+      const nextOpp = next && next.rally === h.rally && next.p !== h.p ? next : null;
+      const F = ground(h.p, h.i) || [h.x, h.y];
+      const z = zone(h.p, F[0], F[1], h);
+      // destino: donde golpea el rival o donde cae
+      let dest = null; if (nextOpp) dest = ground(nextOpp.p, nextOpp.i) || [nextOpp.x, nextOpp.y]; else if (h.landing) dest = h.landing;
+      let dir = null, depth = null, destZone = null;
+      if (dest) {
+        const sx = F[0] - COURT.W / 2, ex = dest[0] - COURT.W / 2;
+        dir = Math.abs(dest[0] - F[0]) < 1.5 && Math.sign(sx) === Math.sign(ex) && Math.abs(sx) > 0.6 ? 'paralelo' : Math.sign(sx) !== Math.sign(ex) && Math.abs(dest[0] - F[0]) > 1.6 ? 'cruzado' : 'al centro';
+        const od = toHalf(1 - h.p, dest[0], dest[1]).dn; depth = od < 2.6 ? 'red' : od < 4.6 ? 'medio' : 'fondo';
+        destZone = zone(1 - h.p, dest[0], dest[1], nextOpp || { p: 1 - h.p, rally: h.rally, me: !isMe(h) });
+      }
+      // movimiento desde el golpe del rival
+      let react = null, moveT = null, moveD = null, moveV = null, from = null;
+      if (prevOpp) {
+        const q = pp(h.p), i0 = prevOpp.i; from = ground(h.p, i0);
+        for (let i = i0 + 1; i < h.i; i++) if (q.spd[i] > 1.0 && q.spd[i + 1] > 1.0) { react = t[i] - prevOpp.t; break; }
+        moveT = h.t - prevOpp.t;
+        if (from) { moveD = Math.hypot(F[0] - from[0], F[1] - from[1]); const mt = moveT - (react || 0); moveV = mt > 0.15 && moveD > 0.4 ? moveD / mt : null; }
+        if (react !== null && (react < 0.05 || react > 1.2)) react = null;
+      }
+      items.push({
+        hi: idx, me: isMe(h), p: h.p, t: h.t, rally: h.rally, nIn: h.nIn, serve: h.nIn === 0 && /Saque/.test(h.type || ''),
+        type: h.type, cat: h.cat, h: h.h, jump: h.jump || 0, v0: h.v0 || null, force: h.force,
+        zone: z, zoneName: ZN(z), side: strokeSide(h), up: racketUp(h),
+        dir, depth, destZone, react, moveT, moveD, moveV,
+        prevType: prevOpp ? prevOpp.type : null, nextType: nextOpp ? nextOpp.type : null,
+        last: !nextOpp, outcome: null,
+      });
+    });
+    // 3) Cómo acaba cada punto
+    const byRally = {}; items.forEach((it) => (byRally[it.rally] = byRally[it.rally] || []).push(it));
+    const singles = track.lineMode !== 'd';
+    Object.values(byRally).forEach((list) => {
+      const L = list[list.length - 1], h = res.hits.find((x) => x.valid && x.t === L.t && x.p === L.p);
+      if (!h || !h.landing) return;
+      const [x, y] = h.landing, mg = 0.12, x0 = singles ? COURT.SIDE : 0, x1 = singles ? COURT.W - COURT.SIDE : COURT.W;
+      const oppHalf = h.p === 0 ? y > COURT.NET : y < COURT.NET;
+      const nearLine = Math.abs(x - x0) < mg || Math.abs(x - x1) < mg || Math.abs(y) < mg || Math.abs(y - COURT.L) < mg;
+      if (nearLine) return;
+      const inside = oppHalf && x > x0 && x < x1 && y > 0 && y < COURT.L;
+      L.outcome = inside ? 'ganador' : 'error';
+      if (list.length >= 2) { const P2 = list[list.length - 2]; P2.forced = inside ? null : 'fuerza error'; }
+    });
+    // 4) A la espera del golpe del rival: dónde está, con la raqueta arriba o abajo, después de qué golpe suyo,
+    //    y adónde le manda el rival el volante y cómo llega.
+    const itemOf = {}; items.forEach((it) => (itemOf[it.hi] = it));
+    const waits = [];
+    res.hits.forEach((h, idx) => {
+      if (!h.valid) return;
+      const q = 1 - h.p, fake = { p: q, rally: h.rally }; // el que espera
+      const meW = !isMe(h); fake.p = q;
+      const F = ground(q, h.i); if (!F) return;
+      const z = toHalf(q, F[0], F[1]); if (!Number.isFinite(z.dn) || z.dn < -0.5 || z.dn > 8) return;
+      const R0 = meW ? handOfId('me') : handOfId('op');
+      const off = (z.hx - COURT.W / 2) * (R0 ? 1 : -1); // + hacia el lado de su derecha
+      let up = null; { const kW = R0 ? K.rwr : K.lwr, kS = R0 ? K.rsh : K.lsh, kH = R0 ? K.rhip : K.lhip, v = [];
+        for (let j = h.i - 1; j <= h.i; j++) { const pl = fr[j] && fr[j].p[q]; const w = wv(pl, kW), s2 = wv(pl, kS), hp = wv(pl, kH); if (w && s2 && hp) v.push(w[1] < s2[1] + 0.35 * (hp[1] - s2[1])); }
+        if (v.length) up = v.filter(Boolean).length * 2 >= v.length; }
+      const prev = res.hits[idx - 1], own = prev && prev.valid && prev.rally === h.rally && prev.p === q ? prev.type : null;
+      const ctx = own == null ? (h.nIn === 0 ? 'al restar' : 'otro') : HIGH.includes(own) ? 'tras levantar' : SHORT.includes(own) ? 'tras jugar corto' : ATT.includes(own) ? 'tras atacar' : 'otro';
+      const nx = res.hits[idx + 1], reply = nx && nx.valid && nx.rally === h.rally && nx.p === q ? itemOf[idx + 1] : null;
+      let dist = null; if (reply) { const C2 = ground(q, nx.i); if (C2) dist = Math.hypot(C2[0] - F[0], C2[1] - F[1]); }
+      waits.push({ me: meW, dn: z.dn, off, up, ctx, oppType: h.type, reply: reply ? { zone: reply.zone, name: reply.zoneName, up: reply.up, def: DEF.includes(reply.type), dist, react: reply.react } : null, lost: !reply && !!itemOf[idx] && itemOf[idx].outcome === 'ganador' });
+    });
+    const swaps = rallies.filter((r) => r.swap).length;
+    return { items, waits, swaps, nRallies: rallies.filter((r) => r.valid).length, duration: res.duration, precise: !!track.precise, name: track.names ? track.names[me] : 'Jugador', other: track.names ? track.names[1 - me] : 'Rival' };
+  }
+
+  /* ---------- Informe ---------- */
+  const nf = (v, d) => v.toFixed(d).replace('.', ',');
+  const pc = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+  const conf = (n) => (n >= 15 ? 'alta' : n >= 7 ? 'media' : 'baja');
+  function countBy(list, f) { const m = {}; list.forEach((x) => { const k = f(x); if (k == null) return; m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]); }
+  function top(list, f, k) { return countBy(list, f).slice(0, k || 3).map(([name, c]) => ({ name, c, pct: pc(c, list.length) })); }
+
+  function report(matches) {
+    const M = matches.filter(Boolean); if (!M.length) return null;
+    const mine = M.flatMap((m) => m.items.filter((x) => x.me)), theirs = M.flatMap((m) => m.items.filter((x) => !x.me));
+    const name = M[0].name, nonServe = mine.filter((x) => !x.serve);
+    const R = { name, matches: M.length, shots: mine.length, precise: M.every((m) => m.precise), swaps: M.reduce((a, m) => a + m.swaps, 0), rallies: M.reduce((a, m) => a + m.nRallies, 0), dur: M.reduce((a, m) => a + (m.duration || 0), 0) };
+
+    // Golpes y lado
+    R.types = top(nonServe, (x) => x.type, 12);
+    R.sides = top(nonServe.filter((x) => x.side), (x) => x.side, 3);
+    R.sideN = nonServe.filter((x) => x.side).length;
+    // Zonas: 3x3 con todo lo que pasa en cada una
+    R.zones = [];
+    for (let row = 0; row < 3; row++) for (let col = 0; col < 3; col++) {
+      const L = nonServe.filter((x) => x.zone.row === row && x.zone.col === col); if (!L.length) continue;
+      const withUp = L.filter((x) => x.up !== null), withSide = L.filter((x) => x.side);
+      const reacts = L.map((x) => x.react).filter(Number.isFinite), vs = L.map((x) => x.moveV).filter(Number.isFinite);
+      const ends = L.filter((x) => x.outcome);
+      R.zones.push({
+        row, col, name: ZN({ row, col }), n: L.length, share: pc(L.length, nonServe.length),
+        up: withUp.length ? pc(withUp.filter((x) => x.up).length, withUp.length) : null, upN: withUp.length,
+        sides: top(withSide, (x) => x.side, 3),
+        resp: top(L, (x) => x.type, 3),
+        dirs: top(L.filter((x) => x.dir), (x) => x.dir, 3),
+        combo: top(L.filter((x) => x.dir), (x) => `${x.type} ${x.dir}`, 3),
+        def: pc(L.filter((x) => DEF.includes(x.type)).length, L.length),
+        react: reacts.length ? mean(reacts) : null, speed: vs.length ? mean(vs) : null,
+        errors: ends.filter((x) => x.outcome === 'error').length, winners: ends.filter((x) => x.outcome === 'ganador').length,
+      });
+    }
+    // Dificultad de cada zona: llega tarde (raqueta abajo), responde a la defensiva, reacciona lento, falla
+    const allReact = nonServe.map((x) => x.react).filter(Number.isFinite), allV = nonServe.map((x) => x.moveV).filter(Number.isFinite);
+    const mR = allReact.length ? mean(allReact) : null, mV = allV.length ? mean(allV) : null;
+    R.react = mR; R.speed = mV; R.reactN = allReact.length; R.speedN = allV.length;
+    R.zones.forEach((z) => {
+      let s = 0, w = 0;
+      if (z.up !== null && z.upN >= 3) { s += (100 - z.up) / 100 * (z.row === 1 ? 0.5 : 1); w += 1; }
+      s += z.def / 100; w += 1;
+      if (z.react !== null && mR) { s += clamp((z.react - mR) / 0.15, -1, 1) * 0.5 + 0.5; w += 1; }
+      if (z.speed !== null && mV) { s += clamp((mV - z.speed) / 0.6, -1, 1) * 0.5 + 0.5; w += 1; }
+      if (z.errors + z.winners >= 2) { s += z.errors / (z.errors + z.winners); w += 1; }
+      z.difficulty = w ? s / w : 0.5;
+    });
+    // Desplazamientos según hacia dónde tiene que ir (desde el golpe del rival)
+    R.moves = R.zones.filter((z) => z.speed !== null || z.react !== null).map((z) => ({ name: z.name, row: z.row, col: z.col, react: z.react, speed: z.speed, n: z.n })).sort((a, b) => (a.speed || 9) - (b.speed || 9));
+    // Respuestas según lo que le llega
+    R.vsIncoming = {};
+    for (const inc of ['Remate', 'Remate en salto', 'Dejada de red', 'Dejada desde el fondo', 'Clear', 'Lob', 'Drive', 'Saque corto', 'Saque largo']) {
+      const L = nonServe.filter((x) => x.prevType === inc); if (L.length >= 3) R.vsIncoming[inc] = { n: L.length, resp: top(L, (x) => x.type, 3), dirs: top(L.filter((x) => x.dir), (x) => x.dir, 2) };
+    }
+    // Saque
+    const serves = mine.filter((x) => x.serve);
+    R.serve = { n: serves.length, types: top(serves, (x) => x.type, 2), dirs: top(serves.filter((x) => x.dir), (x) => x.dir, 2) };
+    // Recepción de saque
+    const rec = mine.filter((x) => x.nIn === 1);
+    R.receive = { n: rec.length, resp: top(rec, (x) => x.type, 3) };
+    // Cómo gana y cómo pierde los puntos
+    const ends = mine.filter((x) => x.outcome);
+    R.winners = top(ends.filter((x) => x.outcome === 'ganador'), (x) => x.type, 3); R.nWin = ends.filter((x) => x.outcome === 'ganador').length;
+    R.errors = top(ends.filter((x) => x.outcome === 'error'), (x) => `${x.type} desde ${x.zoneName}`, 3); R.nErr = ends.filter((x) => x.outcome === 'error').length;
+    const oppEnds = theirs.filter((x) => x.outcome);
+    R.forcedOn = top(oppEnds.filter((x) => x.outcome === 'error'), (x) => x.zoneName, 3); // dónde falla el rival (zona del rival)
+    R.knowsEnds = ends.length + oppEnds.length;
+    // Eficacia de cada golpe: el rival tiene que defenderse después
+    R.effective = countBy(nonServe.filter((x) => x.nextType), (x) => x.type).filter(([, c]) => c >= 3).map(([type, c]) => { const L = nonServe.filter((x) => x.type === type && x.nextType); const f = L.filter((x) => DEF.includes(x.nextType)).length; const w = nonServe.filter((x) => x.type === type && x.outcome === 'ganador').length; return { type, n: L.length, forces: pc(f, L.length), winners: w }; }).sort((a, b) => b.forces - a.forces);
+    // Previsibilidad por zona
+    R.predictable = R.zones.filter((z) => z.n >= 4 && z.combo.length).map((z) => ({ name: z.name, n: z.n, what: z.combo[0].name, pct: pc(z.combo[0].c, z.combo.reduce((a, b) => a + b.c, 0)) })).filter((x) => x.pct >= 50).sort((a, b) => b.pct - a.pct);
+    // Raqueta arriba al llegar a la red y al fondo
+    const upAt = (row) => { const L = nonServe.filter((x) => x.zone.row === row && x.up !== null); return { n: L.length, pct: L.length ? pc(L.filter((x) => x.up).length, L.length) : null }; };
+    R.upNet = upAt(0); R.upBack = upAt(2);
+    // Cansancio: primera mitad frente a segunda mitad del tiempo de juego
+    if (mine.length >= 16) {
+      const mid = median(mine.map((x) => x.t)), a = nonServe.filter((x) => x.t < mid), b = nonServe.filter((x) => x.t >= mid);
+      const f = (L, g) => { const v = L.map(g).filter(Number.isFinite); return v.length >= 4 ? mean(v) : null; };
+      R.fatigue = { react: [f(a, (x) => x.react), f(b, (x) => x.react)], speed: [f(a, (x) => x.moveV), f(b, (x) => x.moveV)], def: [pc(a.filter((x) => DEF.includes(x.type)).length, a.length), pc(b.filter((x) => DEF.includes(x.type)).length, b.length)] };
+    }
+    // Ataque
+    R.attack = pc(nonServe.filter((x) => ATT.includes(x.type)).length, nonServe.length);
+    R.defense = pc(nonServe.filter((x) => DEF.includes(x.type)).length, nonServe.length);
+    R.smashV = mean(nonServe.filter((x) => /Remate/.test(x.type) && x.v0).map((x) => x.v0 * 3.6));
+    R.jumps = nonServe.filter((x) => x.jump > 0).length;
+
+    /* ----- En espera del golpe rival ----- */
+    const WT = M.flatMap((m) => (m.waits || []).filter((w) => w.me));
+    if (WT.length >= 4) {
+      const GX = 18, GY = 20, grid = new Array(GX * GY).fill(0); // columnas: del lado del revés al de la derecha; filas: de la red al fondo (suavizado de 0,35 m)
+      WT.forEach((w) => { for (let y = 0; y < GY; y++) for (let x = 0; x < GX; x++) { const mx = (x + 0.5) / GX * COURT.W - COURT.W / 2, my = (y + 0.5) / GY * COURT.NET, d2 = (mx - w.off) ** 2 + (my - w.dn) ** 2; grid[y * GX + x] += Math.exp(-d2 / (2 * 0.35 * 0.35)); } });
+      const upL = WT.filter((w) => w.up !== null);
+      const byCtx = ['tras levantar', 'tras jugar corto', 'tras atacar', 'al restar'].map((c) => { const L = WT.filter((w) => w.ctx === c); const U = L.filter((w) => w.up !== null); return L.length >= 3 ? { ctx: c, n: L.length, dn: mean(L.map((w) => w.dn)), off: mean(L.map((w) => w.off)), up: U.length ? pc(U.filter((w) => w.up).length, U.length) : null } : null; }).filter(Boolean);
+      // ¿adónde le mandan y cómo llega desde donde esperaba?
+      const targets = []; for (let row = 0; row < 3; row++) for (const col of [0, 2, 1]) { const L = WT.filter((w) => w.reply && w.reply.zone.row === row && w.reply.zone.col === col); if (L.length < 2) continue; const U = L.filter((w) => w.reply.up !== null), D = L.map((w) => w.reply.dist).filter(Number.isFinite); targets.push({ name: L[0].reply.name, row, col, n: L.length, dist: D.length ? mean(D) : null, up: U.length ? pc(U.filter((w) => w.reply.up).length, U.length) : null, def: pc(L.filter((w) => w.reply.def).length, L.length) }); }
+      targets.forEach((x) => { x.bad = (x.dist ? clamp((x.dist - 1) / 2.5, 0, 1) : 0.3) * 0.55 + (x.up !== null ? (100 - x.up) / 100 : 0.5) * 0.2 + x.def / 100 * 0.25; });
+      const dU = WT.filter((w) => w.up === false && w.reply), uU = WT.filter((w) => w.up === true && w.reply);
+      R.wait = { n: WT.length, grid, GX, GY, dn: mean(WT.map((w) => w.dn)), off: mean(WT.map((w) => w.off)), up: upL.length ? pc(upL.filter((w) => w.up).length, upL.length) : null, upN: upL.length, byCtx, targets: targets.sort((a, b) => b.bad - a.bad),
+        defDown: dU.length >= 3 ? pc(dU.filter((w) => w.reply.def).length, dU.length) : null, defUp: uU.length >= 3 ? pc(uU.filter((w) => w.reply.def).length, uU.length) : null, nDown: dU.length, nUp: uU.length };
+    }
+
+    /* ----- Conclusiones en texto ----- */
+    const S = [], W = [], Pt = [], Rec = [], add = (L, text, n) => L.push({ text, n, conf: conf(n) });
+    const zSorted = R.zones.filter((z) => z.n >= 3).slice().sort((a, b) => b.difficulty - a.difficulty);
+    zSorted.slice(0, 2).forEach((z) => { if (z.difficulty < 0.45) return; const bits = []; if (z.up !== null && z.upN >= 3 && z.up < 50) bits.push(`llega con la raqueta abajo el ${100 - z.up} % de las veces`); if (z.def >= 50) bits.push(`responde a la defensiva el ${z.def} %`); if (z.speed !== null && mV && z.speed < mV * 0.9) bits.push(`se desplaza más lento (${nf(z.speed, 1)} m/s frente a ${nf(mV, 1)} de media)`); if (z.react !== null && mR && z.react > mR + 0.05) bits.push(`reacciona más tarde (${nf(z.react, 2)} s)`); if (z.errors >= 2) bits.push(`${z.errors} errores`); if (bits.length) add(W, `Le cuesta la zona de ${z.name}: ${bits.join(', ')}.`, z.n); });
+    zSorted.slice(-2).reverse().forEach((z) => { if (z.difficulty > 0.4 || z.n < 4) return; add(S, `Se siente cómodo en ${z.name}: ${z.up !== null && z.upN >= 3 ? `llega con la raqueta arriba el ${z.up} %, ` : ''}solo responde a la defensiva el ${z.def} %.`, z.n); });
+    R.effective.slice(0, 2).forEach((e) => { if (e.forces >= 50) add(S, `Su ${e.type.toLowerCase()} hace daño: el rival tiene que defenderse el ${e.forces} % de las veces${e.winners ? ` y ha ganado ${e.winners} puntos directos` : ''}.`, e.n); });
+    if (R.nWin >= 2 && R.winners.length) add(S, `Gana los puntos sobre todo con ${R.winners.map((w) => `${w.name.toLowerCase()} (${w.c})`).join(', ')}.`, R.nWin);
+    if (R.nErr >= 2 && R.errors.length) add(W, `Sus errores llegan con ${R.errors.map((w) => `${w.name.toLowerCase()} (${w.c})`).join(', ')}.`, R.nErr);
+    if (R.smashV && R.smashV > 0) add(Pt, `Remata a unos ${Math.round(R.smashV)} km/h de salida (estimado).`, nonServe.filter((x) => /Remate/.test(x.type) && x.v0).length);
+    if (R.upNet.pct !== null && R.upNet.n >= 3) (R.upNet.pct >= 55 ? S : W).push({ text: `Llega a la red con la raqueta arriba el ${R.upNet.pct} % de las veces${R.upNet.pct >= 55 ? ': está listo para atacar la red' : ': llega tarde y suele levantar o bloquear'}.`, n: R.upNet.n, conf: conf(R.upNet.n) });
+    if (R.upBack.pct !== null && R.upBack.n >= 3) (R.upBack.pct >= 55 ? S : W).push({ text: `Al fondo llega con la raqueta arriba el ${R.upBack.pct} % de las veces${R.upBack.pct >= 55 ? '' : ': le cuesta ponerse detrás del volante'}.`, n: R.upBack.n, conf: conf(R.upBack.n) });
+    const rv = R.sides.find((s) => s.name === 'revés'), rc = R.sides.find((s) => s.name === 'rectificado');
+    if (R.sideN >= 6) add(Pt, `Golpea de derecha el ${(R.sides.find((s) => s.name === 'derecha') || { pct: 0 }).pct} %, de revés el ${rv ? rv.pct : 0} % y rodeando la cabeza por el lado del revés el ${rc ? rc.pct : 0} %.`, R.sideN);
+    R.predictable.slice(0, 4).forEach((p) => add(Pt, `Desde ${p.name} suele jugar ${p.what.toLowerCase()} (${p.pct} % de las veces).`, p.n));
+    Object.entries(R.vsIncoming).forEach(([inc, v]) => { if (v.resp[0] && v.resp[0].pct >= 50) add(Pt, `Cuando le llega un ${inc.toLowerCase()}, responde con ${v.resp[0].name.toLowerCase()} el ${v.resp[0].pct} %${v.dirs[0] ? `, sobre todo ${v.dirs[0].name}` : ''}.`, v.n); });
+    if (R.serve.n >= 3 && R.serve.types[0]) add(Pt, `Saca ${R.serve.types[0].name.toLowerCase().replace('saque ', '')} el ${R.serve.types[0].pct} % de las veces${R.serve.dirs[0] ? `, ${R.serve.dirs[0].name}` : ''}.`, R.serve.n);
+    if (R.receive.n >= 3 && R.receive.resp[0]) add(Pt, `Al restar el saque juega sobre todo ${R.receive.resp[0].name.toLowerCase()} (${R.receive.resp[0].pct} %).`, R.receive.n);
+    if (R.fatigue) { const f = R.fatigue; if (f.speed[0] && f.speed[1] && f.speed[1] < f.speed[0] * 0.88) add(W, `Se cansa: en la segunda mitad se mueve un ${Math.round((1 - f.speed[1] / f.speed[0]) * 100)} % más lento.`, nonServe.length); if (f.react[0] && f.react[1] && f.react[1] > f.react[0] + 0.06) add(W, `En la segunda mitad reacciona más tarde (${nf(f.react[1], 2)} s frente a ${nf(f.react[0], 2)} s).`, nonServe.length); if (f.def[1] > f.def[0] + 12) add(W, `Al final se defiende más (${f.def[1]} % de golpes defensivos frente a ${f.def[0]} %).`, nonServe.length); }
+    if (mR) add(Pt, `Tarda de media ${nf(mR, 2)} s en empezar a moverse tras el golpe del rival.`, R.reactN);
+    if (R.wait) {
+      const w = R.wait, side = w.off > 0 ? 'derecha' : 'revés', other = w.off > 0 ? 'revés' : 'derecha';
+      add(Pt, `Espera el golpe del rival a ${nf(w.dn, 1)} m de la red${Math.abs(w.off) >= 0.2 ? ` y desplazado ${nf(Math.abs(w.off), 1)} m hacia su ${side}` : ', centrado'}.`, w.n);
+      if (Math.abs(w.off) >= 0.4) add(W, `Al esperar se queda escorado hacia su ${side} (${nf(Math.abs(w.off), 1)} m): deja más espacio en el lado de su ${other}.`, w.n);
+      if (w.dn > 4.3) add(W, `Espera muy atrás (${nf(w.dn, 1)} m de la red): le cuesta llegar a lo que cae cerca de la red.`, w.n);
+      else if (w.dn < 2.8) add(W, `Espera muy adelantado (${nf(w.dn, 1)} m de la red): deja libre el fondo.`, w.n);
+      if (w.up !== null && w.upN >= 5) (w.up >= 55 ? S : W).push({ text: `Espera con la raqueta ${w.up >= 55 ? 'arriba' : 'abajo'} el ${w.up >= 55 ? w.up : 100 - w.up} % de las veces${w.up >= 55 ? ': está preparado para responder rápido' : ': reacciona más tarde a lo rápido'}.`, n: w.upN, conf: conf(w.upN) });
+      w.byCtx.forEach((c) => { if (c.up !== null && Math.abs(c.up - (w.up || 0)) >= 20) add(Pt, `${c.ctx[0].toUpperCase() + c.ctx.slice(1)} espera con la raqueta arriba el ${c.up} % (frente al ${w.up} % en general) y a ${nf(c.dn, 1)} m de la red.`, c.n); });
+      if (w.defDown !== null && w.defUp !== null && w.defDown - w.defUp >= 15) add(Pt, `Cuando espera con la raqueta abajo responde a la defensiva el ${w.defDown} % (con la raqueta arriba, el ${w.defUp} %).`, w.nDown + w.nUp);
+      const t0 = w.targets[0]; if (t0 && t0.n >= 3 && t0.bad >= 0.45 && (t0.dist == null || t0.dist >= 1.8)) { add(W, `Desde donde espera, ${t0.name} le queda lejos${t0.dist ? ` (${nf(t0.dist, 1)} m)` : ''}: ${t0.up !== null ? `llega con la raqueta arriba solo el ${t0.up} %` : ''}${t0.def ? `${t0.up !== null ? ' y ' : ''}responde a la defensiva el ${t0.def} %` : ''}.`, t0.n); Rec.push({ text: `Manda el volante a su ${t0.name}: es la zona que deja más descuidada al esperar.`, n: t0.n, conf: conf(t0.n) }); }
+    }
+    // Cómo jugarle
+    if (zSorted[0] && zSorted[0].difficulty >= 0.45) Rec.push({ text: `Busca su ${zSorted[0].name}: es donde más le cuesta.`, n: zSorted[0].n, conf: conf(zSorted[0].n) });
+    if (R.moves.length >= 2 && R.moves[0].speed && R.moves[R.moves.length - 1].speed && R.moves[0].speed < R.moves[R.moves.length - 1].speed * 0.85) Rec.push({ text: `Muévelo hacia ${R.moves[0].name}: ahí se desplaza más lento (${nf(R.moves[0].speed, 1)} m/s).`, n: R.moves[0].n, conf: conf(R.moves[0].n) });
+    R.predictable.slice(0, 2).forEach((p) => Rec.push({ text: `Cuando juegue desde ${p.name}, anticipa ${p.what.toLowerCase()}.`, n: p.n, conf: conf(p.n) }));
+    if (R.effective[0] && R.effective[0].forces >= 50) Rec.push({ text: `Cuidado con su ${R.effective[0].type.toLowerCase()}: no le dejes jugarlo cómodo.`, n: R.effective[0].n, conf: conf(R.effective[0].n) });
+    if (R.fatigue && R.fatigue.speed[0] && R.fatigue.speed[1] && R.fatigue.speed[1] < R.fatigue.speed[0] * 0.88) Rec.push({ text: 'Alarga los puntos y muévelo a las cuatro esquinas: baja su rendimiento con el cansancio.', n: nonServe.length, conf: conf(nonServe.length) });
+    const byN = (a, b) => b.n - a.n;
+    R.strengths = S.sort(byN); R.weaknesses = W.sort(byN); R.patterns = Pt; R.advice = Rec;
+    return R;
+  }
+
+  G.BR = { extract, report, DEF, SHORT, HIGH, ATT, ZN };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 </script>
@@ -2021,8 +2434,9 @@ body.noscroll { overflow: hidden; }
   const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
   const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
-  function makeCamera(W, H) {
-    const C = [COURT.W / 2, -4.6, 3.8], target = [COURT.W / 2, 5.6, 0];
+  function makeCamera(W, H, side) {
+    // Detrás del fondo cercano, o en el lateral x = W (el jugador 0 queda a la izquierda de la imagen)
+    const C = side ? [COURT.W + 7.5, COURT.L / 2, 4.2] : [COURT.W / 2, -4.6, 3.8], target = side ? [COURT.W / 2, COURT.L / 2, 0] : [COURT.W / 2, 5.6, 0];
     const f = nrm(sub(target, C)), r = nrm(cross(f, [0, 0, 1])), u = cross(r, f);
     const foc = W * 0.6;
     return { W, H, C, f, r, u, foc, project(P) { const d = sub(P, C); const z = dot(d, f); return [W / 2 + foc * dot(d, r) / z, H / 2 - foc * dot(d, u) / z, z]; } };
@@ -2041,9 +2455,10 @@ body.noscroll { overflow: hidden; }
   const CAT = { 'Devolución': 'medio', 'Saque largo': 'bajo', 'Saque corto': 'medio', Clear: 'alto', 'Dejada desde el fondo': 'alto', Remate: 'alto', 'Remate en salto': 'alto', Lob: 'bajo', 'Dejada de red': 'bajo', Bloqueo: 'medio', 'Defensa larga': 'bajo', Drive: 'medio' };
   const DEST = { 'Saque largo': 'fondo', 'Saque corto': 'red', Clear: 'fondo', 'Dejada desde el fondo': 'red', Remate: 'medio', 'Remate en salto': 'medio', Lob: 'fondo', 'Dejada de red': 'red', Bloqueo: 'red', 'Defensa larga': 'fondo', Drive: 'medio' };
 
-  function makeDemo(seed) {
+  function makeDemo(seed, opt) {
     const R = rng(seed || 7);
-    const W = 1280, H = 720, cam = makeCamera(W, H);
+    const W = 1280, H = 720, cam = makeCamera(W, H, opt && opt.side);
+    const toCam = (d) => [dot(d, cam.r), -dot(d, cam.u), dot(d, cam.f)]; // el cuerpo en ejes de la cámara, como lo da MediaPipe
     const pl = [{ S: 1.76, ext: 0.62, rec: 0.75, split: 1 }, { S: 1.80, ext: 0.5, rec: 1.25, split: 0.35 }];
     // Estrategias: probabilidades por situación
     const choose = (p, incoming) => {
@@ -2167,7 +2582,7 @@ body.noscroll { overflow: hidden; }
       J.forEach((P, k) => {
         const q = cam.project(P);
         img[k * 3] = q[0] + (noise ? (R() - 0.5) * 2.5 : 0); img[k * 3 + 1] = q[1] + (noise ? (R() - 0.5) * 2.5 : 0); img[k * 3 + 2] = 0.95;
-        w[k * 3] = P[0] - hx; w[k * 3 + 1] = -(P[2] - hz) + (noise ? (R() - 0.5) * 0.02 : 0); w[k * 3 + 2] = P[1] - hy;
+        const wc = toCam([P[0] - hx, P[1] - hy, P[2] - hz]); w[k * 3] = wc[0]; w[k * 3 + 1] = wc[1] + (noise ? (R() - 0.5) * 0.02 : 0); w[k * 3 + 2] = wc[2];
       });
       return { img, w };
     }
@@ -2194,7 +2609,7 @@ body.noscroll { overflow: hidden; }
       const u = (tt - passT[0]) / (passT[1] - passT[0]), x = -1.5 + 9 * u, y = -3.4;
       const J = [[x, y + 0.08, 1.6], [x - 0.2, y, 1.42], [x + 0.2, y, 1.42], [x - 0.25, y + 0.1, 1.15], [x + 0.25, y + 0.1, 1.15], [x - 0.25, y + 0.35 * Math.sin(tt * 9), 0.9], [x + 0.25, y - 0.35 * Math.sin(tt * 9), 0.9], [x - 0.12, y, 0.95], [x + 0.12, y, 0.95], [x - 0.12, y + 0.15 * Math.sin(tt * 6), 0.5], [x + 0.12, y - 0.15 * Math.sin(tt * 6), 0.5], [x - 0.12, y, 0.08], [x + 0.12, y, 0.08]];
       const img = new Float32Array(NK * 3), w = new Float32Array(NK * 3); const hc = [x, y, 0.95];
-      J.forEach((P, k) => { const q = cam.project(P); img[k * 3] = q[0]; img[k * 3 + 1] = q[1]; img[k * 3 + 2] = 0.9; w[k * 3] = P[0] - hc[0]; w[k * 3 + 1] = -(P[2] - hc[2]); w[k * 3 + 2] = P[1] - hc[1]; });
+      J.forEach((P, k) => { const q = cam.project(P); img[k * 3] = q[0]; img[k * 3 + 1] = q[1]; img[k * 3 + 2] = 0.9; const wc = toCam([P[0] - hc[0], P[1] - hc[1], P[2] - hc[2]]); w[k * 3] = wc[0]; w[k * 3 + 1] = wc[1]; w[k * 3 + 2] = wc[2]; });
       return { img, w };
     }
     for (let tt = 0; tt <= dur; tt += 1 / fps) {
@@ -2511,6 +2926,7 @@ body.noscroll { overflow: hidden; }
       await DB.put('videos', key, file); return key;
     } catch (e) { return null; }
   }
+  const delJob = () => Promise.all([DB.del('job', 'run'), DB.del('job', 'runsh')]);
   async function dropVideoIfUnused(key) {
     if (!key) return;
     try { const metas = await DB.all('meta'), job = await DB.get('job', 'run'); if (!metas.some((m) => m.videoKey === key) && !(job && job.videoKey === key)) await DB.del('videos', key); } catch (e) {}
@@ -2574,6 +2990,7 @@ body.noscroll { overflow: hidden; }
     v.onerror = () => showErr('<b>No se puede leer este vídeo.</b> Prueba con un vídeo MP4 (H.264). En iPhone: Ajustes › Cámara › Formatos › "Más compatible".');
     v.onloadedmetadata = async () => {
       if (!v.videoWidth) { v.onerror(); return; }
+      if ($('#vidNote')) { $('#vidNote').hidden = !(v.videoHeight > v.videoWidth); }
       $('#calibCv').width = Math.min(1280, v.videoWidth); $('#calibCv').height = Math.round($('#calibCv').width * v.videoHeight / v.videoWidth);
       await seek(v, Math.min(1, v.duration / 3)); drawCalib();
       $('#scrub').value = Math.round(Math.min(1, v.duration / 3) / v.duration * 1000);
@@ -2588,16 +3005,27 @@ body.noscroll { overflow: hidden; }
     });
   }
   // --- calibración ---
-  const CORNER_N = ['cercana izquierda', 'cercana derecha', 'lejana derecha', 'lejana izquierda'];
+  const CORNER_B = ['cercana izquierda', 'cercana derecha', 'lejana derecha', 'lejana izquierda'];
+  // Cámara en un lateral: la pista se ve a lo largo; el fondo izquierdo es el de la media pista "A"
+  const CORNER_S = ['del fondo izquierdo más alejada de la cámara', 'del fondo izquierdo más cercana a la cámara', 'del fondo derecho más cercana a la cámara', 'del fondo derecho más alejada de la cámara'];
+  const sideCam = () => !!(S.calib && S.calib.view === 'side');
+  const CORNER_N = new Proxy([], { get: (o, k) => (sideCam() ? CORNER_S : CORNER_B)[k] });
+  const halfName = (p) => (sideCam() ? (p === 0 ? 'izquierdo' : 'derecho') : (p === 0 ? 'cercano' : 'lejano'));
   const COURT_SEGS = (() => {
     const W = COURT.W, L = COURT.L, n = COURT.NET, s = COURT.SHORT, sd = COURT.SIDE, dl = COURT.DLONG;
     return [[[0, 0], [W, 0]], [[W, 0], [W, L]], [[W, L], [0, L]], [[0, L], [0, 0]], [[sd, 0], [sd, L]], [[W - sd, 0], [W - sd, L]], [[0, n - s], [W, n - s]], [[0, n + s], [W, n + s]], [[0, dl], [W, dl]], [[0, L - dl], [W, L - dl]], [[W / 2, 0], [W / 2, n - s]], [[W / 2, n + s], [W / 2, L]]];
   })();
   const ALT_Y = { fondo: 'La esquina', largo: 'Cruce con la línea de saque largo de dobles', corto: 'Cruce con la línea de saque corto', red: 'Base del poste de la red' };
-  function newCalib() { return { mode: S.calib ? S.calib.mode : 'd', steps: ['fondo', 'fondo', 'fondo', 'fondo'], pts: [null, null, null, null], order: [], sel: -1 }; }
-  function lmOf(k, yKey, mode) { const side = k === 0 || k === 3 ? 0 : 1, far = k >= 2 ? 1 : 0; const x = yKey === 'red' ? BA.LM.x.d[side] : BA.LM.x[mode][side]; return [x, BA.LM.y[yKey][far]]; }
+  function newCalib() { return { view: S.calib ? S.calib.view : 'back', mode: S.calib ? S.calib.mode : 'd', steps: ['fondo', 'fondo', 'fondo', 'fondo'], pts: [null, null, null, null], order: [], sel: -1 }; }
+  // Cualquier cruce de líneas: lateral (exterior/interior de cada lado o línea central) × línea transversal
+  const CX = { dl: 0, sl: COURT.SIDE, c: COURT.W / 2, sr: COURT.W - COURT.SIDE, dr: COURT.W };
+  const CY = { f0: 0, l0: COURT.DLONG, c0: COURT.NET - COURT.SHORT, n: COURT.NET, c1: COURT.NET + COURT.SHORT, l1: COURT.L - COURT.DLONG, f1: COURT.L };
+  const latName = (l) => { const s = sideCam(); const L = s ? { dl: 'lateral exterior más alejado de la cámara', sl: 'lateral interior más alejado de la cámara', c: 'línea central', sr: 'lateral interior más cercano a la cámara', dr: 'lateral exterior más cercano a la cámara' } : { dl: 'lateral exterior izquierdo', sl: 'lateral interior izquierdo', c: 'línea central', sr: 'lateral interior derecho', dr: 'lateral exterior derecho' }; return L[l]; };
+  const linName = (y) => { const s = sideCam(); const a2 = s ? 'izquierda' : 'cercana', b2 = s ? 'derecha' : 'lejana'; return { f0: `línea de fondo ${a2}`, l0: `línea de saque largo ${a2}`, c0: `línea de saque corto ${a2}`, n: 'red (base del poste)', c1: `línea de saque corto ${b2}`, l1: `línea de saque largo ${b2}`, f1: `línea de fondo ${b2}` }[y]; };
+  function lmOf(k, yKey, mode) { const cu = S.calib && S.calib.custom && S.calib.custom[k]; if (yKey === 'custom' && cu) return [CX[cu.lat], CY[cu.lin]]; const side = k === 0 || k === 3 ? 0 : 1, far = k >= 2 ? 1 : 0; const x = yKey === 'red' ? BA.LM.x.d[side] : BA.LM.x[mode][side]; return [x, BA.LM.y[yKey][far]]; }
   function lmName(k, yKey, mode) {
-    const lado = k === 0 || k === 3 ? 'izquierdo' : 'derecho', zona = k >= 2 ? 'lejano' : 'cercano';
+    const cu = S.calib && S.calib.custom && S.calib.custom[k]; if (yKey === 'custom' && cu) return cu.lin === 'n' ? `la base del poste de la red del ${latName(cu.lat).replace('lateral exterior ', 'lado ')}` : `el cruce del ${latName(cu.lat)} con la ${linName(cu.lin)}`;
+    const side = sideCam(), lado = side ? (k === 0 || k === 3 ? 'más alejado de la cámara' : 'más cercano a la cámara') : k === 0 || k === 3 ? 'izquierdo' : 'derecho', zona = side ? (k >= 2 ? 'derecho' : 'izquierdo') : k >= 2 ? 'lejano' : 'cercano';
     if (yKey === 'fondo') return `la esquina ${CORNER_N[k]} (${mode === 's' ? 'lateral de individual con la línea de fondo' : 'línea exterior de dobles'})`;
     if (yKey === 'red') return `la base del poste ${lado} de la red`;
     return `el cruce del lateral ${mode === 's' ? 'de individual' : 'de dobles'} ${lado} con ${BA.LM.yName[yKey]} (lado ${zona})`;
@@ -2620,7 +3048,8 @@ body.noscroll { overflow: hidden; }
     const cv = $('#calibCv'), v = S.video; if (!v || !S.calib) return;
     if (buf.width !== cv.width || buf.height !== cv.height) { buf.width = cv.width; buf.height = cv.height; }
     const c = buf.getContext('2d'), C = S.calib, k = calibScale(), lw = Math.max(2, cv.width / 500);
-    c.drawImage(v, 0, 0, cv.width, cv.height);
+    const FX = C.enhance ? 'contrast(1.7) saturate(2) brightness(1.05)' : 'none'; // realzar las líneas del suelo
+    c.filter = FX; c.drawImage(v, 0, 0, cv.width, cv.height); c.filter = 'none';
     const d = calibData(k), ok = calibOk();
     if (ok) {
       const { court2img } = courtHomographies(d);
@@ -2639,6 +3068,7 @@ body.noscroll { overflow: hidden; }
       if (i === C.sel) { c.strokeStyle = '#fff'; c.lineWidth = 3; c.beginPath(); c.arc(x, y, r0 * 1.6, 0, 7); c.stroke(); }
       c.fillStyle = '#241503'; c.font = `800 ${Math.round(cv.width / 80)}px Figtree, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(i + 1, x, y + 1);
     });
+    (C.seeds || []).forEach((q, p) => { if (!q) return; const x = q.x * k, y = q.y * k; c.fillStyle = pcol(p); c.strokeStyle = '#fff'; c.lineWidth = 3; c.beginPath(); c.ellipse(x, y, r0 * 1.4, r0 * 0.7, 0, 0, 7); c.fill(); c.stroke(); c.fillStyle = '#fff'; c.font = `800 ${Math.round(cv.width / 32)}px Figtree, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'bottom'; c.lineWidth = 4; c.strokeStyle = 'rgba(0,0,0,.7)'; c.strokeText(`Jugador ${halfName(p)}`, x, y - r0); c.fillText(`Jugador ${halfName(p)}`, x, y - r0); });
     const out = cv.getContext('2d'); out.drawImage(buf, 0, 0);
     // Lupa: lejos del dedo, con la pista dibujada y una cruz en el punto exacto
     const lp = drag >= 0 && C.pts[drag];
@@ -2650,14 +3080,19 @@ body.noscroll { overflow: hidden; }
       const R = Math.round(Math.max(cv.width / 14, Math.min(cv.width / 7, top ? (cv.height - tipBottom - 2 * mg) / 2 * 0.92 : (cv.height - 2 * mg) / 2)));
       const zx = px < cv.width / 2 ? cv.width - R - mg : R + mg, zy = top ? tipBottom + mg + R : cv.height - R - mg;
       out.save(); out.beginPath(); out.arc(zx, zy, R, 0, 7); out.clip(); out.fillStyle = '#000'; out.fillRect(zx - R, zy - R, 2 * R, 2 * R);
-      out.drawImage(v, (px - R / Z) / k, (py - R / Z) / k, 2 * R / Z / k, 2 * R / Z / k, zx - R, zy - R, 2 * R, 2 * R); // vídeo limpio, sin marcas encima
+      out.filter = FX; out.drawImage(v, (px - R / Z) / k, (py - R / Z) / k, 2 * R / Z / k, 2 * R / Z / k, zx - R, zy - R, 2 * R, 2 * R); out.filter = 'none'; // vídeo limpio, sin marcas encima
       out.strokeStyle = '#ff3b6b'; out.lineWidth = 2; out.beginPath(); out.moveTo(zx - R, zy); out.lineTo(zx - 8, zy); out.moveTo(zx + 8, zy); out.lineTo(zx + R, zy); out.moveTo(zx, zy - R); out.lineTo(zx, zy - 8); out.moveTo(zx, zy + 8); out.lineTo(zx, zy + R); out.stroke(); out.restore();
       out.strokeStyle = '#fff'; out.lineWidth = 4; out.beginPath(); out.arc(zx, zy, R, 0, 7); out.stroke();
     }
     const ps = pendingStep(), tip = $('#calibTip');
     if (ps >= 0) tip.innerHTML = `<span class="n">${ps + 1}</span><span>Toca ${lmName(ps, C.steps[ps], C.mode)}</span>`;
     else if (!ok) tip.innerHTML = `<span class="n">!</span><span>Hay tres puntos en la misma línea: cambia uno por otro cruce de líneas.</span>`;
+    else if (C.seedMode) { const miss = [0, 1].filter((p) => !(C.seeds && C.seeds[p])); tip.innerHTML = `<span class="n">👟</span><span>${miss.length === 2 ? 'Toca los pies de cada jugador (uno en cada campo)' : `Toca los pies del jugador del campo ${halfName(miss[0])}`}</span>`; }
     else tip.innerHTML = `<span class="n">✓</span><span>¿Encajan las líneas? Toca un punto y afínalo con las flechas.</span>`;
+    $('#seedBox').hidden = !ok; $('#seedBtn').setAttribute('aria-pressed', !!C.seedMode);
+    const nSeed = (C.seeds || []).filter(Boolean).length;
+    $('#seedBtn').textContent = C.seedMode ? 'Terminar' : nSeed ? 'Volver a marcar' : 'Marcar a los jugadores';
+    $('#seedTxt').textContent = C.seedMsg || (nSeed === 2 ? '✓ Jugadores marcados' : nSeed === 1 ? 'Falta un jugador' : '');
     $('#toSettings').disabled = !ok;
     const sel = C.sel >= 0 && C.pts[C.sel];
     $('#selTxt').textContent = sel ? `Ajuste fino del punto ${C.sel + 1}` : 'Toca un punto para ajustarlo con las flechas';
@@ -2671,6 +3106,13 @@ body.noscroll { overflow: hidden; }
   cvc.addEventListener('pointerdown', (e) => {
     if (!S.video || !S.calib) return; e.preventDefault();
     const C = S.calib, p = evPt(e), k = calibScale();
+    if (C.seedMode && calibOk()) { // marcar los pies de un jugador
+      const { img2court } = courtHomographies(calibData(k)), [cx, cy] = applyH(img2court, p[0], p[1]);
+      C.seedMsg = '';
+      if (!(cx > -2 && cx < COURT.W + 2 && cy > -2.5 && cy < COURT.L + 2.5)) C.seedMsg = 'Ese punto está fuera de la pista: toca los pies del jugador.';
+      else { C.seeds = C.seeds || [null, null]; C.seeds[cy < COURT.NET ? 0 : 1] = { x: p[0] / k, y: p[1] / k, t: S.video.currentTime }; if (C.seeds[0] && C.seeds[1]) C.seedMode = false; }
+      drawCalib(); return;
+    }
     let best = -1, bd = cvc.width / 22;
     C.pts.forEach((q, i) => { if (!q) return; const d = Math.hypot(q[0] * k - p[0], q[1] * k - p[1]); if (d < bd) { bd = d; best = i; } });
     if (best >= 0) { drag = best; grabOff = [C.pts[best][0] * k - p[0], C.pts[best][1] * k - p[1]]; }
@@ -2686,6 +3128,9 @@ body.noscroll { overflow: hidden; }
   document.addEventListener('keydown', (e) => { if ($('#p-calib').hidden || $('#flow').hidden) return; const m = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key]; if (m && S.calib && S.calib.sel >= 0) { e.preventDefault(); nudge(...m); } });
   $('#undoPt').onclick = () => { const C = S.calib; const k = C.order.pop(); if (k !== undefined) { C.pts[k] = null; if (C.sel === k) C.sel = -1; } drawCalib(); };
   $('#resetPt').onclick = () => { S.calib = newCalib(); $('#altBox').hidden = true; drawCalib(); };
+  if ($('#enhBtn')) $('#enhBtn').onclick = () => { S.calib.enhance = !S.calib.enhance; $('#enhBtn').setAttribute('aria-pressed', S.calib.enhance); drawCalib(); };
+  $$('#camView button').forEach((b) => (b.onclick = () => { $$('#camView button').forEach((x) => x.setAttribute('aria-pressed', x === b)); S.calib.view = b.dataset.v; updateSideLabels(); drawCalib(); }));
+  function updateSideLabels() { const bs = $$('#sideSeg button'); if (bs.length === 2) { bs[0].textContent = 'Lado ' + halfName(0); bs[1].textContent = 'Lado ' + halfName(1); } }
   $$('#lineMode button').forEach((b) => (b.onclick = () => { $$('#lineMode button').forEach((x) => x.setAttribute('aria-pressed', x === b)); S.calib.mode = b.dataset.v; drawCalib(); }));
   $('#hiddenPt').onclick = () => {
     const C = S.calib, ps = pendingStep(), k = ps >= 0 ? ps : C.sel; if (k < 0) return;
@@ -2693,10 +3138,20 @@ body.noscroll { overflow: hidden; }
     const used = C.steps.map((y, i) => (i !== k ? JSON.stringify(lmOf(i, y, C.mode)) : null));
     $('#altChips').innerHTML = Object.entries(ALT_Y).filter(([y]) => !used.includes(JSON.stringify(lmOf(k, y, C.mode)))).map(([y, n]) => `<button class="chip" type="button" data-y="${y}" aria-pressed="${C.steps[k] === y}">${n}</button>`).join('');
     $$('#altChips .chip').forEach((b) => (b.onclick = () => { C.steps[k] = b.dataset.y; C.pts[k] = null; C.order = C.order.filter((x) => x !== k); C.sel = -1; $('#altBox').hidden = true; drawCalib(); }));
+    // Cualquier otro cruce de líneas que sí se vea (para pistas que se salen del encuadre)
+    const lats = ['dl', 'sl', 'c', 'sr', 'dr'], lins = ['f0', 'l0', 'c0', 'n', 'c1', 'l1', 'f1'];
+    $('#altFree').innerHTML = `<span class="small">O cualquier otro cruce que se vea:</span><select id="altLat">${lats.map((l) => `<option value="${l}">${latName(l)}</option>`).join('')}</select><select id="altLin">${lins.map((l) => `<option value="${l}">${linName(l)}</option>`).join('')}</select><button class="btn" type="button" id="altUse">Usar este cruce</button><span class="small muted" id="altMsg"></span>`;
+    $('#altUse').onclick = () => {
+      const lat = $('#altLat').value, lin = $('#altLin').value;
+      if (lat === 'c' && !['f0', 'l0', 'c0', 'c1', 'l1', 'f1'].includes(lin)) { $('#altMsg').textContent = 'La línea central no llega a la red.'; return; }
+      if (lat === 'c' && false) return;
+      C.custom = C.custom || {}; C.custom[k] = { lat, lin }; C.steps[k] = 'custom'; C.pts[k] = null; C.order = C.order.filter((x) => x !== k); C.sel = -1; $('#altBox').hidden = true; drawCalib();
+    };
     $('#altBox').hidden = false;
   };
   $('#scrub').oninput = async (e) => { if (!S.video) return; await seek(S.video, e.target.value / 1000 * S.video.duration); drawCalib(); };
-  $('#toSettings').onclick = () => { setStep(2); updateTrim(); };
+  $('#toSettings').onclick = () => { S.calib.seedMode = false; setStep(2); updateTrim(); };
+  $('#seedBtn').onclick = () => { const C = S.calib; C.seedMsg = ''; if (C.seedMode) C.seedMode = false; else { C.seeds = [null, null]; C.seedMode = true; } drawCalib(); };
   $('#backCalib').onclick = () => setStep(1);
   // --- ajustes ---
   function segBind(id, key) { $$('#' + id + ' button').forEach((b) => (b.onclick = () => { $$('#' + id + ' button').forEach((x) => x.setAttribute('aria-pressed', x === b)); S.settings[key] = b.dataset.v; updateTrim(); })); }
@@ -2708,9 +3163,10 @@ body.noscroll { overflow: hidden; }
     const [a, b] = trimRange(), q = QUAL[S.settings.q];
     $('#trimTxt').textContent = `${mmss(a)} – ${mmss(b)} (${Math.round(b - a)} s)`;
     let secs = (b - a) * q.fps * (q.mc ? 0.26 : 0.16);
-    if (S.settings.mode === 'precise') secs += (b - a) * 30 * 0.6 * 0.3; // ~0,3 s por fotograma con la GPU de un móvil actual, saltando pausas
+    if (S.settings.mode === 'precise') secs += (b - a) * 30 * 0.6 * 0.3 * (S.settings.cool ? 1.45 : 1); // ~0,3 s por fotograma con la GPU de un móvil actual, saltando pausas
     $('#etaTxt').textContent = `≈ ${secs < 60 ? Math.max(5, Math.round(secs)) + ' s' : secs < 5400 ? Math.round(secs / 60) + ' min' : (secs / 3600).toFixed(1) + ' h'} en un móvil actual${S.settings.mode === 'precise' ? ' (depende mucho del móvil; se mide al empezar)' : ''}`;
   }
+  if ($('#coolChk')) $('#coolChk').onchange = (e) => { S.settings.cool = e.target.checked; updateTrim(); };
   $$('#modeSeg button').forEach((b) => (b.onclick = async () => {
     $$('#modeSeg button').forEach((x) => x.setAttribute('aria-pressed', x === b)); S.settings.mode = b.dataset.v; updateTrim();
     const info = $('#modeInfo');
@@ -2718,7 +3174,7 @@ body.noscroll { overflow: hidden; }
     info.textContent = 'Comprobando tu móvil…';
     const gpu = await gpuOk();
     info.innerHTML = gpu
-      ? 'Preciso: un modelo de IA sigue el volante en cada fotograma y de ahí salen los golpes, quién los da y de qué tipo son. <b>Tarda mucho más</b> (ver la duración estimada); déjalo cargando y con la app abierta. Si sales de la app se pausa y sigue al volver.'
+      ? 'Preciso: un modelo de IA sigue el volante en cada fotograma y de ahí salen los golpes, quién los da y de qué tipo son. <b>Tarda mucho más</b> (ver la duración estimada); deja la app abierta. Si sales de la app se pausa y sigue al volver.<br><span class="small">Para que se caliente menos: quita la funda, déjalo sobre una mesa (no en la cama ni al sol), usa «Oscurecer pantalla» y, si tienes batería de sobra, no lo cargues a la vez.</span>'
       : gpuHelp();
   }));
   $('#trimA').oninput = updateTrim; $('#trimB').oninput = updateTrim;
@@ -2749,8 +3205,9 @@ body.noscroll { overflow: hidden; }
     const cfg = resume ? resume.cfg : (() => {
       const W = Math.min(1280, v.videoWidth), H = Math.round(W * v.videoHeight / v.videoWidth), me = +S.settings.side, [a, b] = trimRange();
       const hMe = (+$('#hMe').value || 175) / 100, hOp = (+$('#hOp').value || 175) / 100;
-      return { kind: 'match', q: S.settings.q, precise: S.settings.mode === 'precise', me, W, H, corners: calibData(W / v.videoWidth), a, b, calibT: S.calib.t || 0,
-        stature: me === 0 ? [hMe, hOp] : [hOp, hMe], hand: me === 0 ? [$('#handMe').value, 'auto'] : ['auto', $('#handMe').value], names: me === 0 ? ['Tú', 'Rival'] : ['Rival', 'Tú'] };
+      return { kind: 'match', q: S.settings.q, precise: S.settings.mode === 'precise', cool: !!S.settings.cool, me, W, H, corners: calibData(W / v.videoWidth), a, b, calibT: S.calib.t || 0,
+        stature: me === 0 ? [hMe, hOp] : [hOp, hMe], hand: me === 0 ? [$('#handMe').value, 'auto'] : ['auto', $('#handMe').value], names: (() => { const a = ($('#nameMe').value || 'Tú').trim() || 'Tú', b = ($('#nameOp').value || 'Rival').trim() || 'Rival'; return me === 0 ? [a, b] : [b, a]; })(), lineMode: S.calib.mode, view: S.calib.view || 'back',
+        seedPts: (S.calib.seeds || [null, null]).map((q) => (q ? { x: q.x * W / v.videoWidth, y: q.y * W / v.videoWidth, t: q.t } : null)) };
     })();
     const q = QUAL[cfg.q], me = cfg.me, W = cfg.W, H = cfg.H, corners = cfg.corners;
     const job = startJob(resume, cfg);
@@ -2761,8 +3218,7 @@ body.noscroll { overflow: hidden; }
       const pts = [];
       for (const [x, y] of [[-1.2, y0], [COURT.W + 1.2, y0], [COURT.W + 1.2, y1], [-1.2, y1]]) {
         const g = applyH(court2img, x, y);
-        const a = applyH(court2img, x - 0.5, y), b = applyH(court2img, x + 0.5, y);
-        const pxm = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        const pxm = BA.pxPerM(court2img, x, y);
         pts.push(g, [g[0], g[1] - 2.7 * pxm]);
       }
       let x0 = Math.max(0, Math.min(...pts.map((q) => q[0]))), x1 = Math.min(W, Math.max(...pts.map((q) => q[0])));
@@ -2774,8 +3230,8 @@ body.noscroll { overflow: hidden; }
     const zone = (p) => {
       const y0 = p === 0 ? -1.2 : COURT.NET - 0.4, y1 = p === 0 ? COURT.NET + 0.4 : COURT.L + 1.2, pts = [];
       for (const [x, y] of [[-1.2, y0], [COURT.W + 1.2, y0], [COURT.W + 1.2, y1], [-1.2, y1]]) {
-        const g = applyH(court2img, x, y), a2 = applyH(court2img, x - 0.5, y), b2 = applyH(court2img, x + 0.5, y);
-        pts.push(g, [g[0], g[1] - 3.0 * Math.hypot(b2[0] - a2[0], b2[1] - a2[1])]);
+        const g = applyH(court2img, x, y);
+        pts.push(g, [g[0], g[1] - 3.0 * BA.pxPerM(court2img, x, y)]);
       }
       return BA.hull(pts);
     };
@@ -2787,13 +3243,13 @@ body.noscroll { overflow: hidden; }
       const [cx, cy] = applyH(img2court, ax, ay);
       if (p === 0 ? !(cy > -1.6 && cy < COURT.NET + 0.8) : !(cy < COURT.L + 1.6 && cy > COURT.NET - 0.8)) return false;
       if (cx < -1.6 || cx > COURT.W + 1.6) return false;
-      const a2 = applyH(court2img, cx - 0.5, cy), b2 = applyH(court2img, cx + 0.5, cy), pxm = Math.hypot(b2[0] - a2[0], b2[1] - a2[1]);
+      const pxm = BA.pxPerM(court2img, cx, cy);
       const r = Math.hypot(img[K.nose * 3] - ax, img[K.nose * 3 + 1] - ay) / (1.75 * pxm);
       return r > 0.3 && r < 1.9;
     };
     let boxes = [null, null]; const boxT = [-9, -9], lastImg = [null, null], tcrop = [null, null], ignore = [];
     const hMe0 = (+$('#hMe').value || 175) / 100, hOp0 = (+$('#hOp').value || 175) / 100;
-    const gate = BA.makeGate({ stature: +S.settings.side === 0 ? [hMe0, hOp0] : [hOp0, hMe0] }, court2img, img2court);
+    let gate = BA.makeGate({ stature: +S.settings.side === 0 ? [hMe0, hOp0] : [hOp0, hMe0], seed: cfg.seed }, court2img, img2court);
     const overlap = (a2, b2) => a2 && b2 && a2[0] < b2[2] && b2[0] < a2[2] && a2[1] < b2[3] && b2[1] < a2[3];
     // Volante (experimental): diferencia entre tres fotogramas seguidos a baja resolución
     const SW = 480, SH = Math.round(SW * H / W), sk = W / SW;
@@ -2831,6 +3287,34 @@ body.noscroll { overflow: hidden; }
     $('#runTitle').textContent = 'Preparando el modelo de IA…'; $('#runBar').style.width = '2%';
     let P;
     try { P = await getPose(q.mc); } catch (e) { throw new Error('El modelo de postura no se ha podido iniciar en este navegador (' + (e.message || e) + ').'); }
+    // Jugadores marcados al empezar: color de su ropa (con la postura en un recorte alrededor de sus pies)
+    if (!cfg.seed && cfg.seedPts && cfg.seedPts.some(Boolean)) {
+      $('#runTitle').textContent = 'Reconociendo a los jugadores…';
+      const seed = [null, null];
+      for (let p = 0; p < 2; p++) {
+        const sp = cfg.seedPts[p]; if (!sp) continue;
+        await seek(v, sp.t); wc.setTransform(1, 0, 0, 1, 0, 0); wc.drawImage(v, 0, 0, W, H); grab();
+        const [fx, fy] = applyH(img2court, sp.x, sp.y), pxm = BA.pxPerM(court2img, fx, fy);
+        const hh = 2.6 * pxm, ww = 2.0 * pxm, c = { x: Math.max(0, sp.x - ww / 2), y: Math.max(0, sp.y - hh * 0.92) };
+        c.w = Math.min(W, sp.x + ww / 2) - c.x; c.h = Math.min(H, sp.y + hh * 0.12) - c.y;
+        let col = null;
+        if (c.w > 16 && c.h > 16) {
+          const up = clamp(400 / Math.max(c.w, c.h), 1, 4), cc = ccs[p]; cc.width = Math.round(c.w * up); cc.height = Math.round(c.h * up);
+          cc.getContext('2d').drawImage(work, c.x, c.y, c.w, c.h, 0, 0, cc.width, cc.height);
+          try { P[p].pose.reset(); } catch (e) {}
+          const r = await P[p].run(cc);
+          if (r && r.poseLandmarks) {
+            const img = new Float32Array(NK * 3); BA.MP_IDX.forEach((m, j) => { const L = r.poseLandmarks[m]; img[j * 3] = c.x + L.x * c.w; img[j * 3 + 1] = c.y + L.y * c.h; img[j * 3 + 2] = L.visibility == null ? 0.9 : L.visibility; });
+            const ax = (img[K.lan * 3] + img[K.ran * 3]) / 2, ay = Math.max(img[K.lan * 3 + 1], img[K.ran * 3 + 1]);
+            if (Math.hypot(ax - sp.x, ay - sp.y) < hh * 0.3) col = colAt(img);
+          }
+        }
+        if (!col) { const r2 = Math.max(1, 0.1 * pxm / sk); col = [...patch(sp.x, sp.y - 1.25 * pxm, r2), ...patch(sp.x, sp.y - 0.85 * pxm, r2)]; } // sin postura: zona del tronco y del pantalón
+        seed[p] = { x: +fx.toFixed(2), y: +fy.toFixed(2), col: col.map((x) => Math.round(x)) };
+      }
+      cfg.seed = seed;
+    }
+    if (cfg.seed) gate = BA.makeGate({ stature: cfg.stature, seed: cfg.seed }, court2img, img2court);
     // Estabilización: el fotograma en el que se marcó la pista es la referencia
     const stabCv = document.createElement('canvas'); stabCv.width = SW; stabCv.height = SH; const stx = stabCv.getContext('2d', { willReadFrequently: true });
     const rawGray = () => { stx.drawImage(v, 0, 0, SW, SH); const d = stx.getImageData(0, 0, SW, SH).data, g = new Uint8Array(SW * SH); for (let j = 0; j < g.length; j++) g[j] = (d[j * 4] * 3 + d[j * 4 + 1] * 5 + d[j * 4 + 2] * 2) / 10; return g; };
@@ -2907,26 +3391,33 @@ body.noscroll { overflow: hidden; }
       g0 = g1; g1 = g2;
       if (i % 3 !== 0) await new Promise((r2) => setTimeout(r2, 0));
       if (i % 3 === 0 || i === times.length - 1) {
-        rc.drawImage(work, 0, 0);
-        drawCourtLines(rc, court2img, 1, 'rgba(255,255,255,.5)', Math.max(1.5, W / 700));
-        fr.p.forEach((pl, p) => pl && drawSkeleton(rc, pl.img, 1, p === me ? '#e8962c' : '#8592ff', Math.max(2, W / 400)));
+        if (!darkOn()) { rc.drawImage(work, 0, 0);
+          drawCourtLines(rc, court2img, 1, 'rgba(255,255,255,.5)', Math.max(1.5, W / 700));
+          fr.p.forEach((pl, p) => pl && drawSkeleton(rc, pl.img, 1, p === me ? '#e8962c' : '#8592ff', Math.max(2, W / 400))); }
         const el = (performance.now() - t0) / 1000, per = el / (i + 1 - i0), rest = per * (times.length - i - 1);
         $('#runBar').style.width = `${Math.round((i + 1) / times.length * 100)}%`;
         $('#runEta').textContent = `${cfg.precise ? 'Paso 1 de 2 · ' : ''}${i + 1}/${times.length} · quedan ${rest < 60 ? Math.round(rest) + ' s' : Math.round(rest / 60) + ' min'}`;
-        $('#runInfo').textContent = `Jugador cercano visto en ${Math.round(found[0] / (i + 1) * 100)} % de los fotogramas · jugador lejano en ${Math.round(found[1] / (i + 1) * 100)} %.`;
+        darkUpdate();
+        $('#runInfo').textContent = `Jugador ${halfName(0)} visto en ${Math.round(found[0] / (i + 1) * 100)} % de los fotogramas · jugador ${halfName(1)} en ${Math.round(found[1] / (i + 1) * 100)} %.`;
         await new Promise((r) => setTimeout(r, 0));
       }
     }
-    if (found[0] < frames.length * 0.15 && found[1] < frames.length * 0.15) { job.stop(false); DB.del('job', 'run').catch(() => {}); throw new Error('Casi no se han detectado jugadores. Revisa que las esquinas estén bien marcadas y que la pista se vea entera.'); }
+    if (found[0] < frames.length * 0.15 && found[1] < frames.length * 0.15) { job.stop(false); delJob().catch(() => {}); throw new Error('Casi no se han detectado jugadores. Revisa que las esquinas estén bien marcadas y que la pista se vea entera.'); }
     // Modo preciso: segunda pasada con el modelo que sigue el volante (30 fotogramas por segundo)
     let sh30 = null;
     if (cfg.precise) { sh30 = await shuttlePass({ v, W, H, a, b, cfg, STAB, rawGray, frames, found, job, resume, rc, court2img, me }); if (sh30 === 'cancel') return; }
     job.stop(false);
-    S.track = { demo: false, width: W, height: H, duration: b - a, offset: a, corners, frames, sh30, precise: !!sh30, stature: cfg.stature, hand: cfg.hand, names: cfg.names, sens: 'normal', edits: { add: [], del: [], type: {}, rally: {} } };
+    S.track = { demo: false, width: W, height: H, duration: b - a, offset: a, corners, frames, sh30, precise: !!sh30, stature: cfg.stature, seed: cfg.seed || null, hand: cfg.hand, names: cfg.names, lineMode: cfg.lineMode, view: cfg.view, me, stabBad: frames.length ? stabBad / frames.length : 0, sens: 'normal', edits: { add: [], del: [], type: {}, rally: {} } };
     S.me = me; S.sel = me; S.demo = null;
     finish(job);
   }
 
+  /* ---------- Pantalla oscura durante el análisis (la pantalla también calienta y gasta) ---------- */
+  function darkOn() { const o = $('#darkOv'); return !!(o && !o.hidden); }
+  function darkUpdate() { const o = $('#darkOv'); if (!o || o.hidden) return; $('#darkTxt').textContent = `${$('#runTitle').textContent} · ${$('#runEta').textContent}`; }
+  function darkOff() { const o = $('#darkOv'); if (o) o.hidden = true; }
+  if ($('#darkBtn')) $('#darkBtn').onclick = () => { $('#darkOv').hidden = false; darkUpdate(); };
+  if ($('#darkOv')) $('#darkOv').onclick = () => darkOff();
   /* ---------- Modo preciso: modelo del volante (TrackNet) ---------- */
   // Pasos para activar la tarjeta gráfica (WebGPU) según el móvil
   function gpuHelp() {
@@ -2977,11 +3468,15 @@ body.noscroll { overflow: hidden; }
     return R;
   }
   async function shuttlePass(c) {
-    const { v, W, H, a, b, STAB, rawGray, frames, job, resume, rc, court2img } = c;
+    const { v, W, H, a, b, STAB, rawGray, frames, job, resume, rc, court2img, cfg } = c;
     const FPS = 30, n = Math.floor((b - a) * FPS) + 1;
     let shx, shy, next = 0;
-    if (resume && resume.sh && resume.sh.n === n) { shx = Float32Array.from(resume.sh.x); shy = Float32Array.from(resume.sh.y); next = resume.sh.next; }
+    let rsh = null; if (resume) { try { rsh = await DB.get('job', 'runsh'); } catch (e) {} } else { await DB.del('job', 'runsh').catch(() => {}); }
+    if (rsh && rsh.n === n) { shx = Float32Array.from(rsh.x); shy = Float32Array.from(rsh.y); next = rsh.next; }
     else { shx = new Float32Array(n).fill(NaN); shy = new Float32Array(n).fill(NaN); }
+    // Las posturas ya no cambian: se guardan una sola vez; luego solo el avance del volante (poco y rápido de guardar)
+    await job.save({ frames, next: frames.length, found: c.found });
+    let shSaving = null; const saveSh = (kk) => { if (shSaving) return shSaving; shSaving = DB.put('job', 'runsh', { n, x: shx, y: shy, next: kk }).catch(() => {}).then(() => { shSaving = null; }); return shSaving; };
     $('#runTitle').textContent = 'Preparando el modelo del volante…'; $('#runBar').style.width = '0%';
     $('#runInfo').textContent = 'Se descarga una vez (unos 9 MB, y el motor de IA unos 24 MB) y queda guardado.';
     // Para no pasarse de memoria: los modelos de postura ya no hacen falta en esta pasada
@@ -2999,53 +3494,84 @@ body.noscroll { overflow: hidden; }
       if (W / H >= 1.6) return { x: 0, y: 0, w: W, h: W * 9 / 16 };
       const cs = [[0, 0], [COURT.W, 0], [COURT.W, COURT.L], [0, COURT.L]].map(([x, y]) => applyH(court2img, x, y));
       const x0 = Math.min(...cs.map((q) => q[0])), x1 = Math.max(...cs.map((q) => q[0])), yb = Math.max(...cs.map((q) => q[1])), yf = Math.min(...cs.map((q) => q[1]));
-      const near = Math.hypot(cs[1][0] - cs[0][0], cs[1][1] - cs[0][1]);
+      // tamaño de referencia: el ancho de la red (en los vídeos de entrenamiento del modelo ocupa ~61 % del ancho de la imagen)
+      const n0 = applyH(court2img, 0, COURT.NET), n1 = applyH(court2img, COURT.W, COURT.NET), netW = Math.hypot(n1[0] - n0[0], n1[1] - n0[1]);
       const top = yf - (yb - yf) * 0.9, bw = (x1 - x0) * 1.08, bh = yb - top + 20;
-      const w = Math.max(bw, bh * 16 / 9, near / 0.65), h = w * 9 / 16;
+      const w = Math.max(Math.min(bw, netW / 0.45), bh * 16 / 9 * 0.8, netW / 0.61), h = w * 9 / 16;
       return { x: (x0 + x1) / 2 - w / 2, y: Math.min(yb + 20 - h, (top + yb) / 2 - h / 2) , w, h };
     })();
-    const sc = IW / win.w, buf = [], heat = new Uint8Array(IW * IH), lab = new Int32Array(IW * IH);
-    const grabSmall = (T) => { cx.setTransform(sc * T[0], sc * T[3], sc * T[1], sc * T[4], sc * (T[2] - win.x), sc * (T[5] - win.y)); cx.fillStyle = '#000'; cx.fillRect(-W, -H, 3 * W, 3 * H); cx.drawImage(v, 0, 0, W, H); cx.setTransform(1, 0, 0, 1, 0, 0); const d = cx.getImageData(0, 0, IW, IH).data, g = new Float32Array(IW * IH); for (let j = 0; j < g.length; j++) g[j] = (d[j * 4] * 0.299 + d[j * 4 + 1] * 0.587 + d[j * 4 + 2] * 0.114) / 255; return g; };
-    const blob = (h) => { // mancha más grande por encima de 0,5
+    const sc = IW / win.w, heat = new Uint8Array(IW * IH), lab = new Int32Array(IW * IH);
+    const PX = IW * IH, inp = new Float32Array(3 * PX); let have = 0; // las tres imágenes que ve el modelo, sin crear memoria nueva en cada fotograma
+    const grabSmall = (T) => { cx.setTransform(sc * T[0], sc * T[3], sc * T[1], sc * T[4], sc * (T[2] - win.x), sc * (T[5] - win.y)); cx.fillStyle = '#000'; cx.fillRect(-W, -H, 3 * W, 3 * H); cx.drawImage(v, 0, 0, W, H); cx.setTransform(1, 0, 0, 1, 0, 0);
+      inp.copyWithin(0, PX); const d = cx.getImageData(0, 0, IW, IH).data, o = 2 * PX; for (let j = 0; j < PX; j++) inp[o + j] = (d[j * 4] * 0.299 + d[j * 4 + 1] * 0.587 + d[j * 4 + 2] * 0.114) / 255; have = Math.min(3, have + 1); };
+    const inPrism = G0.BSH ? BSH.courtPrism(BSH.camera(court2img, W, H)) : () => true;
+    const blob = (h) => { // mancha más grande por encima de 0,5 dentro del espacio de esta pista
       for (let j = 0; j < h.length; j++) heat[j] = h[j] > 0.5 ? 1 : 0;
-      lab.fill(0); let best = null, id = 0;
+      lab.fill(0); let id = 0; const all = [];
       for (let j = 0; j < heat.length; j++) { if (!heat[j] || lab[j]) continue; id++; const st = [j]; lab[j] = id; let cnt = 0, sx = 0, sy = 0;
         while (st.length) { const q = st.pop(), x = q % IW, y = (q / IW) | 0; cnt++; sx += x; sy += y; for (const o of [1, -1, IW, -IW]) { const r = q + o; if (r >= 0 && r < heat.length && heat[r] && !lab[r] && Math.abs((r % IW) - x) <= 1) { lab[r] = id; st.push(r); } } }
-        if (!best || cnt > best.cnt) best = { cnt, x: sx / cnt, y: sy / cnt }; }
-      return best;
+        const bx = sx / cnt / sc + win.x, by = sy / cnt / sc + win.y; if (!inPrism(bx, by)) continue;
+        all.push([bx, by, cnt]); }
+      return all;
     };
-    const t0 = performance.now(); let done = 0, lastK = -9, startNext = next;
+    const t0 = performance.now(); let done = 0, lastK = -9; const pst = {};
     $('#runTitle').textContent = 'Siguiendo el volante…';
+    // Lectura del vídeo de corrido (como al reproducirlo): mucho menos trabajo y calor que saltar a cada fotograma.
+    let seqOK = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+    const playTo = (k) => new Promise((ok) => {
+      const target = a + k / FPS; let fin = false;
+      const end = (mt) => { if (fin) return; fin = true; clearTimeout(to); try { v.pause(); } catch (e) {} ok(mt); };
+      const to = setTimeout(() => end(null), 2500);
+      const cb = (now, meta) => { if (fin) return; if (meta.mediaTime >= target - 0.3 / FPS) end(meta.mediaTime); else v.requestVideoFrameCallback(cb); };
+      v.requestVideoFrameCallback(cb); v.muted = true; const pr = v.play(); if (pr && pr.catch) pr.catch(() => end(null));
+    });
+    const goTo = async (k) => { // devuelve el fotograma al que se ha llegado de verdad
+      if (seqOK && lastK >= 0 && k > lastK && k - lastK <= 8) { const mt = await playTo(k); if (mt != null) return Math.max(k, Math.round((mt - a) * FPS)); seqOK = false; }
+      await seek(v, a + (k + 0.5) / FPS); return k;
+    };
+    // Descansos para que el móvil no se caliente: si cada fotograma empieza a tardar más (el móvil se frena por calor), se para un poco
+    const cool = !!(cfg.cool || S.settings.cool), tms = []; let base = null;
+    const rest = async (secs) => { const tt = $('#runTitle').textContent; $('#runTitle').textContent = 'Dejando que el móvil se enfríe…'; await new Promise((r2) => setTimeout(r2, secs * 1000)); $('#runTitle').textContent = tt; };
     for (let ti = 0; ti < todo.length; ti++) {
-      const k = todo[ti]; if (k < next) continue;
-      if (S.cancel) { job.stop(true); setStep(2); return 'cancel'; }
-      const st = () => ({ frames, next: frames.length, found: c.found, sh: { n, x: Array.from(shx), y: Array.from(shy), next: k } });
-      if (document.hidden) { await job.pause(st()); ti--; continue; }
-      if (done && done % 150 === 0) job.save(st());
+      const k0 = todo[ti]; if (k0 < next) continue;
+      if (S.cancel) { job.stop(true); setStep(2); darkOff(); return 'cancel'; }
+      if (document.hidden) { await saveSh(k0); await job.pause(null); ti--; lastK = -9; continue; }
+      if (done && done % 60 === 0) saveSh(k0);
+      const fs0 = performance.now();
       // los dos fotogramas anteriores hacen falta como contexto
-      if (k - lastK !== 1) { buf.length = 0; for (const kk of [k - 2, k - 1]) { if (kk < 0) continue; await seek(v, a + (kk + 0.5) / FPS); buf.push(grabSmall(BS.scaleT(STAB.estimate(rawGray()).T, W / 480))); } }
-      await seek(v, a + (k + 0.5) / FPS); // a mitad del fotograma: así no se repite ni se salta ninguno
+      if (lastK < 0 || k0 - lastK > 3) { have = 0; for (const kk of [k0 - 2, k0 - 1]) { if (kk < 0) continue; await seek(v, a + (kk + 0.5) / FPS); grabSmall(BS.scaleT(STAB.estimate(rawGray()).T, W / 480)); } lastK = k0 - 1; }
+      const k = await goTo(k0);
+      while (ti + 1 < todo.length && todo[ti + 1] <= k) ti++; // si el vídeo se ha saltado algún fotograma, se sigue desde ahí
       if (document.hidden) { ti--; lastK = -9; continue; }
       const T = BS.scaleT(STAB.estimate(rawGray()).T, W / 480);
-      buf.push(grabSmall(T)); while (buf.length > 3) buf.shift(); lastK = k;
-      if (buf.length === 3) {
-        const inp = new Float32Array(3 * IW * IH); inp.set(buf[0], 0); inp.set(buf[1], IW * IH); inp.set(buf[2], 2 * IW * IH);
+      grabSmall(T); lastK = k;
+      if (have === 3) {
+        const m0 = performance.now();
         const r = await sess.run({ input: new window.ort.Tensor('float32', inp, [1, 3, IH, IW]) });
         const h = r.heat.getData ? await r.heat.getData() : r.heat.data; const bl = blob(h);
-        if (bl) { shx[k] = bl.x / sc + win.x; shy[k] = bl.y / sc + win.y; }
+        try { r.heat.dispose && r.heat.dispose(); } catch (e) {}
+        const pf = frames.length ? frames[Math.max(0, Math.min(frames.length - 1, Math.round((k / FPS) / ((frames[frames.length - 1].t || 1) / Math.max(1, frames.length - 1)))))] : null;
+        const boxes = pf ? pf.p.map((q) => (q ? BSH.boxOf(q.img) : null)) : null;
+        const pk = BSH.pickBlob(k, bl, pst, boxes, W);
+        if (pk) { shx[k] = pk[0]; shy[k] = pk[1]; }
+        tms.push(performance.now() - m0); if (tms.length > 12) tms.shift();
+        if (base === null && done >= 15) base = BA.median(tms);
       }
       done++;
-      if (done % 4 === 0 || ti === todo.length - 1) {
-        const el = (performance.now() - t0) / 1000, per = el / Math.max(1, done), rest = per * (todo.length - ti - 1);
+      if (cool) await new Promise((r2) => setTimeout(r2, Math.min(800, (performance.now() - fs0) * 0.5))); // modo fresco: la gráfica descansa la mitad del tiempo que trabaja
+      if (base && tms.length >= 10 && done % 10 === 0) { const now = mean(tms); if (now > base * (cool ? 1.3 : 1.6)) { await rest(cool ? 6 : 3); tms.length = 0; } }
+      if (done % 4 === 0 || ti >= todo.length - 1) {
+        const el = (performance.now() - t0) / 1000, per = el / Math.max(1, done), rest2 = per * (todo.length - ti - 1);
         const pct = Math.round((ti + 1) / todo.length * 100);
         $('#runBar').style.width = pct + '%';
-        $('#runEta').textContent = `Paso 2 de 2 · ${pct} % · quedan ${rest < 90 ? Math.round(rest) + ' s' : rest < 5400 ? Math.round(rest / 60) + ' min' : (rest / 3600).toFixed(1) + ' h'}`;
-        $('#runInfo').textContent = `Motor: ${tnEP === 'webgpu' ? 'tarjeta gráfica del móvil' : 'procesador (lento)'} · ${Math.round(per * 1000)} ms por fotograma · se saltan las pausas entre puntos (${Math.round(skipped * 100)} % del vídeo).${lowBat ? ' Batería baja: conviene enchufar el móvil.' : ''}${tnEP !== 'webgpu' ? ' Va lento porque no se está usando la tarjeta gráfica: cancela y mira en Ajustes, en "Tipo de análisis", cómo activarla.' : ''}`;
-        rc.drawImage(v, 0, 0, rc.canvas.width, rc.canvas.height);
-        rc.fillStyle = '#ffe678'; for (let j = Math.max(0, k - 12); j <= k; j++) if (Number.isFinite(shx[j])) { rc.beginPath(); rc.arc(shx[j], shy[j], Math.max(4, W / 220), 0, 7); rc.fill(); }
+        $('#runEta').textContent = `Paso 2 de 2 · ${pct} % · quedan ${rest2 < 90 ? Math.round(rest2) + ' s' : rest2 < 5400 ? Math.round(rest2 / 60) + ' min' : (rest2 / 3600).toFixed(1) + ' h'}`;
+        $('#runInfo').textContent = `Motor: ${tnEP === 'webgpu' ? 'tarjeta gráfica del móvil' : 'procesador (lento)'} · ${Math.round(per * 1000)} ms por fotograma${seqOK ? '' : ' · lectura fotograma a fotograma'}${cool ? ' · modo fresco' : ''} · se saltan las pausas entre puntos (${Math.round(skipped * 100)} % del vídeo).${lowBat ? ' Batería baja: conviene enchufar el móvil.' : ''}${tnEP !== 'webgpu' ? ' Va lento porque no se está usando la tarjeta gráfica: cancela y mira en Ajustes, en "Tipo de análisis", cómo activarla.' : ''}`;
+        darkUpdate();
+        if (!darkOn()) { rc.drawImage(v, 0, 0, rc.canvas.width, rc.canvas.height); rc.fillStyle = '#ffe678'; for (let j = Math.max(0, k - 12); j <= k; j++) if (Number.isFinite(shx[j])) { rc.beginPath(); rc.arc(shx[j], shy[j], Math.max(4, W / 220), 0, 7); rc.fill(); } }
         await new Promise((r2) => setTimeout(r2, 0));
       }
     }
+    darkOff();
     try { await tnSession.release(); } catch (e) {} tnSession = null; // libera la memoria de la tarjeta gráfica
     return { fps: FPS, n, x: Array.from(shx, (q) => (Number.isFinite(q) ? Math.round(q * 10) / 10 : null)), y: Array.from(shy, (q) => (Number.isFinite(q) ? Math.round(q * 10) / 10 : null)), skipped, ep: tnEP };
   }
@@ -3056,7 +3582,7 @@ body.noscroll { overflow: hidden; }
     lock();
     const info = resume ? resume.info : { name: S.file ? S.file.name : 'vídeo', videoKey: vKey(S.file), size: S.file ? S.file.size : 0 };
     S.running = true; $('#jobBox') && ($('#jobBox').hidden = true);
-    if (!resume) DB.get('job', 'run').then((old) => { if (old && old.videoKey !== info.videoKey) DB.del('job', 'run').then(() => dropVideoIfUnused(old.videoKey)); }).catch(() => {});
+    if (!resume) DB.get('job', 'run').then((old) => { if (old && old.videoKey !== info.videoKey) delJob().then(() => dropVideoIfUnused(old.videoKey)); }).catch(() => {});
     const vp = S.file ? saveVideo(S.file) : Promise.resolve(resume ? resume.videoKey : null);
     let saving = null, last = 0;
     const save = (st) => {
@@ -3068,14 +3594,14 @@ body.noscroll { overflow: hidden; }
     return {
       info, vp, save,
       async pause(st) {
-        await save(st);
+        if (st) await save(st);
         $('#runTitle').textContent = 'En pausa: vuelve a la app para seguir';
         $('#runInfo').textContent = 'El móvil no deja analizar con la app en segundo plano o la pantalla bloqueada. El progreso está guardado: al volver sigue donde se quedó, aunque la app se haya cerrado.';
         await new Promise((ok) => { const f = () => { if (!document.hidden) { document.removeEventListener('visibilitychange', f); ok(); } }; document.addEventListener('visibilitychange', f); });
         await lock();
         $('#runTitle').textContent = cfg.kind === 'training' ? 'Analizando el entrenamiento…' : 'Analizando jugadas…';
       },
-      stop(cancelled) { S.running = false; if (wake) wake.release().catch(() => {}); wake = null; if (cancelled) DB.del('job', 'run').then(() => dropVideoIfUnused(info.videoKey)).catch(() => {}); },
+      stop(cancelled) { S.running = false; if (wake) wake.release().catch(() => {}); wake = null; if (cancelled) delJob().then(() => dropVideoIfUnused(info.videoKey)).catch(() => {}); },
     };
   }
   async function saveAnalysis() {
@@ -3100,7 +3626,7 @@ body.noscroll { overflow: hidden; }
   function finish(job, opened) {
     if (job) { S.track.srcName = job.info.name; S.track.videoKey = null; const tr = S.track; job.vp.then((k) => { if (k && S.track === tr) { tr.videoKey = k; saveAnalysis(); } }); }
     S.res = S.track.mode === 'training' ? BT.analyzeTraining(S.track) : analyze(S.track);
-    if (job) DB.del('job', 'run').catch(() => {}).then(renderJob);
+    if (job) delJob().catch(() => {}).then(renderJob);
     if (!opened && !S.demo) saveAnalysis();
     $('#flow').hidden = true; $('#resDot').hidden = false;
     S.replay && S.replay.destroy(); S.replay = null;
@@ -3115,11 +3641,13 @@ body.noscroll { overflow: hidden; }
     let job = null; try { job = await DB.get('job', 'run'); } catch (e) {}
     if (!job || S.running) { box.hidden = true; return; }
     const pct = job.cfg && job.next ? Math.round(job.next / Math.max(1, Math.round((job.cfg.b - job.cfg.a) * (job.cfg.kind === 'training' ? TQUAL : QUAL)[job.cfg.q].fps) + 1) * 100) : 0;
+    let rsh2 = null; try { rsh2 = job.cfg && job.cfg.precise ? await DB.get('job', 'runsh') : null; } catch (e) {}
+    const pctTxt = rsh2 ? `paso 2 de 2 al ${Math.round(rsh2.next / rsh2.n * 100)} %` : job.cfg && job.cfg.precise ? `paso 1 de 2 al ${Math.min(99, pct)} %` : `${Math.min(99, pct)} % hecho`;
     box.hidden = false;
-    box.innerHTML = `<div class="card job-card"><div><b>Tienes un análisis a medias</b><p class="small muted">${job.cfg.kind === 'training' ? 'Entrenamiento' : 'Partido'} · ${esc(job.info.name)} · ${Math.min(99, pct)} % hecho · ${fdate(job.date)}</p></div>
+    box.innerHTML = `<div class="card job-card"><div><b>Tienes un análisis a medias</b><p class="small muted">${job.cfg.kind === 'training' ? 'Entrenamiento' : 'Partido'} · ${esc(job.info.name)} · ${pctTxt} · ${fdate(job.date)}</p></div>
       <div class="row"><button class="btn primary" id="jobGo">Continuar</button><button class="btn" id="jobDrop">Descartar</button></div>
       <input type="file" id="jobFile" accept="video/*" hidden></div>`;
-    $('#jobDrop').onclick = async () => { await DB.del('job', 'run').catch(() => {}); await dropVideoIfUnused(job.videoKey); renderJob(); };
+    $('#jobDrop').onclick = async () => { await delJob().catch(() => {}); await dropVideoIfUnused(job.videoKey); renderJob(); };
     $('#jobGo').onclick = async () => {
       let blob = null; try { blob = job.videoKey ? await DB.get('videos', job.videoKey) : null; } catch (e) {}
       if (blob) return resumeJob(job, blob);
@@ -3139,6 +3667,7 @@ body.noscroll { overflow: hidden; }
   }
   async function resumeJob(job, blob) {
     try { await loadVideoFrom(blob); } catch (e) { alert(e.message); return; }
+    S.calib = Object.assign(newCalib(), { view: job.cfg.view || 'back', mode: job.cfg.lineMode || 'd' });
     $('#jobBox').hidden = true; S.mode = job.cfg.kind; $('#flow').hidden = false;
     $('#flow').scrollIntoView({ behavior: 'smooth', block: 'start' });
     if (job.cfg.kind === 'training') startTrain(job); else startMatch(job);
@@ -3150,8 +3679,9 @@ body.noscroll { overflow: hidden; }
     box.hidden = !list.length; if (!list.length) return;
     box.innerHTML = `<div class="card"><h3 style="margin-bottom:10px">Tus análisis</h3><div class="saved-list">` + list.map((m) => `<div class="saved-it" data-id="${m.id}">
       <button class="saved-open" data-open="${m.id}"><span class="saved-kind ${m.mode}">${m.mode === 'training' ? 'Entreno' : 'Partido'}</span><span><b>${esc(m.name)}</b><span class="small muted">${fdate(m.date)} · ${mmss(m.dur)} · ${m.n} ${m.mode === 'training' ? 'repeticiones' : 'golpes'}${m.videoKey ? '' : ' · sin vídeo guardado'}</span></span></button>
-      <button class="btn icon" data-delan="${m.id}" aria-label="Borrar este análisis" title="Borrar">✕</button></div>`).join('') + `</div><p class="small muted" style="margin-top:8px">Se guardan solo en este móvil.</p></div>`;
+      <button class="btn icon" data-delan="${m.id}" aria-label="Borrar este análisis" title="Borrar">✕</button></div>`).join('') + `</div><p class="small muted" style="margin-top:8px">Se guardan solo en este móvil.</p>${list.filter((m) => m.mode === 'match').length ? '<div class="row" style="margin-top:8px"><button class="btn" id="comboBtn">Informe de un jugador en varios partidos</button></div><div id="comboBox" hidden></div>' : ''}</div>`;
     $$('[data-open]', box).forEach((b) => (b.onclick = () => openSaved(b.dataset.open)));
+    if ($('#comboBtn', box)) $('#comboBtn', box).onclick = () => comboPanel(list.filter((m) => m.mode === 'match'));
     $$('[data-delan]', box).forEach((b) => (b.onclick = async () => {
       if (!confirm('¿Borrar este análisis?')) return;
       const m = list.find((x) => x.id === b.dataset.delan);
@@ -3159,6 +3689,22 @@ body.noscroll { overflow: hidden; }
       if (S.track && S.track.savedId === m.id) { S.track = null; S.res = null; $('#resDot').hidden = true; $('#v-resultados').innerHTML = ''; }
       renderSaved();
     }));
+  }
+  // Informe combinado: el mismo jugador en varios partidos guardados (por ejemplo, el próximo rival)
+  async function comboPanel(list) {
+    const bx = $('#comboBox'); bx.hidden = false;
+    const recs = []; for (const m of list) { try { const r = await DB.get('analyses', m.id); if (r) recs.push({ m, r }); } catch (e) {} }
+    bx.innerHTML = `<div class="combo"><p class="small">Marca los partidos y, en cada uno, qué jugador es el que quieres estudiar.</p>${recs.map(({ m, r }, i) => { const nm = r.track.names || ['Jugador 1', 'Jugador 2']; return `<label class="combo-row"><input type="checkbox" data-ci="${i}" checked> <span>${esc(m.name)} · ${fdate(m.date)}</span> <select data-cp="${i}"><option value="${r.me || 0}">${esc(nm[r.me || 0])}</option><option value="${1 - (r.me || 0)}">${esc(nm[1 - (r.me || 0)])}</option></select></label>`; }).join('')}
+      <div class="row"><button class="btn primary" id="comboGo">Crear informe</button><span class="small muted" id="comboMsg"></span></div><div id="comboOut"></div></div>`;
+    $('#comboGo').onclick = async () => {
+      const sel = recs.map((x, i) => ({ ...x, on: $(`[data-ci="${i}"]`).checked, who: +$(`[data-cp="${i}"]`).value })).filter((x) => x.on);
+      if (!sel.length) return; $('#comboMsg').textContent = 'Calculando…'; await new Promise((r) => setTimeout(r, 30));
+      const E = [];
+      for (const x of sel) { try { const res = analyze(x.r.track); const e = BR.extract(x.r.track, res, x.who); if (e) { e.name = (x.r.track.names || [])[x.who] || e.name; E.push(e); } } catch (err) { console.error(err); } }
+      const R = BR.report(E); if (R) R.name = E[0] ? E[0].name : 'Jugador';
+      $('#comboMsg').textContent = '';
+      const out = $('#comboOut'); out.innerHTML = `<div class="card scout" style="margin-top:12px">${scoutHTML(R, { precise: E.every((e) => e.precise) })}</div>`; bindScout(out, R);
+    };
   }
   async function openSaved(id) {
     let rec = null; try { rec = await DB.get('analyses', id); } catch (e) {}
@@ -3248,7 +3794,9 @@ body.noscroll { overflow: hidden; }
     function drawDemoScene(tt) { return paintDemoMatch(ctx, cv.width, cv.height, tt); }
     // El vídeo se endereza igual que durante el análisis, así las líneas y los esqueletos coinciden aunque la cámara se mueva
     function stabVideo() {
-      if (!video) return; const f = track.frames[frameAt(track, t)], T = f && f.T; if (!T) { video.style.transform = ''; return; }
+      if (!video) return; const i0 = frameAt(track, t), f = track.frames[i0], g = track.frames[i0 + 1]; if (!f || !f.T) { video.style.transform = ''; return; }
+      // interpolación entre los dos fotogramas analizados más cercanos: el vídeo se mueve suave, sin saltos
+      const u = g && g.T && g.t > f.t ? clamp((t - f.t) / (g.t - f.t), 0, 1) : 0, T = f.T.map((v, j) => (u && g && g.T ? v + (g.T[j] - v) * u : v));
       const d = cv.width / (stage.clientWidth || cv.width), { s, ox, oy } = fit(), S2 = s / d, X = ox / d, Y = oy / d;
       video.style.transformOrigin = '0 0';
       video.style.transform = `matrix(${T[0]},${T[3]},${T[1]},${T[4]},${X + S2 * T[2] - (T[0] * X + T[1] * Y)},${Y + S2 * T[5] - (T[3] * X + T[4] * Y)})`;
@@ -3436,12 +3984,17 @@ body.noscroll { overflow: hidden; }
     if (mode === 'hull') {
       for (const pm of players) { const col = pm.p === S.me ? '#e8962c' : '#8592ff'; c.fillStyle = col + '44'; c.strokeStyle = col; c.lineWidth = 2.5; c.beginPath(); pm.hull.forEach((q, i) => (i ? c.lineTo(...P(...q)) : c.moveTo(...P(...q)))); c.closePath(); c.fill(); c.stroke(); const [bx, by] = BA.basePoint(pm.p); const q = P(bx, by); c.fillStyle = '#fff'; c.beginPath(); c.arc(...q, 6, 0, 7); c.fill(); c.font = '700 12px Figtree, sans-serif'; c.textAlign = 'left'; c.fillText('base', q[0] + 9, q[1] + 4); }
     }
+    if (mode === 'contacts') { // dónde coge el volante cada jugador, por color según sea ataque, neutral o defensa
+      const hs = S.res.hits.filter((h) => h.valid && players.some((pm) => pm.p === h.p) && Number.isFinite(h.x));
+      for (const h of hs) { const A = P(h.x, h.y); c.fillStyle = css(ROLE_COL[h.role]); c.strokeStyle = 'rgba(0,0,0,.45)'; c.lineWidth = 1; c.beginPath(); c.arc(A[0], A[1], h.cat === 'alto' ? 6 : 4.5, 0, 7); c.fill(); c.stroke(); }
+    }
     if (mode === 'shots') {
       const hs = S.res.hits.filter((h) => players.some((pm) => pm.p === h.p) && h.next !== undefined);
       for (const h of hs) { const nx = S.res.hits[h.next]; const A = P(h.x, h.y), B = P(nx.x, nx.y); const col = css(ROLE_COL[h.role]); c.strokeStyle = col; c.globalAlpha = 0.75; c.lineWidth = 2; c.beginPath(); c.moveTo(...A); c.lineTo(...B); c.stroke(); const a = Math.atan2(B[1] - A[1], B[0] - A[0]); c.fillStyle = col; c.beginPath(); c.moveTo(...B); c.lineTo(B[0] - 9 * Math.cos(a - 0.4), B[1] - 9 * Math.sin(a - 0.4)); c.lineTo(B[0] - 9 * Math.cos(a + 0.4), B[1] - 9 * Math.sin(a + 0.4)); c.fill(); c.globalAlpha = 1; }
     }
     c.fillStyle = 'rgba(255,255,255,.8)'; c.font = '700 12px Figtree, sans-serif'; c.textAlign = 'center';
-    c.fillText(S.track.names[1].toUpperCase(), W / 2, 15); c.fillText(S.track.names[0].toUpperCase(), W / 2, H - 6);
+    const sw = S.scoutE && S.scoutE.swaps; // si cambian de campo, cada mitad no es siempre del mismo jugador
+    c.fillText(sw ? 'MITAD LEJANA' : S.track.names[1].toUpperCase(), W / 2, 15); c.fillText(sw ? 'MITAD CERCANA' : S.track.names[0].toUpperCase(), W / 2, H - 6);
   }
   function ramp(v) { const st = [[0, [255, 236, 160]], [0.45, [245, 170, 60]], [0.75, [235, 90, 50]], [1, [200, 30, 60]]]; for (let i = 1; i < st.length; i++) if (v <= st[i][0]) { const [a, ca] = st[i - 1], [b, cb] = st[i], u = (v - a) / (b - a); return ca.map((x, j) => Math.round(x + (cb[j] - x) * u)); } return st[st.length - 1][1]; }
 
@@ -3462,12 +4015,15 @@ body.noscroll { overflow: hidden; }
     const both = (f, d, u) => cmp ? `${fmt(f(res.players[me]), d)}<small>${u}</small><div class="vs">Rival: ${fmt(f(res.players[op]), d)} ${u}</div>` : `${fmt(f(M), d)}<small>${u}</small>`;
     const hl = res.highlights;
     const myHits = (cmp ? res.hits : res.hits.filter((h) => h.p === sel)).filter((h) => h.valid);
+    S.scoutE = null;
     const nV = res.rallies.filter((r) => r.valid).length, nX = res.rallies.length - nV;
     root.innerHTML = `
-    <div class="res-top"><div><h2>${tr.demo ? 'Partido de demostración' : 'Tu partido'}</h2><p class="muted">${tr.demo ? '' : tr.precise ? (res.shWeak ? `<b>Análisis preciso fallido</b>: el volante solo se vio en el ${Math.round((res.shCov || 0) * 100)} % del vídeo, así que los golpes salen del modo rápido · ` : `<b>Análisis preciso</b> (volante visto en el ${Math.round((res.shCov || 0) * 100)} % de los fotogramas con juego) · `) : 'Análisis rápido · '}${mmss(tr.duration)} analizados · ${nV} puntos${nX ? ` (${nX} ${nX === 1 ? 'peloteo descartado' : 'peloteos descartados'})` : ''} · ${res.hits.filter((h) => h.valid).length} golpes${tr.demo ? ' · datos simulados' : ''}</p></div>
-      <div class="row"><div class="seg" id="selSeg"><button data-v="${me}" aria-pressed="${S.sel === me}">Tú</button><button data-v="${op}" aria-pressed="${S.sel === op}">Rival</button><button data-v="cmp" aria-pressed="${cmp}">Comparar</button></div>
+    <div class="res-top"><div><h2>${tr.demo ? 'Partido de demostración' : tr.names && !(tr.names[0] === 'Tú' || tr.names[1] === 'Tú') ? esc(tr.names[me] + ' contra ' + tr.names[op]) : 'Tu partido'}</h2><p class="muted">${tr.demo ? '' : tr.precise ? (res.shWeak ? `<b>Análisis preciso fallido</b>: el volante solo se vio en el ${Math.round((res.shCov || 0) * 100)} % del vídeo, así que los golpes salen del modo rápido · ` : `<b>Análisis preciso</b> (volante visto en el ${Math.round((res.shCov || 0) * 100)} % de los fotogramas con juego) · `) : 'Análisis rápido · '}${mmss(tr.duration)} analizados · ${nV} puntos${nX ? ` (${nX} ${nX === 1 ? 'peloteo descartado' : 'peloteos descartados'})` : ''} · ${res.hits.filter((h) => h.valid).length} golpes${tr.demo ? ' · datos simulados' : ''}</p></div>
+      <div class="row"><div class="seg" id="selSeg"><button data-v="${me}" aria-pressed="${S.sel === me}">${esc(tr.names ? tr.names[me] : 'Tú')}</button><button data-v="${op}" aria-pressed="${S.sel === op}">${esc(tr.names ? tr.names[op] : 'Rival')}</button><button data-v="cmp" aria-pressed="${cmp}">Comparar</button></div>
       <span class="small muted">Detección de golpes:</span><div class="seg" id="resSens" title="Sensibilidad para detectar golpes"><button data-v="low" aria-pressed="${res.sens === 'low'}">Baja</button><button data-v="normal" aria-pressed="${res.sens === 'normal'}">Normal</button><button data-v="high" aria-pressed="${res.sens === 'high'}">Alta</button></div></div></div>
     <div class="card fixbar"><details><summary><b>¿Algo mal detectado?</b> <span class="small muted">Cómo corregirlo</span></summary><span class="small muted">En "Golpes uno a uno" puedes cambiar el tipo de un golpe o quitarlo; con "+ Golpe" en la repetición añades uno que falte. En "Puntos jugados" puedes marcar si un peloteo es un punto o no: solo los puntos cuentan en las estadísticas. La sensibilidad (arriba) cambia cuántos golpes se detectan.${res.ignored ? ` Se han ignorado ${res.ignored} detecciones de personas fuera de su media pista o que no encajaban (por ejemplo, alguien pasando).` : ''}${res.noValid ? ' <b>No se ha reconocido ningún punto con saque: se usan todos los golpes.</b>' : ''}</span></details>${nMEdits(tr) ? `<button class="btn" id="undoEdits">Deshacer ${nMEdits(tr)} ${nMEdits(tr) === 1 ? 'corrección' : 'correcciones'}</button>` : ''}</div>
+
+    ${doubtHTML(res, tr)}
 
     <div class="board">
       <div class="row" style="gap:6px">${pls.map((m) => ring(m.overall, m.p === me ? '#e8962c' : '#9aa8ff', m.p === me ? 'Tu nota' : 'Nota del rival')).join('')}</div>
@@ -3480,6 +4036,10 @@ body.noscroll { overflow: hidden; }
         <div class="tile"><div class="v">${hl.longest ? hl.longest.n : '—'}<small>golpes</small></div><div class="l">Punto más largo</div></div>
       </div>
     </div>
+
+    ${!G0.BR ? '' : `<div class="card scout" id="scoutCard">${scoutCard(tr, res, cmp ? me : sel)}</div>`}
+    ${tr.stabBad > 0.2 ? `<p class="note small">La cámara se ha movido mucho o la imagen cambia demasiado en el ${Math.round(tr.stabBad * 100)} % del vídeo: en esos momentos la pista puede no cuadrar. Graba con el móvil bien sujeto o en un trípode.</p>` : ''}
+    ${S.scoutE && S.scoutE.swaps ? `<p class="note small">Los jugadores cambian de campo durante el vídeo. El informe sigue a cada uno por el color de la ropa; el resto de cifras y gráficas van por mitad de pista. Para cifras exactas de cada jugador, analiza cada juego por separado.</p>` : ''}
 
     <div class="card" id="replayCard">
       <div class="card-h"><h3>Repetición</h3><div class="legend"><span><i class="sw" style="background:#e8962c"></i>Tú</span><span><i class="sw" style="background:#8592ff"></i>Rival</span>${tr.demo ? '<span class="pill">Vídeo simulado</span>' : ''}</div></div>
@@ -3525,7 +4085,7 @@ body.noscroll { overflow: hidden; }
     </div>
 
     <div class="grid2">
-      <div class="card"><div class="card-h"><h3>Pista</h3><div class="seg" id="heatSeg"><button data-v="heat">Calor</button><button data-v="zones">Zonas</button><button data-v="shots">Golpes</button><button data-v="hull">Cobertura</button></div></div>
+      <div class="card"><div class="card-h"><h3>Pista</h3><div class="seg" id="heatSeg"><button data-v="heat">Calor</button><button data-v="zones">Zonas</button><button data-v="contacts">Dónde golpea</button><button data-v="shots">Trayectorias</button><button data-v="hull">Cobertura</button></div></div>
         <div style="display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:16px;align-items:start" class="heat-grid"><canvas id="heatCv" width="300" height="620" style="width:100%;height:auto"></canvas><div id="heatTxt" class="small"></div></div></div>
       <div class="card"><div class="card-h"><h3>Movimiento</h3><p>Velocidad (km/h) en cada momento; en naranja, los puntos</p></div>
         <div class="metrics" style="margin-bottom:12px">
@@ -3549,7 +4109,14 @@ body.noscroll { overflow: hidden; }
     <p class="small muted">Todas las medidas son estimaciones a partir de la postura detectada en el vídeo. Úsalas para ver tendencias y comparar partidos grabados igual.</p>`;
     root.dataset.built = String(S.sel);
     $$('#resSens button').forEach((b) => (b.onclick = () => { tr.sens = b.dataset.v; reMatch(); }));
-    if ($('#undoEdits')) $('#undoEdits').onclick = () => { tr.edits = { add: [], del: [], type: {}, rally: {} }; reMatch(); };
+    if ($('#undoEdits')) $('#undoEdits').onclick = () => { tr.edits = { add: [], del: [], type: {}, rally: {}, ok: [] }; reMatch(); };
+    $$('#doubtGrid [data-act]', root).forEach((b) => (b.onclick = (e) => {
+      e.stopPropagation(); const h = res.hits[+b.dataset.k]; if (!h) return; const E = mEdits(tr), act = b.dataset.act;
+      if (act === 'ok') E.ok.push({ p: h.p, i: h.i });
+      else if (act === 'del') E.del.push({ p: h.p, i: h.i });
+      else if (act === 'swap') { E.del.push({ p: h.p, i: h.i }); E.add.push({ p: 1 - h.p, i: h.i }); }
+      reMatch();
+    }));
     $$('.rally-tog', root).forEach((b) => (b.onclick = () => { mEdits(tr).rally[b.dataset.k] = b.dataset.v === '1'; reMatch(); }));
     $('#shotType').onchange = (e) => { S.shotType = e.target.value; S.shotN = 24; renderShots(); };
     $('#shotFails').onclick = () => { S.shotFails = !S.shotFails; $('#shotFails').setAttribute('aria-pressed', S.shotFails); S.shotN = 24; renderShots(); };
@@ -3561,11 +4128,102 @@ body.noscroll { overflow: hidden; }
     S.replay = Replay($('#replayCard'));
     $$('.addHit', root).forEach((b) => (b.onclick = () => { const i = frameAt(tr, S.replay.time()), p = +b.dataset.p, E = mEdits(tr); E.del = E.del.filter((e) => !(e.p === p && Math.abs(e.i - i) <= 3)); E.add.push({ p, i }); reMatch(); }));
     $('.fsBtn', root).onclick = () => fsToggle($('.fsbox', root));
+    bindScout(root);
     S.shotN = S.shotN || 24; renderShots();
     drawResultCanvases();
   }
-  const mEdits = (tr) => { tr.edits = tr.edits || {}; ['add', 'del'].forEach((k) => (tr.edits[k] = tr.edits[k] || [])); tr.edits.type = tr.edits.type || {}; tr.edits.rally = tr.edits.rally || {}; return tr.edits; };
-  const nMEdits = (tr) => { const e = mEdits(tr); return e.add.length + e.del.length + Object.keys(e.type).length + Object.keys(e.rally).length; };
+
+  /* ---------- Informe del jugador ---------- */
+  const G0 = window;
+  function scoutCard(tr, res, who) {
+    let R = null; try { const E = BR.extract(tr, res, who); S.scoutE = E; R = BR.report([E]); } catch (e) { console.error(e); }
+    return scoutHTML(R, { precise: !!(tr.precise && !res.shWeak), demo: !!tr.demo });
+  }
+  const chipN = (x) => `<span class="nchip ${x.conf}" title="Se basa en ${x.n} ${x.n === 1 ? 'golpe' : 'golpes'}">${x.n} ${x.n === 1 ? 'golpe' : 'golpes'} · fiabilidad ${x.conf}</span>`;
+  function scoutHTML(R, o) {
+    if (!R || !R.shots) return `<div class="card-h"><h3>Informe del jugador</h3></div><p class="muted">No hay golpes suficientes para hacer el informe.</p>`;
+    const list = (L, empty) => L.length ? `<ul class="scout-list">${L.map((x) => `<li>${esc(x.text)} ${chipN(x)}</li>`).join('')}</ul>` : `<p class="small muted">${empty}</p>`;
+    const fmtS = (v, d, u) => (v == null || !Number.isFinite(v) ? '—' : v.toFixed(d).replace('.', ',') + (u || ''));
+    const zoneSvg = (() => { // media pista vista desde detrás del jugador, red arriba; el lado del revés a la izquierda
+      const W = 300, H = 330, cw = W / 3, rh = H / 3; let g = `<svg viewBox="0 0 ${W} ${H + 42}" class="diagram zone-svg" role="img" aria-label="Zonas de la media pista">`;
+      g += `<text x="${W / 2}" y="12" text-anchor="middle" class="s-muted" font-size="11">RED</text>`;
+      for (let row = 0; row < 3; row++) for (let col = 0; col < 3; col++) {
+        const z = R.zones.find((q) => q.row === row && q.col === col), x = col * cw, y = 18 + row * rh;
+        const d = z ? z.difficulty : null, fill = d == null ? 'var(--surface-2)' : `hsl(${Math.round(130 - 130 * clamp((d - 0.3) / 0.45, 0, 1))} 55% 40% / .9)`;
+        g += `<rect x="${x + 2}" y="${y + 2}" width="${cw - 4}" height="${rh - 4}" rx="8" fill="${fill}"/>`;
+        const tx = (yy, txt, fs, fw) => `<text x="${x + cw / 2}" y="${y + yy}" text-anchor="middle" font-size="${fs || 10}" ${fw ? 'font-weight="800"' : ''} fill="#fff">${txt}</text>`;
+        if (z) g += tx(22, `${z.n} ${z.n === 1 ? 'golpe' : 'golpes'}`, 13, 1) + (z.up !== null && z.upN >= 2 ? tx(42, `arriba ${z.up} %`) : '') + (z.resp[0] ? tx(58, `${esc(z.resp[0].name.length > 12 ? z.resp[0].name.slice(0, 11) + '.' : z.resp[0].name)} ${z.resp[0].pct} %`) : '') + (z.speed ? tx(74, `${z.speed.toFixed(1).replace('.', ',')} m/s`) : '') + tx(92, `dificultad ${Math.round(z.difficulty * 100)}`, 9);
+      }
+      g += `<text x="6" y="${H + 34}" class="s-muted" font-size="11">← lado del revés</text><text x="${W - 6}" y="${H + 34}" text-anchor="end" class="s-muted" font-size="11">lado de la derecha →</text></svg>`;
+      return g;
+    })();
+    const zoneRows = R.zones.slice().sort((a, b) => b.n - a.n).map((z) => `<tr><td><b>${esc(z.name)}</b><div class="small muted">${z.n} golpes · ${z.share} %</div></td><td>${z.sides.map((s) => `${s.name} ${s.pct} %`).join('<br>') || '—'}</td><td>${z.up === null ? '—' : z.up + ' %'}</td><td>${(z.combo.length ? z.combo : z.resp).map((c) => `${esc(c.name)} (${c.c})`).join('<br>')}</td><td>${z.def} %</td><td>${fmtS(z.react, 2, ' s')}</td><td>${fmtS(z.speed, 1, ' m/s')}</td><td>${z.errors + z.winners ? `${z.winners} / ${z.errors}` : '—'}</td></tr>`).join('');
+    const inc = Object.entries(R.vsIncoming).map(([k, v]) => `<tr><td><b>${esc(k)}</b><div class="small muted">${v.n} veces</div></td><td>${v.resp.map((r) => `${esc(r.name)} ${r.pct} %`).join('<br>')}</td><td>${v.dirs.map((r) => `${r.name} ${r.pct} %`).join('<br>') || '—'}</td></tr>`).join('');
+    const moves = R.moves.filter((m) => m.n >= 2).map((m) => `<tr><td>${esc(m.name)}</td><td>${fmtS(m.react, 2, ' s')}</td><td>${fmtS(m.speed, 1, ' m/s')}</td><td>${m.n}</td></tr>`).join('');
+    const F = R.fatigue;
+    return `<div class="card-h"><h3>${R.name === 'Tú' ? 'Tu informe' : 'Informe de ' + esc(R.name)}</h3><p>${R.matches > 1 ? `${R.matches} partidos · ` : ''}${R.shots} golpes · ${R.rallies} puntos${R.swaps ? ` · ${R.swaps} puntos tras cambio de campo` : ''}</p></div>
+      ${o.demo ? '<p class="note small">Partido simulado de demostración: sirve para ver cómo es el informe.</p>' : o.precise ? '' : `<p class="note small">Hecho con el análisis rápido: los golpes y sus tipos son menos fiables. Para un informe fiable usa el modo preciso.</p>`}
+      <div class="scout-grid">
+        <div class="scout-box good"><h4>Puntos fuertes</h4>${list(R.strengths, 'No hay datos suficientes.')}</div>
+        <div class="scout-box bad"><h4>Puntos débiles</h4>${list(R.weaknesses, 'No hay datos suficientes.')}</div>
+        <div class="scout-box"><h4>Patrones de juego</h4>${list(R.patterns, 'No hay datos suficientes.')}</div>
+        <div class="scout-box adv"><h4>${R.name === 'Tú' ? 'Lo que buscará tu rival' : 'Cómo jugarle'}</h4>${list(R.advice, 'No hay datos suficientes.')}</div>
+      </div>
+      <details class="scout-more"><summary>Ver el análisis completo</summary>
+        <div class="grid2" style="margin-top:12px">
+          <div><h4>Mapa de dificultad</h4><p class="small muted">Rojo: zonas donde le cuesta más (llega tarde, se defiende, se mueve lento o falla). Verde: donde está cómodo. En cada zona: golpes, % que llega con la raqueta arriba, lo que más juega y su velocidad hasta el volante.</p>${zoneSvg}</div>
+          <div><h4>Resumen</h4><div class="kv">
+            <div><b>${R.attack} %</b>Golpes de ataque</div><div><b>${R.defense} %</b>Golpes defensivos</div>
+            <div><b>${fmtS(R.react, 2, ' s')}</b>Tiempo hasta arrancar tras el golpe rival</div><div><b>${fmtS(R.speed, 1, ' m/s')}</b>Velocidad media hasta el volante</div>
+            <div><b>${R.upNet.pct == null ? '—' : R.upNet.pct + ' %'}</b>Llega a la red con la raqueta arriba</div><div><b>${R.upBack.pct == null ? '—' : R.upBack.pct + ' %'}</b>Llega al fondo con la raqueta arriba</div>
+            <div><b>${R.sides.map((s) => `${s.name} ${s.pct} %`).join(' · ') || '—'}</b>Derecha / revés / rectificado</div><div><b>${R.jumps}</b>Golpes en salto</div>
+          </div></div>
+        </div>
+        ${waitHTML(R.wait, fmtS)}
+        <h4>Zona por zona</h4><div class="overflow"><table class="scout-table"><thead><tr><th>Zona</th><th>Cómo golpea</th><th>Raqueta arriba</th><th>Qué juega (y hacia dónde)</th><th>Defensivo</th><th>Arranque</th><th>Velocidad</th><th>Ganadores / errores</th></tr></thead><tbody>${zoneRows}</tbody></table></div>
+        ${inc ? `<h4>Qué responde según lo que le llega</h4><div class="overflow"><table class="scout-table"><thead><tr><th>Le llega</th><th>Responde</th><th>Dirección</th></tr></thead><tbody>${inc}</tbody></table></div>` : ''}
+        ${moves ? `<h4>Desplazamientos (del más lento al más rápido)</h4><div class="overflow"><table class="scout-table"><thead><tr><th>Hacia</th><th>Arranque</th><th>Velocidad</th><th>Veces</th></tr></thead><tbody>${moves}</tbody></table></div>` : ''}
+        <div class="grid2">
+          <div><h4>Saque y resto</h4><p>${R.serve.n ? `Saques: ${R.serve.types.map((x) => `${esc(x.name.toLowerCase())} ${x.pct} %`).join(', ')}${R.serve.dirs.length ? ` · ${R.serve.dirs.map((x) => `${x.name} ${x.pct} %`).join(', ')}` : ''} (${R.serve.n}).` : 'No se han detectado saques.'}</p><p>${R.receive.n ? `Resto: ${R.receive.resp.map((x) => `${esc(x.name.toLowerCase())} ${x.pct} %`).join(', ')} (${R.receive.n}).` : ''}</p></div>
+          <div><h4>Cómo acaban los puntos</h4>${R.knowsEnds ? `<p>Golpes ganadores: ${R.nWin}${R.winners.length ? ` (${R.winners.map((x) => `${esc(x.name.toLowerCase())} ${x.c}`).join(', ')})` : ''}.<br>Errores: ${R.nErr}${R.errors.length ? ` (${R.errors.map((x) => `${esc(x.name.toLowerCase())} ${x.c}`).join(', ')})` : ''}.</p>` : '<p class="small muted">Para saber quién gana cada punto hace falta el modo preciso (dónde cae el volante).</p>'}</div>
+        </div>
+        ${F ? `<h4>Cansancio (primera mitad → segunda mitad)</h4><p>Arranque: ${fmtS(F.react[0], 2, ' s')} → ${fmtS(F.react[1], 2, ' s')} · Velocidad: ${fmtS(F.speed[0], 1, ' m/s')} → ${fmtS(F.speed[1], 1, ' m/s')} · Golpes defensivos: ${F.def[0]} % → ${F.def[1]} %</p>` : ''}
+        <p class="small muted">Cada conclusión indica en cuántos golpes se basa. Con menos de 7, tómala como una pista, no como una regla. "Rectificado" agrupa los golpes por encima de la cabeza en el lado del revés. El arranque es el tiempo hasta que empieza a moverse rápido, no un tiempo de reacción de laboratorio.</p>
+      </details>
+      <div class="row" style="margin-top:10px"><button class="btn" id="scoutCopy">Copiar el informe en texto</button><span class="small muted" id="scoutCopied"></span></div>`;
+  }
+  // En espera del golpe rival: mapa de calor en su media pista (red arriba, lado del revés a la izquierda)
+  function waitHTML(w, fmtS) {
+    if (!w) return '';
+    const W = 260, H = 300, gx = w.GX, gy = w.GY, cw = W / gx, ch = H / gy, mx = Math.max(1, ...w.grid);
+    let g = `<svg viewBox="0 0 ${W} ${H + 40}" class="diagram zone-svg" role="img" aria-label="Dónde espera el golpe del rival"><text x="${W / 2}" y="11" text-anchor="middle" class="s-muted" font-size="11">RED</text><g transform="translate(0 16)"><rect width="${W}" height="${H}" rx="8" fill="var(--court)"/>`;
+    for (let y = 0; y < gy; y++) for (let x = 0; x < gx; x++) { const v = w.grid[y * gx + x] / mx; if (v < 0.06) continue; const [r, gg, b] = ramp(v); g += `<rect x="${(x * cw).toFixed(1)}" y="${(y * ch).toFixed(1)}" width="${(cw + 0.6).toFixed(1)}" height="${(ch + 0.6).toFixed(1)}" fill="rgb(${r},${gg},${b})" opacity="${(0.15 + 0.8 * v).toFixed(2)}"/>`; }
+    const lx = (m) => (m + COURT.W / 2) / COURT.W * W, ly = (m) => m / COURT.NET * H;
+    g += `<g stroke="rgba(255,255,255,.8)" stroke-width="1.5" fill="none"><line x1="0" y1="${ly(1.98)}" x2="${W}" y2="${ly(1.98)}"/><line x1="${W / 2}" y1="${ly(1.98)}" x2="${W / 2}" y2="${H}"/><line x1="0" y1="${ly(COURT.NET - 0.76)}" x2="${W}" y2="${ly(COURT.NET - 0.76)}" stroke-dasharray="4 4"/></g>`;
+    g += `<circle cx="${lx(w.off)}" cy="${ly(w.dn)}" r="9" fill="none" stroke="#fff" stroke-width="3"/><circle cx="${lx(w.off)}" cy="${ly(w.dn)}" r="3" fill="#fff"/>`;
+    g += `</g><text x="6" y="${H + 34}" class="s-muted" font-size="11">← lado del revés</text><text x="${W - 6}" y="${H + 34}" text-anchor="end" class="s-muted" font-size="11">lado de la derecha →</text></svg>`;
+    const ctx = w.byCtx.map((c) => `<tr><td>${c.ctx[0].toUpperCase() + c.ctx.slice(1)}</td><td>${c.n}</td><td>${fmtS(c.dn, 1, ' m')}</td><td>${Math.abs(c.off) < 0.2 ? 'centrado' : `${fmtS(Math.abs(c.off), 1, ' m')} a su ${c.off > 0 ? 'derecha' : 'revés'}`}</td><td>${c.up == null ? '—' : c.up + ' %'}</td></tr>`).join('');
+    const tg = w.targets.map((t) => `<tr><td>${esc(t.name)}</td><td>${t.n}</td><td>${fmtS(t.dist, 1, ' m')}</td><td>${t.up == null ? '—' : t.up + ' %'}</td><td>${t.def} %</td></tr>`).join('');
+    return `<h4>En espera del golpe del rival</h4><div class="grid2"><div><p class="small muted">Dónde está cuando golpea el rival (${w.n} veces). El círculo blanco es su posición media.</p>${g}</div><div>
+      <div class="kv"><div><b>${fmtS(w.dn, 1, ' m')}</b>Distancia media a la red</div><div><b>${Math.abs(w.off) < 0.2 ? 'Centrado' : fmtS(Math.abs(w.off), 1, ' m') + ' a su ' + (w.off > 0 ? 'derecha' : 'revés')}</b>Desplazamiento lateral</div><div><b>${w.up == null ? '—' : w.up + ' %'}</b>Espera con la raqueta arriba</div>${w.defDown != null && w.defUp != null ? `<div><b>${w.defDown} % / ${w.defUp} %</b>Responde a la defensiva con la raqueta abajo / arriba</div>` : ''}</div>
+      ${ctx ? `<div class="overflow"><table class="scout-table"><thead><tr><th>Situación</th><th>Veces</th><th>A la red</th><th>Lateral</th><th>Raqueta arriba</th></tr></thead><tbody>${ctx}</tbody></table></div>` : ''}</div></div>
+      ${tg ? `<p class="small muted">Adónde le manda el rival el volante y cómo llega desde donde esperaba (de la zona más descuidada a la menos):</p><div class="overflow"><table class="scout-table"><thead><tr><th>Le mandan a</th><th>Veces</th><th>Distancia hasta el volante</th><th>Llega con la raqueta arriba</th><th>Responde a la defensiva</th></tr></thead><tbody>${tg}</tbody></table></div>` : ''}`;
+  }
+  function scoutText(R) {
+    if (!R) return '';
+    const L = (t, xs) => (xs.length ? `\n\n${t}\n` + xs.map((x) => `- ${x.text} (${x.n} golpes)`).join('\n') : '');
+    return `Informe de ${R.name} (Pluma Lab) · ${R.shots} golpes, ${R.rallies} puntos` + L('PUNTOS FUERTES', R.strengths) + L('PUNTOS DÉBILES', R.weaknesses) + L('PATRONES', R.patterns) + L('CÓMO JUGARLE', R.advice);
+  }
+  function bindScout(root, R0) {
+    const b = $('#scoutCopy', root); if (!b) return;
+    b.onclick = async () => {
+      const R = R0 || (S.scoutE ? BR.report([S.scoutE]) : null), txt = scoutText(R), msg = $('#scoutCopied', root);
+      try { await navigator.clipboard.writeText(txt); msg.textContent = 'Copiado. Pégalo en WhatsApp o donde quieras.'; }
+      catch (e) { const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); msg.textContent = 'Copiado.'; } catch (e2) {} ta.remove(); }
+    };
+  }
+  const mEdits = (tr) => { tr.edits = tr.edits || {}; ['add', 'del', 'ok'].forEach((k) => (tr.edits[k] = tr.edits[k] || [])); tr.edits.type = tr.edits.type || {}; tr.edits.rally = tr.edits.rally || {}; return tr.edits; };
+  const nMEdits = (tr) => { const e = mEdits(tr); return e.add.length + e.del.length + e.ok.length + Object.keys(e.type).length + Object.keys(e.rally).length; };
   function reMatch() {
     const y = window.scrollY, root = $('#v-resultados');
     S.res = analyze(S.track); saveAnalysis();
@@ -3573,6 +4231,16 @@ body.noscroll { overflow: hidden; }
     window.scrollTo(0, y);
   }
   const FORCE_C = { Fuerte: '--atk', Media: '--neu', Suave: '--def' };
+  // Repaso opcional: los golpes de los que la app está menos segura, para confirmarlos o quitarlos con un toque
+  const doubtList = (res) => res.hits.map((h, k) => ({ h, k })).filter(({ h }) => h.conf !== undefined && h.conf < 0.7 && !h.confirmed).sort((a, b) => a.h.conf - b.h.conf).slice(0, 6).sort((a, b) => a.h.t - b.h.t);
+  function doubtHTML(res, tr) {
+    if (tr.demo || !tr.precise) return '';
+    const L = doubtList(res); if (!L.length) return '';
+    const n = res.hits.filter((h) => h.conf !== undefined && h.conf < 0.7 && !h.confirmed).length;
+    return `<div class="card" id="doubtCard"><div class="card-h"><h3>Repaso rápido (opcional)</h3><p>${n === 1 ? 'Hay 1 golpe' : `Hay ${n} golpes`} de ${n === 1 ? 'cuya' : 'cuyos'} datos la app no está segura${n > L.length ? `; aquí van los ${L.length} más dudosos` : ''}. Toca la imagen para verlo en la repetición y dinos qué pasó: el informe se recalcula al momento.</p></div>
+      <div class="reps-grid" id="doubtGrid">${L.map(({ h, k }) => `<div class="rep-card"><button class="rep-img" data-seek="${h.t - 1.2}" aria-label="Ver este golpe en la repetición"><canvas data-k="${k}" width="300" height="225"></canvas></button><div class="b"><b>${esc(tr.names[h.p])} · ${esc(h.type)}</b><span class="small muted">${mmss(h.t)} · seguridad ${Math.round(h.conf * 100)}&nbsp;%</span>
+        <div class="row doubt-acts"><button class="btn" type="button" data-act="ok" data-k="${k}">Sí, es golpe</button><button class="btn" type="button" data-act="swap" data-k="${k}">Lo dio ${esc(tr.names[1 - h.p])}</button><button class="btn" type="button" data-act="del" data-k="${k}">No es golpe</button></div></div></div>`).join('')}</div></div>`;
+  }
   function renderShots() {
     const res = S.res, tr = S.track, grid = $('#shotGrid'); if (!grid) return;
     const cmp = S.sel === 'cmp', list = res.hits.map((h, k) => ({ h, k })).filter(({ h }) => (cmp || h.p === +S.sel) && (S.shotAll || h.valid) && (!S.shotType || h.type === S.shotType) && (!S.shotFails || (h.checks || []).some((c) => !c.pass)));
@@ -3590,7 +4258,7 @@ body.noscroll { overflow: hidden; }
   let thumbVid = null, thumbBusy = false; const thumbQ = [];
   function drawShotThumbs() {
     thumbQ.length = 0;
-    $$('#shotGrid canvas').forEach((cv) => thumbQ.push(cv));
+    $$('#doubtGrid canvas, #shotGrid canvas').forEach((cv) => thumbQ.push(cv));
     if (S.demo) { thumbQ.splice(0).forEach(paintThumb); return; }
     pumpThumbs();
   }
@@ -3722,7 +4390,7 @@ body.noscroll { overflow: hidden; }
     }
     setTimeout(() => { bot.innerHTML = localAnswer(q); $('#chatLog').scrollTop = 1e9; }, 350);
   }
-  function md(t) { try { return window.marked ? marked.parse(t, { breaks: true }) : `<p>${esc(t).replace(/\n/g, '<br>')}</p>`; } catch (e) { return `<p>${esc(t)}</p>`; } }
+  function md(t) { try { return window.marked ? window.marked.parse(t, { breaks: true }) : `<p>${esc(t).replace(/\n/g, '<br>')}</p>`; } catch (e) { return `<p>${esc(t)}</p>`; } }
   function trainSummary() {
     const R = S.res;
     return { ejercicio: R.drill, vista: R.view, duracion_s: Math.round(R.duration), golpes: R.reps.length, tipos: Object.fromEntries(Object.entries(R.byType).map(([k, a]) => [k, a.length])), puntuaciones: R.scores, nota: R.overall,
@@ -3750,12 +4418,13 @@ body.noscroll { overflow: hidden; }
     if (S.res && S.res.mode === 'training') s += `\n\nDatos del vídeo de entrenamiento analizado (estimaciones${S.track.demo ? ', demostración simulada' : ''}): ${JSON.stringify(trainSummary())}`;
     else if (S.res) s += `\n\nDatos del análisis de vídeo (estimaciones${S.track.demo ? ', partido de demostración simulado' : ''}). Duración ${Math.round(S.track.duration)} s, ${S.res.rallies.length} puntos.\nUsuario: ${JSON.stringify(summaryFor(S.me))}\nRival: ${JSON.stringify(summaryFor(1 - S.me))}`;
     else s += '\n\nTodavía no hay ningún vídeo analizado.';
+    if (S.res && S.scoutE) { try { s += '\n\nInforme del jugador analizado (patrones detectados; cada dato indica en cuántos golpes se basa, con pocos golpes es solo orientativo):\n' + scoutText(BR.report([S.scoutE])); } catch (e) {} }
     return s;
   }
   const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9ñ ]/g, ' ');
   function localAnswer(q) {
     const n = norm(q), words = n.split(/\s+/).filter((w) => w.length > 2);
-    const mine = /\b(mi|mis|me|he|hice|tengo|partido|analisis|juego|resume|resumen|mejorar|rival|ataco|defiendo|corri|corro|entrenamiento|corregir|golpeo|debo)\b/.test(n);
+    const mine = /\b(mi|mis|me|he|hice|tengo|partido|analisis|juego|resume|resumen|mejorar|rival|ataco|defiendo|corri|corro|entrenamiento|corregir|golpeo|debo|informe|debil|debiles|fuerte|fuertes|patron|patrones|jugarle|descuida|espera)\b/.test(n);
     if (S.res && mine) { const a = dataAnswer(n); if (a) return a; }
     let best = null, bs = 0;
     for (const e of BK.KB) {
@@ -3768,6 +4437,10 @@ body.noscroll { overflow: hidden; }
     return '<p>No tengo una respuesta para eso en la guía integrada. Prueba a preguntar por reglas (puntos, saque, faltas), golpes (clear, drop, remate, lob, dejada, bloqueo), desplazamientos o táctica.</p>';
   }
   function dataAnswer(n) {
+    if (S.scoutE && /(informe|debil|fuerte|patron|jugarle|jugar contra|como le gano|como ganar|descuid|espera|zona)/.test(n)) {
+      const R = BR.report([S.scoutE]); if (R) { const L = (t, xs) => (xs.length ? `<p><b>${t}</b></p><ul>${xs.slice(0, 4).map((x) => `<li>${esc(x.text)} <span class="small muted">(${x.n} golpes)</span></li>`).join('')}</ul>` : '');
+        return L('Puntos débiles', R.weaknesses) + L('Puntos fuertes', R.strengths) + L(R.name === 'Tú' ? 'Lo que buscará tu rival' : 'Cómo jugarle', R.advice) || '<p>No hay datos suficientes para el informe.</p>'; }
+    }
     if (S.res.mode === 'training') return trainAnswer(n);
     const m = S.res.players[S.me], o = S.res.players[1 - S.me];
     const pc = (v) => (Number.isFinite(v) ? Math.round(v * 100) + ' %' : '—');
@@ -3845,7 +4518,7 @@ body.noscroll { overflow: hidden; }
       }
     }
     job.stop(false);
-    if (found < frames.length * 0.3) { DB.del('job', 'run').catch(() => {}); throw new Error('Casi no se ha detectado al jugador. Comprueba que se vea entero, de la cabeza a los pies, y que no haya otras personas delante.'); }
+    if (found < frames.length * 0.3) { delJob().catch(() => {}); throw new Error('Casi no se ha detectado al jugador. Comprueba que se vea entero, de la cabeza a los pies, y que no haya otras personas delante.'); }
     S.track = { mode: 'training', demo: false, width: W, height: H, duration: b - a, offset: a, frames, thumbs, stature: cfg.stature, hand: cfg.hand, view: cfg.view, drill: cfg.drill, sens: cfg.sens, edits: { add: [], del: [], type: {} }, name: 'Tú' };
     S.demo = null; finish(job);
   }
@@ -4066,7 +4739,7 @@ body.noscroll { overflow: hidden; }
   }
   const CATC = (r) => (r.cat === 'alto' ? '--atk' : r.cat === 'bajo' ? '--def' : '--neu');
 
-  try { if (/debug/.test(location.search)) { window.__plS = S; window.__plWhy = {}; } } catch (e) {}
+  try { if (/debug/.test(location.search)) { window.__plS = S; window.__plWhy = {};  } } catch (e) {}
   /* ---------- Arranque ---------- */
   const h0 = (location.hash || '').slice(1);
   go(VIEWS.includes(h0) ? h0 : 'analizar');
