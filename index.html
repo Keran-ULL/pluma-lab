@@ -478,7 +478,7 @@ body.noscroll { overflow: hidden; }
       </div>
     </div>
   </div>
-  <p class="small muted" style="text-align:center">Versión 15 · 31 de octubre de 2026</p>
+  <p class="small muted" style="text-align:center">Versión 17 · 31 de octubre de 2026</p>
 </section>
 
 <!-- ===== RESULTADOS ===== -->
@@ -986,7 +986,7 @@ body.noscroll { overflow: hidden; }
       SHC = G.BSH.clean(X, Y, SH30.fps);
       if (!G.__noOwn) {
         const f30 = SH30.fps, pAt = (k, p) => { const i = poseIdx(k / f30); if (Math.abs(t[i] - k / f30) > 0.12) return null; const pl = gated[p][i]; return pl ? pl.img : null; };
-        const O = G.BSH.ownTracks(SHC, f30, pAt, track.width || 1280); SHC = { x: O.x, y: O.y }; shDropped = O.dropped;
+        const O = G.BSH.ownTracks(SHC, f30, pAt, track.width || 1280, G.BSH.camera(court2img, track.width || 1280, track.height || 720)); SHC = { x: O.x, y: O.y }; shDropped = O.dropped;
       }
     }
     const hits = SH30 ? (() => {
@@ -1630,7 +1630,7 @@ body.noscroll { overflow: hidden; }
      El modelo también ve volantes de otras pistas. Se trocea la trayectoria en tramos seguidos y solo se quedan los
      tramos que en algún momento pasan junto a uno de nuestros jugadores (cuerpo, mano o raqueta por encima de la
      cabeza), más los que continúan a uno de esos tramos (mismo vuelo con un corte corto en medio). */
-  function ownTracks(S, fps, poseAt, W) {
+  function ownTracks(S, fps, poseAt, W, cam) {
     // un tramo se corta cuando el volante "salta" de sitio de un fotograma al siguiente (el modelo ha pasado a otro volante)
     const n = S.x.length, ok = (k) => Number.isFinite(S.x[k]), seg = [], jump = (W || 1280) * 0.07 * (30 / fps);
     const cont = (k) => ok(k + 1) && Math.hypot(S.x[k + 1] - S.x[k], S.y[k + 1] - S.y[k]) < jump;
@@ -1643,7 +1643,22 @@ body.noscroll { overflow: hidden; }
       }
       return false;
     };
-    for (const g of seg) { for (let k = g.a; k <= g.b; k += 2) if (near(k)) { g.keep = true; break; } if (!g.keep && near(g.b)) g.keep = true; }
+    // Nuestro volante siempre sale de una raqueta y acaba en otra raqueta o en el suelo de la pista: el tramo tiene que
+    // empezar o acabar junto a uno de nuestros jugadores. Pasar por delante o por detrás de uno (en la imagen) no basta:
+    // así se cuelan los volantes de otras pistas, sobre todo entre punto y punto.
+    const ends = (g) => { const L = g.b - g.a + 1, m = Math.min(4, Math.max(1, Math.floor(L / 3))); for (let k = g.a; k < g.a + m; k++) if (near(k)) return true; for (let k = g.b - m + 1; k <= g.b; k++) if (near(k)) return true; return false; };
+    // También vale un tramo que acaba con el volante quieto en el suelo DENTRO de nuestra pista (aunque no se viera salir
+    // de la raqueta). Un volante en el suelo está a altura 0, así que su sitio en la pista se calcula sin dudas: el de otra
+    // pista cae fuera de la nuestra.
+    const onOurFloor = (g) => {
+      if (!cam || g.b - g.a < 5) return false;
+      let mv = 0; for (let k = g.b - 3; k < g.b; k++) mv += Math.hypot(S.x[k + 1] - S.x[k], S.y[k + 1] - S.y[k]);
+      if (mv > (W || 1280) * 0.008) return false; // no está quieto: sigue en el aire
+      const d = cam.ray(S.x[g.b], S.y[g.b]); if (d[2] > -1e-3) return false;
+      const s2 = -cam.C[2] / d[2], X = cam.C[0] + s2 * d[0], Y = cam.C[1] + s2 * d[1];
+      return X > -0.3 && X < COURT.W + 0.3 && Y > -0.3 && Y < COURT.L + 0.3;
+    };
+    for (const g of seg) g.keep = ends(g) || onOurFloor(g);
     // Continuaciones: el tramo siguiente empieza cerca de donde acabó uno bueno (o al revés), poco tiempo después
     const join = (A, B) => { const dt = B.a - A.b; if (dt <= 0 || dt > fps * 0.5) return false; const v = A.b > A.a ? [S.x[A.b] - S.x[A.b - 1], S.y[A.b] - S.y[A.b - 1]] : [0, 0]; const px = S.x[A.b] + v[0] * dt, py = S.y[A.b] + v[1] * dt; return Math.hypot(S.x[B.a] - px, S.y[B.a] - py) < 25 + 8 * dt; };
     for (let it = 0; it < 4; it++) for (let i = 0; i < seg.length; i++) { if (seg[i].keep) continue; for (let j = Math.max(0, i - 4); j <= Math.min(seg.length - 1, i + 4); j++) { if (!seg[j].keep || i === j) continue; if (j < i ? join(seg[j], seg[i]) : join(seg[i], seg[j])) { seg[i].keep = true; break; } } }
@@ -3571,6 +3586,7 @@ body.noscroll { overflow: hidden; }
     let rsh = null; if (resume) { try { rsh = await DB.get('job', 'runsh'); } catch (e) {} } else { await DB.del('job', 'runsh').catch(() => {}); }
     if (rsh && rsh.n === n) { shx = Float32Array.from(rsh.x); shy = Float32Array.from(rsh.y); next = rsh.next; }
     else { shx = new Float32Array(n).fill(NaN); shy = new Float32Array(n).fill(NaN); }
+    const liveNear = new Uint8Array(n); // solo para la vista en directo: puntos junto a nuestros jugadores o que siguen a uno de ellos
     // Las posturas ya no cambian: se guardan una sola vez; luego solo el avance del volante (poco y rápido de guardar)
     await job.save({ frames, next: frames.length, found: c.found });
     let shSaving = null; const saveSh = (kk) => { if (shSaving) return shSaving; shSaving = DB.put('job', 'runsh', { n, x: shx, y: shy, next: kk }).catch(() => {}).then(() => { shSaving = null; }); return shSaving; };
@@ -3650,7 +3666,7 @@ body.noscroll { overflow: hidden; }
         const pf = frames.length ? frames[Math.max(0, Math.min(frames.length - 1, Math.round((k / FPS) / ((frames[frames.length - 1].t || 1) / Math.max(1, frames.length - 1)))))] : null;
         const boxes = pf ? pf.p.map((q) => (q ? BSH.boxOf(q.img) : null)) : null;
         const pk = BSH.pickBlob(k, bl, pst, boxes, W);
-        if (pk) { shx[k] = pk[0]; shy[k] = pk[1]; }
+        if (pk) { shx[k] = pk[0]; shy[k] = pk[1]; liveNear[k] = (boxes || []).some((B) => B && Math.hypot(Math.max(B.x0 - pk[0], 0, pk[0] - B.x1), Math.max(B.y0 - B.h * 1.5 - pk[1], 0, pk[1] - B.y1)) < B.h * 1.2) ? 1 : (liveNear[k - 1] && Math.hypot(pk[0] - shx[k - 1], pk[1] - shy[k - 1]) < W * 0.07 ? 1 : 0); }
         tms.push(performance.now() - m0); if (tms.length > 12) tms.shift();
         if (base === null && done >= 15) base = BA.median(tms);
       }
@@ -3664,7 +3680,7 @@ body.noscroll { overflow: hidden; }
         $('#runEta').textContent = `Paso 2 de 2 · ${pct} % · quedan ${rest2 < 90 ? Math.round(rest2) + ' s' : rest2 < 5400 ? Math.round(rest2 / 60) + ' min' : (rest2 / 3600).toFixed(1) + ' h'}`;
         $('#runInfo').textContent = `Motor: ${tnEP === 'webgpu' ? 'tarjeta gráfica del móvil' : 'procesador (lento)'} · ${Math.round(per * 1000)} ms por fotograma${seqOK ? '' : ' · lectura fotograma a fotograma'}${cool ? ' · modo fresco' : ''} · se saltan las pausas entre puntos (${Math.round(skipped * 100)} % del vídeo).${lowBat ? ' Batería baja: conviene enchufar el móvil.' : ''}${tnEP !== 'webgpu' ? ' Va lento porque no se está usando la tarjeta gráfica: cancela y mira en Ajustes, en "Tipo de análisis", cómo activarla.' : ''}`;
         darkUpdate();
-        if (!darkOn()) { rc.drawImage(v, 0, 0, rc.canvas.width, rc.canvas.height); rc.fillStyle = '#ffe678'; for (let j = Math.max(0, k - 12); j <= k; j++) if (Number.isFinite(shx[j])) { rc.beginPath(); rc.arc(shx[j], shy[j], Math.max(4, W / 220), 0, 7); rc.fill(); } }
+        if (!darkOn()) { rc.drawImage(v, 0, 0, rc.canvas.width, rc.canvas.height); rc.fillStyle = '#ffe678'; for (let j = Math.max(0, k - 12); j <= k; j++) if (Number.isFinite(shx[j]) && liveNear[j]) { rc.beginPath(); rc.arc(shx[j], shy[j], Math.max(4, W / 220), 0, 7); rc.fill(); } }
         await new Promise((r2) => setTimeout(r2, 0));
       }
     }
@@ -3924,7 +3940,7 @@ body.noscroll { overflow: hidden; }
     }
     // Modo preciso: volante seguido por el modelo, fotograma a fotograma
     function drawShuttle30() {
-      const S3 = track.sh30, k = Math.round(t * S3.fps), { s, ox, oy } = fit(), P2 = (j) => [ox + S3.x[j] * s, oy + S3.y[j] * s], has = (j) => j >= 0 && j < S3.n && S3.x[j] != null;
+      const S3 = res && res.shOwn ? { fps: track.sh30.fps, n: res.shOwn.x.length, x: res.shOwn.x, y: res.shOwn.y } : track.sh30, k = Math.round(t * S3.fps), { s, ox, oy } = fit(), P2 = (j) => [ox + S3.x[j] * s, oy + S3.y[j] * s], has = (j) => j >= 0 && j < S3.n && S3.x[j] != null;
       ctx.save(); ctx.lineCap = 'round'; ctx.lineWidth = Math.max(2, 3 * s);
       for (let j = Math.max(1, k - 10); j <= k; j++) { if (!has(j) || !has(j - 1)) continue; ctx.strokeStyle = `rgba(255,230,120,${0.2 + 0.7 * (j - k + 10) / 10})`; ctx.beginPath(); ctx.moveTo(...P2(j - 1)); ctx.lineTo(...P2(j)); ctx.stroke(); }
       if (has(k)) { ctx.fillStyle = '#ffe678'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(...P2(k), Math.max(4, 6 * s), 0, 7); ctx.fill(); ctx.stroke(); }

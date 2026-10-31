@@ -1,5 +1,5 @@
 // Pluma Lab: la app se actualiza sola y el modelo de IA queda guardado para usarla sin conexión
-const CACHE = 'pluma-lab-v15';
+const CACHE = 'pluma-lab-v17';
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png']))); self.skipWaiting(); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k))))); self.clients.claim(); });
 const put = (req, res) => { if (res && res.ok) { const cp = res.clone(); caches.open(CACHE).then((c) => c.put(req, cp)); } return res; };
