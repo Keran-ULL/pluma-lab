@@ -478,7 +478,7 @@ body.noscroll { overflow: hidden; }
       </div>
     </div>
   </div>
-  <p class="small muted" style="text-align:center">Versión 13 · 30 de octubre de 2026</p>
+  <p class="small muted" style="text-align:center">Versión 15 · 31 de octubre de 2026</p>
 </section>
 
 <!-- ===== RESULTADOS ===== -->
@@ -977,13 +977,17 @@ body.noscroll { overflow: hidden; }
       if (shCov < 0.15) { SH30 = null; shWeak = true; }
     }
     const poseIdx = (tt) => { let lo = 0, hi = n - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (t[m] < tt) lo = m + 1; else hi = m; } if (lo > 0 && Math.abs(t[lo - 1] - tt) < Math.abs(t[lo] - tt)) lo--; return lo; };
-    let SHC = null, pairFn = null;
+    let SHC = null, pairFn = null, shDropped = 0;
     if (SH30) {
       const X = Float32Array.from(SH30.x, (q) => (q == null ? NaN : q)), Y = Float32Array.from(SH30.y, (q) => (q == null ? NaN : q));
       // fuera del espacio de esta pista (otra pista, el público): no es nuestro volante
       const inP = G.BSH.courtPrism(G.BSH.camera(court2img, track.width || 1280, track.height || 720));
       for (let k = 0; k < X.length; k++) if (Number.isFinite(X[k]) && !inP(X[k], Y[k])) { X[k] = NaN; Y[k] = NaN; }
       SHC = G.BSH.clean(X, Y, SH30.fps);
+      if (!G.__noOwn) {
+        const f30 = SH30.fps, pAt = (k, p) => { const i = poseIdx(k / f30); if (Math.abs(t[i] - k / f30) > 0.12) return null; const pl = gated[p][i]; return pl ? pl.img : null; };
+        const O = G.BSH.ownTracks(SHC, f30, pAt, track.width || 1280); SHC = { x: O.x, y: O.y }; shDropped = O.dropped;
+      }
     }
     const hits = SH30 ? (() => {
       const fps = SH30.fps;
@@ -998,6 +1002,7 @@ body.noscroll { overflow: hidden; }
         if (A && B) { const sc = G.BSH.flightScore(cam0, SHC, k0, k1, A, B); if (sc !== null && sc < 0.7) v = -1.3 * (0.7 - sc) / 0.7; if (G.__pairLog) G.__pairLog.push([k0, p0, k1, p1, sc, A, B]); }
         pairC.set(key, v); return v;
       };
+      if (!G.__noExtra) sens2.extra = cands.map((c) => ({ k: Math.round(t[c.i] * fps), p: c.p, s: clamp(0.62 * c.s, 0, 1.15) * (G.__exW || 1) }));
       let hs = G.BSH.detect(SHC, fps, poseAt, sens2).map((d) => { const i = poseIdx(d.k / fps); return { p: d.p, i, t: d.k / fps, peak: P[d.p].ws[i] || 0, sh: true, shk: d.k, kind: d.kind, dScore: d.score, dNear: d.d }; });
       hs = hs.filter((c) => !nearE(edits.del, c.p, c.i));
       edits.add.forEach((e) => { if (e.i > 0 && e.i < n - 1) { hs = hs.filter((c) => !(Math.abs(c.i - e.i) <= Math.round(0.25 / dt))); hs.push({ p: e.p, i: e.i, t: t[e.i], peak: P[e.p].ws[e.i] || 0, manual: true, sh: true, shk: Math.round(t[e.i] * fps) }); } });
@@ -1199,13 +1204,21 @@ body.noscroll { overflow: hidden; }
     // Fotogramas "en juego": durante los puntos válidos (para no contar los paseos entre puntos)
     const inPlay = new Array(n).fill(noValid || !rallies.length);
     rallies.forEach((r) => { if (!r.valid) return; for (let i = 0; i < n; i++) if (t[i] >= r.start - 1.0 && t[i] <= r.end + 1.5) inPlay[i] = true; });
+    // Para el mapa de calor y las zonas: todo el tiempo de juego, no solo los puntos reconocidos (si se escapan golpes,
+    // los puntos salen cortos y el mapa se quedaba en una zona pequeña). Juego = cualquier peloteo, el volante en el aire
+    // o algún jugador moviéndose rápido; con un margen alrededor.
+    const active = inPlay.slice();
+    { const mark = (i0, i1) => { for (let i = Math.max(0, i0); i <= Math.min(n - 1, i1); i++) active[i] = true; }, Wd = (s2) => Math.round(s2 / dt);
+      rallies.forEach((r) => { for (let i = 0; i < n; i++) if (t[i] >= r.start - 1.0 && t[i] <= r.end + 1.5) active[i] = true; });
+      for (let i = 0; i < n; i++) if (P.some((pp) => pp.spd[i] > 1.2)) mark(i - Wd(1.0), i + Wd(1.0));
+      if (SHC) { const f30 = SH30.fps; for (let k = 0; k < SHC.x.length; k += 3) if (Number.isFinite(SHC.x[k])) { const i = poseIdx(k / f30); mark(i - Wd(0.5), i + Wd(0.5)); } } }
 
     /* ---- Métricas por jugador ---- */
     const players = P.map((pp) => {
       const vh = hits.filter((h) => h.valid), p = pp.p, my = vh.filter((h) => h.p === p), opp = vh.filter((h) => h.p !== p);
       const pos = [];
       // Solo con los pies en el suelo (en el aire la proyección sobre la pista se va hacia atrás) y durante el juego
-      for (let i = 0; i < n; i++) if (inPlay[i] && Number.isFinite(pp.X[i]) && Number.isFinite(pp.Y[i]) && !(pp.rise[i] > 0.12)) pos.push([pp.X[i], pp.Y[i], t[i]]);
+      for (let i = 0; i < n; i++) if (active[i] && Number.isFinite(pp.X[i]) && Number.isFinite(pp.Y[i]) && !(pp.rise[i] > 0.12)) pos.push([pp.X[i], pp.Y[i], t[i]]);
       let distP = 0; for (let i = 1; i < n; i++) if (inPlay[i] && inPlay[i - 1] && [pp.X[i - 1], pp.X[i], pp.Y[i - 1], pp.Y[i]].every(Number.isFinite)) { const d = Math.hypot(pp.X[i] - pp.X[i - 1], pp.Y[i] - pp.Y[i - 1]); if (d > 0.03 && d < 8 * dt * 1.5) distP += d; }
       const playT = inPlay.filter(Boolean).length * dt || dur;
       // Mapa de calor (rejilla 0,2 m)
@@ -1220,7 +1233,7 @@ body.noscroll { overflow: hidden; }
         }
       }
       let hm = 0; for (const v of heat) hm = Math.max(hm, v);
-      if (hm) for (let i = 0; i < heat.length; i++) heat[i] /= hm;
+      if (hm) for (let i = 0; i < heat.length; i++) heat[i] = Math.sqrt(heat[i] / hm); // raíz: así se ven también las zonas que pisa menos
       // Zonas 3x3
       const zones = Array.from({ length: 3 }, () => [0, 0, 0]);
       for (const [x, y] of pos) { const z = zoneOf(p, x, y); zones[z.row][z.col]++; }
@@ -1341,7 +1354,7 @@ body.noscroll { overflow: hidden; }
     const longest = vr.length ? vr.reduce((a, b) => (b.n > a.n ? b : a)) : null;
     const highestJump = hits.filter((h) => h.jump && h.valid).reduce((a, b) => (!a || b.jump > a.jump ? b : a), null);
     return {
-      version: 2, sens, ignored, shCov, shWeak, noValid, inPlay, duration: dur, nFrames: n, dt, fps: 1 / dt, hits, rallies, players, shuttle: shOK ? { pos: SH.pos } : null, shAdded, shRemoved,
+      version: 2, sens, ignored, shCov, shWeak, shDropped, shOwn: SHC ? { x: Array.from(SHC.x, (v) => (Number.isFinite(v) ? Math.round(v * 10) / 10 : null)), y: Array.from(SHC.y, (v) => (Number.isFinite(v) ? Math.round(v * 10) / 10 : null)) } : null, noValid, inPlay, duration: dur, nFrames: n, dt, fps: 1 / dt, hits, rallies, players, shuttle: shOK ? { pos: SH.pos } : null, shAdded, shRemoved,
       highlights: { fastest, longest, highestJump }, P, gfr: frames, me: track.me,
       series: { t, X: P.map((q) => q.X), Y: P.map((q) => q.Y), spd: P.map((q) => q.spd), ws: P.map((q) => q.ws) },
     };
@@ -1414,50 +1427,80 @@ body.noscroll { overflow: hidden; }
 
   function create(ref, w, h, opts) {
     opts = opts || {};
-    const L1 = down2(ref, w, h), L2 = down2(L1.g, L1.w, L1.h);
+    const L1 = down2(ref, w, h), L2 = down2(L1.g, L1.w, L1.h), L3 = down2(L2.g, L2.w, L2.h);
     const F = features(ref, w, h, opts.n || 70, opts.minD || 16, opts.mask).map(([x, y]) => ({ x, y, P: patch(ref, w, x, y, 5) }));
-    const C = []; // parches grandes de la imagen pequeña para el desplazamiento grueso
-    features(L2.g, L2.w, L2.h, 24, 10).forEach(([x, y]) => C.push({ x, y, P: patch(L2.g, L2.w, x, y, 4) }));
+    // parches grandes en las imágenes pequeñas (1/8 y 1/4) para encontrar el desplazamiento grueso aunque la cámara se mueva mucho
+    const C3 = features(L3.g, L3.w, L3.h, 24, 6).map(([x, y]) => ({ x, y, P: patch(L3.g, L3.w, x, y, 3) }));
+    const C2 = features(L2.g, L2.w, L2.h, 24, 10).map(([x, y]) => ({ x, y, P: patch(L2.g, L2.w, x, y, 4) }));
     let last = [1, 0, 0, 0, 1, 0]; // actual -> referencia del fotograma anterior
-    function estimate(g) {
-      // 1) desplazamiento grueso a 1/4 de tamaño: voto de los parches grandes
-      const l1 = down2(g, w, h), l2 = down2(l1.g, l1.w, l1.h), li = inv(last);
-      const votes = [];
-      for (const c of C) {
-        const [px, py] = ap(li, c.x * 4, c.y * 4), cx = Math.round(px / 4), cy = Math.round(py / 4);
-        let best = 1e9, bx = 0, by = 0; for (let dy = -8; dy <= 8; dy++) for (let dx = -8; dx <= 8; dx++) { const s = zsad(c.P, l2.g, l2.w, l2.h, cx + dx, cy + dy, 4); if (s < best) { best = s; bx = dx; by = dy; } }
-        if (best < 1e9) votes.push([bx, by]);
+    const med = (a) => { const s = a.slice().sort((x, y) => x - y); return s[s.length >> 1]; };
+    // voto del desplazamiento: cada parche busca su sitio alrededor de la predicción (en píxeles de esa escala)
+    function vote(Cs, lv, sc, li, off, R, r) {
+      const vs = [];
+      for (const c of Cs) {
+        const [px, py] = ap(li, c.x * sc, c.y * sc), cx = Math.round((px + off[0]) / sc), cy = Math.round((py + off[1]) / sc);
+        let best = 1e9, bx = 0, by = 0; for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) { const v = zsad(c.P, lv.g, lv.w, lv.h, cx + dx, cy + dy, r); if (v < best) { best = v; bx = dx; by = dy; } }
+        if (best < 1e9 && best / c.P.length < 22) vs.push([bx, by]);
       }
-      let sx = 0, sy = 0;
-      if (votes.length) { const mx = votes.map((v) => v[0]).sort((a, b) => a - b), my = votes.map((v) => v[1]).sort((a, b) => a - b); sx = mx[mx.length >> 1] * 4; sy = my[my.length >> 1] * 4; }
-      // 2) búsqueda fina de cada punto alrededor de la predicción
+      if (vs.length < 4) return null;
+      const mx = med(vs.map((v) => v[0])), my = med(vs.map((v) => v[1])), agree = vs.filter((v) => Math.abs(v[0] - mx) <= 1 && Math.abs(v[1] - my) <= 1).length;
+      return { d: [off[0] + mx * sc, off[1] + my * sc], agree };
+    }
+    function fine(g, li, sx, sy) {
       const A = [], B = [];
       for (const f of F) {
         const [px, py] = ap(li, f.x, f.y), cx = Math.round(px + sx), cy = Math.round(py + sy);
         let best = 1e9, bx = 0, by = 0; const S = {};
-        for (let dy = -5; dy <= 5; dy++) for (let dx = -5; dx <= 5; dx++) { const s = zsad(f.P, g, w, h, cx + dx, cy + dy, 5); S[dx + ',' + dy] = s; if (s < best) { best = s; bx = dx; by = dy; } }
+        for (let dy = -5; dy <= 5; dy++) for (let dx = -5; dx <= 5; dx++) { const v = zsad(f.P, g, w, h, cx + dx, cy + dy, 5); S[dx + ',' + dy] = v; if (v < best) { best = v; bx = dx; by = dy; } }
         if (best >= 1e9 || Math.abs(bx) === 5 || Math.abs(by) === 5) continue;
         if (best / f.P.length > 14) continue; // no se parece lo suficiente (tapado por un jugador, etc.)
         const sub = (a, c, b) => { const d = a - 2 * c + b; return d > 0 ? 0.5 * (a - b) / d : 0; };
         const ox = sub(S[(bx - 1) + ',' + by], best, S[(bx + 1) + ',' + by]), oy = sub(S[bx + ',' + (by - 1)], best, S[bx + ',' + (by + 1)]);
         A.push([cx + bx + ox, cy + by + oy]); B.push([f.x, f.y]);
       }
-      // 3) RANSAC de dos puntos con semejanza
-      const n = A.length; if (n < 6) return { T: last, ok: false, inl: n, n: F.length };
+      const n = A.length; if (n < 6) return null;
       let bestIn = []; let seed = 12345; const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
       for (let it = 0; it < 120; it++) {
         const i = Math.floor(rnd() * n), j = Math.floor(rnd() * n); if (i === j) continue;
-        const da = Math.hypot(A[i][0] - A[j][0], A[i][1] - A[j][1]); if (da < 20) continue;
+        if (Math.hypot(A[i][0] - A[j][0], A[i][1] - A[j][1]) < 20) continue;
         const T = simFit(A, B, [i, j]); const inl = [];
         for (let k = 0; k < n; k++) { const q = ap(T, A[k][0], A[k][1]); if (Math.hypot(q[0] - B[k][0], q[1] - B[k][1]) < 1.6) inl.push(k); }
         if (inl.length > bestIn.length) bestIn = inl;
       }
-      if (bestIn.length < Math.max(6, n * 0.3)) return { T: last, ok: false, inl: bestIn.length, n: F.length };
+      if (bestIn.length < Math.max(6, n * 0.3)) return null;
       let T = simFit(A, B, bestIn);
       const inl2 = []; for (let k = 0; k < n; k++) { const q = ap(T, A[k][0], A[k][1]); if (Math.hypot(q[0] - B[k][0], q[1] - B[k][1]) < 1.2) inl2.push(k); }
       if (inl2.length >= 6) T = simFit(A, B, inl2);
-      last = T;
-      return { T, ok: true, inl: inl2.length, n: F.length };
+      const sc = Math.hypot(T[0], T[3]); if (sc < 0.7 || sc > 1.4) return null; // zoom imposible: no es la misma escena
+      return { T, inl: inl2.length };
+    }
+    function attempt(g, l2, l3, base, R3) {
+      const li = inv(base);
+      const v3 = vote(C3, l3, 8, li, [0, 0], R3, 3); if (!v3) return null;
+      const v2 = vote(C2, l2, 4, li, v3.d, 3, 4); const d = v2 ? v2.d : v3.d;
+      return fine(g, li, d[0], d[1]);
+    }
+    let lost = 0;
+    function estimate(g) {
+      const l1 = down2(g, w, h), l2 = down2(l1.g, l1.w, l1.h), l3 = down2(l2.g, l2.w, l2.h);
+      // 1) desde la posición anterior; 2) si falla, búsqueda más amplia; 3) y también desde la posición original
+      // (la cámara suele volver a donde estaba). Se queda la que encaje con más puntos.
+      let r = attempt(g, l2, l3, last, 10);
+      if (!r || r.inl < 15) {
+        const tries = [attempt(g, l2, l3, last, 24), attempt(g, l2, l3, [1, 0, 0, 0, 1, 0], 24)].filter(Boolean);
+        if (r) tries.push(r);
+        // giros bruscos del móvil: se prueba también con la imagen girada unos grados
+        if (!tries.some((q) => q.inl >= 15)) for (const deg of [-5, 5, -10, 10]) {
+          const a = deg * Math.PI / 180, c = Math.cos(a), sn = Math.sin(a), cx = w / 2, cy = h / 2;
+          const Rm = [c, -sn, cx - c * cx + sn * cy, sn, c, cy - sn * cx - c * cy]; // giro alrededor del centro
+          const mul = (A2, B2) => [A2[0] * B2[0] + A2[1] * B2[3], A2[0] * B2[1] + A2[1] * B2[4], A2[0] * B2[2] + A2[1] * B2[5] + A2[2], A2[3] * B2[0] + A2[4] * B2[3], A2[3] * B2[1] + A2[4] * B2[4], A2[3] * B2[2] + A2[4] * B2[5] + A2[5]];
+          const q = attempt(g, l2, l3, mul(last, Rm), 24); if (q) { tries.push(q); if (q.inl >= 15) break; }
+        }
+        r = tries.sort((a, b) => b.inl - a.inl)[0] || null;
+      }
+      if (!r) { lost++; return { T: last, ok: false, inl: 0, n: F.length }; }
+      lost = 0; last = r.T;
+      return { T: r.T, ok: true, inl: r.inl, n: F.length };
     }
     return { estimate, nFeatures: F.length };
   }
@@ -1543,11 +1586,20 @@ body.noscroll { overflow: hidden; }
     for (let k = 0; k < n; k++) for (const p of [0, 1]) { const img = poseAt(k, p); const B = img ? boxOf(img) : null; BX[p][k] = B; const q = Q(k); if (B && q) dd[p][k] = Math.min(...B.w.map((u) => Math.hypot(u[0] - q[0], u[1] - q[1]))) / B.h; }
     for (const p of [0, 1]) for (let k = 2; k < n - 2; k++) { const v = dd[p][k]; if (v < 0.45 && v <= dd[p][k - 1] && v <= dd[p][k + 1] && v <= dd[p][k - 2] && v <= dd[p][k + 2] && !C.some((c) => Math.abs(c.k - k) <= 3)) C.push({ k, s: 0.6 + 0.6 * (1 - v / 0.45), kind: 'prox' }); }
     // Cercanía a cada jugador (cuerpo ampliado hacia arriba por la raqueta, o la mano)
-    const prox = (k, q) => [0, 1].map((p) => { let best = 9; for (let j = k - 2; j <= k + 2; j++) { const B = BX[p][j]; if (!B) continue; const dx = Math.max(B.x0 - q[0], 0, q[0] - B.x1), dy = Math.max(B.y0 - B.h * 0.6 - q[1], 0, q[1] - B.y1), dw = Math.min(...B.w.map((u) => Math.hypot(u[0] - q[0], u[1] - q[1]))); best = Math.min(best, Math.min(Math.hypot(dx, dy), dw) / B.h); } return best; });
+    const prox = (k, q) => [0, 1].map((p) => { let best = 9; for (let j = k - 2; j <= k + 2; j++) { const B = BX[p][j]; if (!B) continue; const RK = G.__rk === undefined ? 0 : G.__rk; // alcance de la raqueta (~0,65 m, un tercio de la altura del cuerpo)
+        const dx = Math.max(B.x0 - B.h * RK - q[0], 0, q[0] - B.x1 - B.h * RK), dy = Math.max(B.y0 - B.h * 0.6 - q[1], 0, q[1] - B.y1), dw = Math.min(...B.w.map((u) => Math.hypot(u[0] - q[0], u[1] - q[1])));
+        best = Math.min(best, Math.hypot(dx, dy) / B.h, Math.max(0, dw / B.h - RK)); } return best; });
     C.forEach((c) => { const q = c.q || Q(c.k); c.d = q ? prox(c.k, q) : [9, 9]; });
     // d) el volante cae al suelo y se para: fin del punto, no es un golpe
     const landing = (k) => { let m = 0, last = null; for (let j = k + 1; j <= Math.min(n - 1, k + Math.round(fps * 0.7)); j++) { const q = Q(j); if (!q) continue; if (last) m += Math.hypot(q[0] - last[0], q[1] - last[1]); last = q; } return last && m < 25; };
     let Kc = C.filter((c) => Math.min(...c.d) < 1.0 && !(c.kind !== 'gap' && landing(c.k)));
+    // Gestos de golpe vistos en la postura cuando el volante no se ve en ese momento (lejos, tapado, borroso): entran
+    // como candidatos más débiles; la alternancia entre jugadores decide si encajan en el punto.
+    if (opt.extra) for (const e of opt.extra) {
+      let seen = false; for (let j = e.k - 4; j <= e.k + 4; j++) if (Q(j)) { seen = true; break; }
+      if (seen || Kc.some((c) => Math.abs(c.k - e.k) <= 4)) continue;
+      const d = [9, 9]; d[e.p] = 0.15; Kc.push({ k: e.k, s: e.s, kind: 'pose', d });
+    }
     const NMS = Math.round(fps / 6);
     Kc = Kc.filter((c) => !Kc.some((d) => d !== c && Math.abs(d.k - c.k) <= NMS && (d.s > c.s || (d.s === c.s && d.k < c.k))));
     Kc.sort((a, b) => a.k - b.k);
@@ -1572,6 +1624,32 @@ body.noscroll { overflow: hidden; }
     let bi = -1, bv = -1e9; st.forEach((Sx, i) => { if (Sx && Sx.v > bv) { bv = Sx.v; bi = i; } });
     const out = []; for (let i = bi; i >= 0; i = st[i].pr) { const c = Kc[i >> 1]; out.push({ k: c.k, p: i & 1, kind: c.kind, score: c.s, d: c.d[i & 1] }); }
     return out.reverse();
+  }
+
+  /* ---------- Solo el volante de nuestro partido ----------
+     El modelo también ve volantes de otras pistas. Se trocea la trayectoria en tramos seguidos y solo se quedan los
+     tramos que en algún momento pasan junto a uno de nuestros jugadores (cuerpo, mano o raqueta por encima de la
+     cabeza), más los que continúan a uno de esos tramos (mismo vuelo con un corte corto en medio). */
+  function ownTracks(S, fps, poseAt, W) {
+    // un tramo se corta cuando el volante "salta" de sitio de un fotograma al siguiente (el modelo ha pasado a otro volante)
+    const n = S.x.length, ok = (k) => Number.isFinite(S.x[k]), seg = [], jump = (W || 1280) * 0.07 * (30 / fps);
+    const cont = (k) => ok(k + 1) && Math.hypot(S.x[k + 1] - S.x[k], S.y[k + 1] - S.y[k]) < jump;
+    for (let k = 0; k < n; k++) { if (!ok(k)) continue; let e = k; while (e + 1 < n && cont(e)) e++; seg.push({ a: k, b: e, keep: false }); k = e; }
+    const near = (k) => {
+      for (const p of [0, 1]) for (let j = k - 3; j <= k + 3; j += 3) {
+        const img = poseAt(j, p); if (!img) continue; const B = boxOf(img), q = [S.x[k], S.y[k]];
+        const dx = Math.max(B.x0 - B.h * 0.35 - q[0], 0, q[0] - B.x1 - B.h * 0.35), dy = Math.max(B.y0 - B.h * 0.7 - q[1], 0, q[1] - B.y1);
+        if (Math.hypot(dx, dy) < B.h * 0.25) return true;
+      }
+      return false;
+    };
+    for (const g of seg) { for (let k = g.a; k <= g.b; k += 2) if (near(k)) { g.keep = true; break; } if (!g.keep && near(g.b)) g.keep = true; }
+    // Continuaciones: el tramo siguiente empieza cerca de donde acabó uno bueno (o al revés), poco tiempo después
+    const join = (A, B) => { const dt = B.a - A.b; if (dt <= 0 || dt > fps * 0.5) return false; const v = A.b > A.a ? [S.x[A.b] - S.x[A.b - 1], S.y[A.b] - S.y[A.b - 1]] : [0, 0]; const px = S.x[A.b] + v[0] * dt, py = S.y[A.b] + v[1] * dt; return Math.hypot(S.x[B.a] - px, S.y[B.a] - py) < 25 + 8 * dt; };
+    for (let it = 0; it < 4; it++) for (let i = 0; i < seg.length; i++) { if (seg[i].keep) continue; for (let j = Math.max(0, i - 4); j <= Math.min(seg.length - 1, i + 4); j++) { if (!seg[j].keep || i === j) continue; if (j < i ? join(seg[j], seg[i]) : join(seg[i], seg[j])) { seg[i].keep = true; break; } } }
+    const x = Float32Array.from(S.x), y = Float32Array.from(S.y); let dropped = 0;
+    for (const g of seg) if (!g.keep) for (let k = g.a; k <= g.b; k++) { x[k] = NaN; y[k] = NaN; dropped++; }
+    return { x, y, dropped };
   }
 
   /* ---------- Coherencia de un vuelo entre dos golpes ----------
@@ -1714,7 +1792,7 @@ body.noscroll { overflow: hidden; }
     if (pick) { st.prev = st.last; st.last = [k, pick[0], pick[1]]; }
     return pick;
   }
-  G.BSH = { flightScore, pickBlob, courtPrism, clean, detect, camera, pointAbove, fly, solveShot, classify, boxOf };
+  G.BSH = { ownTracks, flightScore, pickBlob, courtPrism, clean, detect, camera, pointAbove, fly, solveShot, classify, boxOf };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* ===== Pluma Lab: informe de un jugador (patrones, puntos fuertes y débiles) =====
@@ -3187,14 +3265,26 @@ body.noscroll { overflow: hidden; }
   // Una instancia por jugador: cada una sigue a "su" jugador fotograma a fotograma.
   const poseP = {};
   function makePose(slot, mc) {
-    if (!poseP[slot]) poseP[slot] = (async () => {
-      if (!window.Pose) await loadScript('mp/pose.js');
-      const pose = new window.Pose({ locateFile: (f) => 'mp/' + f + (/\.(data|tflite|binarypb)$/.test(f) ? '.wasm' : '') });
-      let last = null; pose.onResults((r) => (last = r));
-      pose.setOptions({ modelComplexity: mc, smoothLandmarks: true, enableSegmentation: false, minDetectionConfidence: 0.35, minTrackingConfidence: 0.35 });
-      await pose.initialize();
-      return { pose, mc, async run(img) { last = null; await pose.send({ image: img }); return last; } };
-    })();
+    if (!poseP[slot]) {
+      // Hasta 3 intentos: si una descarga falla (cobertura, wifi del pabellón…), se vuelve a intentar en vez de quedarse roto
+      poseP[slot] = (async () => {
+        let err = null;
+        for (let a = 0; a < 3; a++) {
+          if (a) await new Promise((r) => setTimeout(r, 1500 * a));
+          let pose = null;
+          try {
+            if (!window.Pose) await loadScript('mp/pose.js');
+            pose = new window.Pose({ locateFile: (f) => 'mp/' + f + (/\.(data|tflite|binarypb)$/.test(f) ? '.wasm' : '') });
+            let last = null; pose.onResults((r) => (last = r));
+            pose.setOptions({ modelComplexity: mc, smoothLandmarks: true, enableSegmentation: false, minDetectionConfidence: 0.35, minTrackingConfidence: 0.35 });
+            await pose.initialize();
+            return { pose, mc, async run(img) { last = null; await pose.send({ image: img }); return last; } };
+          } catch (e) { err = e; try { pose && pose.close(); } catch (e2) {} }
+        }
+        throw err;
+      })();
+      poseP[slot].catch(() => { poseP[slot] = null; }); // el siguiente análisis lo vuelve a intentar desde cero
+    }
     return poseP[slot].then((P) => { if (P.mc !== mc) { P.pose.setOptions({ modelComplexity: mc }); P.mc = mc; } return P; });
   }
   async function getPose(mc) { const a = await makePose(0, mc), b = await makePose(1, mc); return [a, b]; }
@@ -3286,7 +3376,10 @@ body.noscroll { overflow: hidden; }
     const rcv = $('#runCv'); rcv.width = W; rcv.height = H; const rc = rcv.getContext('2d');
     $('#runTitle').textContent = 'Preparando el modelo de IA…'; $('#runBar').style.width = '2%';
     let P;
-    try { P = await getPose(q.mc); } catch (e) { throw new Error('El modelo de postura no se ha podido iniciar en este navegador (' + (e.message || e) + ').'); }
+    try { P = await getPose(q.mc); } catch (e) {
+      const net = /fetch|network|cargar|load/i.test(String(e && e.message || e));
+      throw new Error(net ? `No se han podido descargar los archivos del modelo de postura (${e.message || String(e)}). Suele ser la conexión: comprueba que tienes internet (mejor wifi), cierra y vuelve a abrir la app y prueba otra vez. Solo hace falta descargarlos bien una vez; después quedan guardados.` : 'El modelo de postura no se ha podido iniciar en este navegador (' + (e.message || e) + ').');
+    }
     // Jugadores marcados al empezar: color de su ropa (con la postura en un recorte alrededor de sus pies)
     if (!cfg.seed && cfg.seedPts && cfg.seedPts.some(Boolean)) {
       $('#runTitle').textContent = 'Reconociendo a los jugadores…';
@@ -3336,7 +3429,10 @@ body.noscroll { overflow: hidden; }
       const fr = { t: +(times[i] - a).toFixed(4), p: [null, null], col: [null, null], T: T.map((x) => +x.toFixed(5)) };
       grab();
       for (let k2 = ignore.length - 1; k2 >= 0; k2--) if (ignore[k2].until < fr.t) ignore.splice(k2, 1);
-      for (let p = 0; p < 2; p++) {
+      // Si no se ha podido encajar la imagen con la pista (la cámara se ha ido demasiado), este fotograma no se usa:
+      // mejor un hueco que posiciones equivocadas
+      if (!st.ok) fr.bad = 1;
+      for (let p = 0; p < 2 && !fr.bad; p++) {
         // Dónde buscar: alrededor de donde estaba (recorte ajustado y ampliado, así un jugador lejano y pequeño
         // se detecta bien); si se ha perdido, se recorre su media pista en tres trozos.
         const tries = [];
@@ -3447,7 +3543,8 @@ body.noscroll { overflow: hidden; }
   async function getTrackNet() {
     if (tnSession) return tnSession;
     const ort = await loadOrt();
-    const buf = await (await fetch('mp/tracknet.wasm')).arrayBuffer();
+    let buf = null;
+    for (let a = 0; a < 3 && !buf; a++) { try { if (a) await new Promise((r) => setTimeout(r, 1500 * a)); const r = await fetch('mp/tracknet.wasm'); if (!r.ok) throw new Error('HTTP ' + r.status); buf = await r.arrayBuffer(); } catch (e) { if (a === 2) throw new Error('No se ha podido descargar el modelo del volante (' + (e.message || e) + '). Comprueba la conexión y vuelve a intentarlo.'); } }
     const eps = (await gpuOk()) ? ['webgpu', 'wasm'] : ['wasm'];
     for (const ep of eps) { try { tnSession = await ort.InferenceSession.create(buf, { executionProviders: [ep], graphOptimizationLevel: 'all' }); tnEP = ep; break; } catch (e) { console.warn('TrackNet', ep, e); } }
     if (!tnSession) throw new Error('No se pudo iniciar el modelo del volante en este navegador.');
@@ -3543,8 +3640,8 @@ body.noscroll { overflow: hidden; }
       const k = await goTo(k0);
       while (ti + 1 < todo.length && todo[ti + 1] <= k) ti++; // si el vídeo se ha saltado algún fotograma, se sigue desde ahí
       if (document.hidden) { ti--; lastK = -9; continue; }
-      const T = BS.scaleT(STAB.estimate(rawGray()).T, W / 480);
-      grabSmall(T); lastK = k;
+      const stE = STAB.estimate(rawGray()), T = BS.scaleT(stE.T, W / 480);
+      grabSmall(T); lastK = k; if (!stE.ok) have = 0; // sin encaje fiable no se busca el volante en este fotograma
       if (have === 3) {
         const m0 = performance.now();
         const r = await sess.run({ input: new window.ort.Tensor('float32', inp, [1, 3, IH, IW]) });
