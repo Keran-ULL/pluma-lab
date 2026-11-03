@@ -328,6 +328,30 @@ body.noscroll { overflow: hidden; }
 .seq-chip.on { background: var(--ink); color: var(--surface); border-color: var(--ink); }
 .seq-chip.on .n { color: inherit; opacity: .7; }
 .seq-arrow { color: var(--muted); flex: none; font-size: 12px; }
+.seq-chip select { border: 0; background: transparent; color: inherit; font: inherit; padding: 0; } .seq-tools { margin-top: 4px; }
+/* ---- Secciones del análisis: índice fijo, cabeceras numeradas y color propio ---- */
+.sec-nav { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 56px); z-index: 6; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 8px 2px; background: var(--bg); margin-inline: -2px; }
+.sec-nav::-webkit-scrollbar { display: none; }
+.sec-nav a { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px 6px 6px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--ink); text-decoration: none; font-weight: 700; font-size: 13px; }
+.sec-nav a span { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--sec, var(--court)); color: #fff; font-size: 12px; }
+.res-sec { --sec: var(--court); display: grid; gap: 16px; margin-top: 30px; padding-left: 14px; border-left: 4px solid var(--sec); scroll-margin-top: 120px; }
+.res-sec .sec-h { scroll-margin-top: 120px; }
+.s-res { --sec: #0e6a54; } .s-inf { --sec: #c0392b; } .s-rep { --sec: #2d6cdf; } .s-gol { --sec: #e8962c; } .s-pis { --sec: #1f9d6b; } .s-tec { --sec: #8e44ad; } .s-pun { --sec: #5a6b64; }
+.sec-nav a[data-sec="res"] span { background: #0e6a54; } .sec-nav a[data-sec="inf"] span { background: #c0392b; } .sec-nav a[data-sec="rep"] span { background: #2d6cdf; } .sec-nav a[data-sec="gol"] span { background: #e8962c; } .sec-nav a[data-sec="pis"] span { background: #1f9d6b; } .sec-nav a[data-sec="tec"] span { background: #8e44ad; } .sec-nav a[data-sec="pun"] span { background: #5a6b64; }
+.sec-h { display: flex; gap: 12px; align-items: flex-start; }
+.sec-h .sec-n { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--sec); color: #fff; font-weight: 800; font-size: 17px; margin-top: 2px; }
+.sec-h h2 { margin: 0; font-size: 24px; line-height: 1.15; }
+.sec-h .sec-sub { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+.sec-more { margin-top: 4px; font-size: 13px; color: var(--muted); }
+.sec-more summary { cursor: pointer; color: var(--sec); font-weight: 700; }
+.sec-more p { margin: 6px 0 0; max-width: 70ch; }
+.res-sec > .card, .res-sec .grid2 > .card { border-top: 3px solid var(--sec); }
+.layers { position: relative; }
+.layers > summary { list-style: none; cursor: pointer; }
+.layers > summary::-webkit-details-marker { display: none; }
+.layers[open] > summary { background: var(--ink); color: var(--surface); }
+.layers-b { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0 2px; }
+@media (max-width: 600px) { .res-sec { padding-left: 10px; margin-top: 24px; } .sec-h h2 { font-size: 21px; } }
 
 </style>
 
@@ -486,7 +510,7 @@ body.noscroll { overflow: hidden; }
       </div>
     </div>
   </div>
-  <p class="small muted" style="text-align:center">Versión 21 · 31 de octubre de 2026</p>
+  <p class="small muted" style="text-align:center">Versión 22 · 2 de noviembre de 2026</p>
   <p class="small muted" style="text-align:center">El clasificador de golpes está entrenado con ShuttleSet22 (CoachAI, Wang et al., 2023), publicado con licencia MIT · Copyright (c) 2022 Wei-Yao Wang.</p>
 </section>
 
@@ -1036,8 +1060,22 @@ body.noscroll { overflow: hidden; }
         if (A && B) { const sc = G.BSH.flightScore(cam0, SHC, k0, k1, A, B); if (sc !== null && sc < 0.7) v = -1.3 * (0.7 - sc) / 0.7; if (G.__pairLog) G.__pairLog.push([k0, p0, k1, p1, sc, A, B]); }
         pairC.set(key, v); return v;
       };
+      // Golpe del otro jugador que no se ha detectado entre dos golpes del mismo: se busca dónde el volante pasa más cerca
+      // de él (o su gesto de golpear) en ese intervalo. Solo con pruebas claras.
+      const gapC = new Map();
+      if (!G.__noGap) sens2.gap = (k0, k1, q) => {
+        const key = k0 * 1e6 + k1 * 2 + q; if (gapC.has(key)) return gapC.get(key);
+        let best = null; const m = Math.round(fps * 0.15), ok = (k) => k >= 0 && k < SHC.x.length && Number.isFinite(SHC.x[k]);
+        if (G.__gapA) for (let k = k0 + m; k <= k1 - m; k++) { void k; }
+        // b) el volante no se ve en ese rato y él hace el gesto de golpear
+        if (!best) {
+          const c = cands.filter((c2) => c2.p === q && c2.t * fps > k0 + m && c2.t * fps < k1 - m && c2.s >= 0.8).sort((a2, b2) => b2.s - a2.s)[0];
+          if (c) { const kc = Math.round(c.t * fps); let seen = false; for (let k = kc - 4; k <= kc + 4; k++) if (ok(k)) { seen = true; break; } if (!seen) best = { k: kc, d: 0.3, s: 0.3 }; }
+        }
+        gapC.set(key, best); return best;
+      };
       if (!G.__noExtra) sens2.extra = cands.map((c) => ({ k: Math.round(t[c.i] * fps), p: c.p, s: clamp(0.62 * c.s, 0, 1.15) * (G.__exW || 1) }));
-      let hs = G.BSH.detect(SHC, fps, poseAt, sens2).map((d) => { const i = poseIdx(d.k / fps); return { p: d.p, i, t: d.k / fps, peak: P[d.p].ws[i] || 0, sh: true, shk: d.k, kind: d.kind, dScore: d.score, dNear: d.d }; });
+      let hs = G.BSH.detect(SHC, fps, poseAt, sens2).map((d) => { const i = poseIdx(d.k / fps); return { p: d.p, i, t: d.k / fps, peak: P[d.p].ws[i] || 0, sh: true, shk: d.k, kind: d.kind, dScore: d.score, dNear: d.d, implied: !!d.implied }; });
       hs = hs.filter((c) => !nearE(edits.del, c.p, c.i));
       edits.add.forEach((e) => { if (e.i > 0 && e.i < n - 1) { hs = hs.filter((c) => !(Math.abs(c.i - e.i) <= Math.round(0.25 / dt))); hs.push({ p: e.p, i: e.i, t: t[e.i], peak: P[e.p].ws[e.i] || 0, manual: true, sh: true, shk: Math.round(t[e.i] * fps) }); } });
       return hs.sort((a, b) => a.t - b.t);
@@ -1124,8 +1162,25 @@ body.noscroll { overflow: hidden; }
       const far = xs.filter((x, j) => Math.hypot(x - mx, ys[j] - my) > lim).length; return far / xs.length <= 0.15;
     };
     const posAt = (p, i) => { for (let j = i; j >= Math.max(0, i - Wn(0.6)); j--) if (Number.isFinite(P[p].X[j])) return toHalf(p, P[p].X[j], P[p].Y[j]); return null; };
+    // Volante en juego justo antes: se ve moviéndose deprisa lejos del que golpea (le llega del otro campo). Antes de un
+    // saque el volante está en la mano del que saca o no se ve.
+    const incoming = (h) => {
+      if (!SHC || h.shk === undefined || G.__noIncoming) return false;
+      const f30 = SH30.fps, Wd = track.width || 1280; let fly = 0;
+      for (let k = h.shk - Math.round(f30 * 0.8); k <= h.shk - 4; k++) {
+        if (k < 1 || !Number.isFinite(SHC.x[k]) || !Number.isFinite(SHC.x[k - 1])) continue;
+        const v = Math.hypot(SHC.x[k] - SHC.x[k - 1], SHC.y[k] - SHC.y[k - 1]); if (v < Wd * 0.006) continue;
+        const i = poseIdx(k / f30), pl = gated[h.p][i]; if (!pl) continue;
+        let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9; for (let j = 0; j < NK; j++) { x0 = Math.min(x0, pl.img[j * 3]); x1 = Math.max(x1, pl.img[j * 3]); y0 = Math.min(y0, pl.img[j * 3 + 1]); y1 = Math.max(y1, pl.img[j * 3 + 1]); }
+        const hh = Math.max(20, y1 - y0), dx = Math.max(x0 - SHC.x[k], 0, SHC.x[k] - x1), dy = Math.max(y0 - hh * 0.6 - SHC.y[k], 0, SHC.y[k] - y1);
+        if (Math.hypot(dx, dy) > hh * 1.2) fly++;
+      }
+      if (G.__incLog) G.__incLog.push([h.t, h.p, fly]);
+      return fly >= 4;
+    };
     const serveLike = (h, k) => {
       if (h.cat === 'alto' || h.lunge) return false; // por encima de la cabeza o en zancada: no es un saque
+      if (incoming(h)) return false; // le llegaba el volante del otro campo: es un golpe de un intercambio
       const prev = hits[k - 1]; if (prev && h.t - prev.t < 1.5) return false;
       const zr = posAt(1 - h.p, h.i), sv = stillAt(h.p, h.i, zr ? 0.35 : 0.3);
       if (sv === false) return false;
@@ -1146,6 +1201,7 @@ body.noscroll { overflow: hidden; }
       const z = posAt(q, c.i);
       if (!z || z.dn < 1.4 || z.dn > 5.4 || Math.abs(z.hx - COURT.W / 2) > 1.8 || stillAt(q, c.i, 0.35) !== true || stillAt(h.p, c.i, 0.5) !== true) continue;
       const pq = P[q], hh = { p: q, i: c.i, t: c.t, peak: c.peak, inferred: true, serveLike: true };
+      if (SH30 && incoming({ p: q, shk: Math.round(c.t * SH30.fps) })) continue;
       hh.h = contactH(pq, c.i); techAt(pq, hh);
       hh.x = Number.isFinite(pq.X[c.i]) ? pq.X[c.i] : pq.rawX[c.i]; hh.y = Number.isFinite(pq.Y[c.i]) ? pq.Y[c.i] : pq.rawY[c.i];
       hh.jump = 0; hh.elbow = elbowAt(pq, c.i); hh.cat = hh.h > pq.stat * 1.02 ? 'alto' : hh.h < pq.stat * 0.55 ? 'bajo' : 'medio'; hh.role = 'saque'; hh.zone = zoneOf(q, hh.x, hh.y);
@@ -1314,7 +1370,7 @@ body.noscroll { overflow: hidden; }
         const path = G.BM.decode(items, W.lam);
         path.forEach((ti, j) => {
           const h = hits[idx[j]]; let ty = TY[ti]; if (ty === 'Remate' && h.jump) ty = 'Remate en salto';
-          h.ruleType = h.auto; h.auto = ty; if (h.edited) return;
+          h.ruleType = h.auto; h.auto = ty; const al = path.alt ? path.alt[j] : -1; h.typeAlt = al >= 0 && TY[al] !== ty.replace(' en salto', '') ? TY[al] : null; if (h.edited) return;
           h.type = ty; h.role = /Saque/.test(ty) ? 'saque' : /Remate/.test(ty) ? 'ataque' : /Bloqueo|Defensa larga|Lob/.test(ty) ? 'defensa' : 'neutral';
           if (G.BT) G.BT.checksFor(h, P[h.p].stat, 'back');
         });
@@ -1341,6 +1397,17 @@ body.noscroll { overflow: hidden; }
       r.manual = r.key in edits.rally;
       r.valid = r.manual ? !!edits.rally[r.key] : r.auto;
     });
+    // Posibles golpes no detectados (para el repaso rápido; no cambian nada del análisis): dentro de un punto, un gesto
+    // claro de golpear de un jugador sin golpe cerca y con el volante sin verse en ese momento (borroso, tapado)
+    const missing = [];
+    if (SHC) { const f30 = SH30.fps, okq = (k) => k >= 0 && k < SHC.x.length && Number.isFinite(SHC.x[k]); edits.noMiss = edits.noMiss || [];
+      for (const c of cands) {
+        if (c.s < 0.8 || c.manual) continue; const r = rallies.find((q) => c.t > q.start + 0.2 && c.t < q.end - 0.2); if (!r || r.pase) continue;
+        if (hits.some((h) => Math.abs(h.t - c.t) < 0.35)) continue; const kc = Math.round(c.t * f30); let seen = false; for (let k = kc - 4; k <= kc + 4; k++) if (okq(k)) { seen = true; break; } if (seen) continue;
+        if (nearE(edits.noMiss, c.p, c.i)) continue; missing.push({ p: c.p, i: c.i, t: c.t, s: c.s });
+      }
+      missing.sort((a, b) => b.s - a.s); missing.length = Math.min(missing.length, 6); missing.sort((a, b) => a.t - b.t);
+    }
     const noValid = rallies.length > 0 && !rallies.some((r) => r.valid);
     hits.forEach((h) => (h.valid = noValid || rallies[h.rally].valid));
     // Fotogramas "en juego": durante los puntos válidos (para no contar los paseos entre puntos)
@@ -1496,7 +1563,7 @@ body.noscroll { overflow: hidden; }
     const longest = vr.length ? vr.reduce((a, b) => (b.n > a.n ? b : a)) : null;
     const highestJump = hits.filter((h) => h.jump && h.valid).reduce((a, b) => (!a || b.jump > a.jump ? b : a), null);
     return {
-      version: 2, sens, ignored, spots: gate.spots.map((q) => ({ x: +q.x.toFixed(2), y: +q.y.toFixed(2), manual: !!q.manual })), shCov, shWeak, shDropped, shOwn: SHC ? { x: Array.from(SHC.x, (v) => (Number.isFinite(v) ? Math.round(v * 10) / 10 : null)), y: Array.from(SHC.y, (v) => (Number.isFinite(v) ? Math.round(v * 10) / 10 : null)) } : null, noValid, inPlay, active, duration: dur, nFrames: n, dt, fps: 1 / dt, hits, rallies, players, shuttle: shOK ? { pos: SH.pos } : null, shAdded, shRemoved,
+      version: 2, sens, ignored, missing, spots: gate.spots.map((q) => ({ x: +q.x.toFixed(2), y: +q.y.toFixed(2), manual: !!q.manual })), shCov, shWeak, shDropped, shOwn: SHC ? { x: Array.from(SHC.x, (v) => (Number.isFinite(v) ? Math.round(v * 10) / 10 : null)), y: Array.from(SHC.y, (v) => (Number.isFinite(v) ? Math.round(v * 10) / 10 : null)) } : null, noValid, inPlay, active, duration: dur, nFrames: n, dt, fps: 1 / dt, hits, rallies, players, shuttle: shOK ? { pos: SH.pos } : null, shAdded, shRemoved,
       highlights: { fastest, longest, highestJump }, P, gfr: frames, me: track.me,
       series: { t, X: P.map((q) => q.X), Y: P.map((q) => q.Y), spd: P.map((q) => q.spd), ws: P.map((q) => q.ws) },
     };
@@ -1749,22 +1816,31 @@ body.noscroll { overflow: hidden; }
     const LAM = opt.lam || 2.5, COST = opt.cost || 0.6, gMin = Math.round(fps * 0.2), gMax = Math.round(fps * 2.5);
     const st = [];
     for (let i = 0; i < Kc.length; i++) for (const p of [0, 1]) {
-      const g = Kc[i].s - LAM * Kc[i].d[p] - COST; let b = g, pr = -1;
+      const g = Kc[i].s - LAM * Kc[i].d[p] - COST; let b = g, pr = -1, impl = null;
       for (let j = i - 1; j >= 0; j--) {
         const df = Kc[i].k - Kc[j].k;
         for (const q of [0, 1]) {
           const Sx = st[j * 2 + q]; if (!Sx) continue;
-          if (df > gMax) { if (Sx.v + g > b) { b = Sx.v + g; pr = j * 2 + q; } continue; }
-          if (q === p || df < gMin) continue;
+          if (df > gMax) { if (Sx.v + g > b) { b = Sx.v + g; pr = j * 2 + q; impl = null; } continue; }
+          if (q === p) {
+            // Dos golpes seguidos del mismo jugador: solo si entre medias hay pruebas de un golpe del otro que no se
+            // ha detectado (el volante pasa junto a él o hace el gesto). Así no se pierden los golpes de un intercambio rápido.
+            if (!opt.gap || df < Math.round(fps * 0.5) || df > gMax * 1.6) continue;
+            const ev = opt.gap(Kc[j].k, Kc[i].k, 1 - p); if (!ev) continue;
+            const v3 = Sx.v + g + ev.s - (opt.gapPen || 0.5);
+            if (v3 > b) { b = v3; pr = j * 2 + q; impl = ev; }
+            continue;
+          }
+          if (df < gMin) continue;
           const v2 = Sx.v + g + (opt.pair ? opt.pair(Kc[j].k, q, Kc[i].k, p) : 0);
-          if (v2 > b) { b = v2; pr = j * 2 + q; }
+          if (v2 > b) { b = v2; pr = j * 2 + q; impl = null; }
         }
         if (df > gMax * 4 && j < i - 60) break; // basta con mirar atrás un rato
       }
-      st[i * 2 + p] = { v: b, pr };
+      st[i * 2 + p] = { v: b, pr, impl };
     }
     let bi = -1, bv = -1e9; st.forEach((Sx, i) => { if (Sx && Sx.v > bv) { bv = Sx.v; bi = i; } });
-    const out = []; for (let i = bi; i >= 0; i = st[i].pr) { const c = Kc[i >> 1]; out.push({ k: c.k, p: i & 1, kind: c.kind, score: c.s, d: c.d[i & 1] }); }
+    const out = []; for (let i = bi; i >= 0; i = st[i].pr) { const c = Kc[i >> 1]; out.push({ k: c.k, p: i & 1, kind: c.kind, score: c.s, d: c.d[i & 1] }); if (st[i].impl) { const e = st[i].impl; out.push({ k: e.k, p: 1 - (i & 1), kind: 'implied', score: e.s, d: e.d, implied: true }); } }
     return out.reverse();
   }
 
@@ -2318,7 +2394,10 @@ body.noscroll { overflow: hidden; }
     for (let t = 1; t < n; t++) { V[t] = new Float64Array(K); B[t] = new Int32Array(K); for (let k = 0; k < K; k++) { let b = -1e18, bi = 0; for (let j = 0; j < K; j++) { const s = V[t - 1][j] + lam * tr[j][k]; if (s > b) { b = s; bi = j; } } V[t][k] = b + E[t][k]; B[t][k] = bi; } }
     let last = 0; for (let k = 1; k < K; k++) if (V[n - 1][k] > V[n - 1][last]) last = k;
     const path = [last]; for (let t = n - 1; t > 0; t--) path.push(B[t][path[path.length - 1]]);
-    return path.reverse();
+    path.reverse();
+    // segunda opción: otro tipo casi igual de probable para ese golpe (se enseña como «¿o …?»)
+    path.alt = path.map((k0, t) => { let b = -1; for (let k = 0; k < K; k++) if (k !== k0 && (b < 0 || E[t][k] > E[t][b])) b = k; return b >= 0 && E[t][b] > E[t][k0] - 0.6 ? b : -1; });
+    return path;
   }
   G.BM = { load, setUser, addUser, proba, decode, get ready() { return !!M; }, get types() { return TY(); }, get feat() { return M ? M.feat : []; }, get Tpro() { return M ? M.Tpro : 0.9; }, get nUser() { return user.length; } };
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -4220,6 +4299,11 @@ BM.load({"about":"Clasificador de tipo de golpe (bosque aleatorio) entrenado con
       const near = r && t <= r.end + 2.5 ? r : res.rallies.find((q) => q.start > t && q.start - t < 2);
       const key = near ? `${res.rallies.indexOf(near)}:${cur}` : ''; if (key === seqKey) return; seqKey = key;
       if (!near) { seqEl.innerHTML = ''; return; }
+      if (S.seqEdit && !demo) { // modo corrección: cada golpe del punto con su desplegable
+        seqEl.innerHTML = near.hits.map((q, j) => { const k = hs.indexOf(q); return `<label class="seq-chip${k === cur ? ' on' : ''}${q.p === S.me ? '' : ' p1'}"><span class="n">${j + 1}</span><select data-k="${k}" aria-label="Tipo del golpe ${j + 1}">${EDIT_TYPES.map((x) => `<option ${x === q.type ? 'selected' : ''}>${x}</option>`).join('')}${EDIT_TYPES.includes(q.type) ? '' : `<option selected>${esc(q.type)}</option>`}</select></label>`; }).join('<span class="seq-arrow">→</span>');
+        $$('select', seqEl).forEach((sel) => (sel.onchange = () => { const q = hs[+sel.dataset.k]; const E = mEdits(track); E.type[`${q.p}:${q.i}`] = sel.value; learnFrom(q.p, q.i, sel.value); S.replayT = t; reMatch(); }));
+        return;
+      }
       seqEl.innerHTML = near.hits.map((q, j) => { const k = hs.indexOf(q); return `<button type="button" class="seq-chip${k === cur ? ' on' : ''}${q.p === S.me ? '' : ' p1'}" data-k="${k}" title="${esc(track.names[q.p])}"><span class="n">${j + 1}</span>${esc(q.type)}</button>`; }).join('<span class="seq-arrow">→</span>');
       $$('.seq-chip', seqEl).forEach((b) => (b.onclick = () => { const q = hs[+b.dataset.k]; seekT(q.t - 0.5); }));
       const on = $('.seq-chip.on', seqEl); if (on) seqEl.scrollTo({ left: Math.max(0, on.offsetLeft - seqEl.clientWidth / 2 + on.clientWidth / 2), behavior: 'smooth' });
@@ -4279,6 +4363,7 @@ BM.load({"about":"Clasificador de tipo de golpe (bosque aleatorio) entrenado con
     $('.play', root).onclick = () => (playing ? pause() : play());
     $$('[data-rate]', root).forEach((b) => (b.onclick = () => { rate = +b.dataset.rate; $$('[data-rate]', root).forEach((x) => x.setAttribute('aria-pressed', x === b)); if (video) video.playbackRate = rate; }));
     $$('[data-opt]', root).forEach((b) => (b.onclick = () => { opt[b.dataset.opt] = !opt[b.dataset.opt]; b.setAttribute('aria-pressed', opt[b.dataset.opt]); if (miniWrap && b.dataset.opt === 'mini') miniWrap.hidden = !opt.mini; if (b.dataset.opt === 'hold') lastHeld = -1; draw(); }));
+    const seB = $('.seq-edit', root); if (seB) seB.onclick = () => { S.seqEdit = !S.seqEdit; seB.setAttribute('aria-pressed', S.seqEdit); seqKey = ''; pause(); draw(); };
     $('.prevRally', root).onclick = () => { const r = [...res.rallies].reverse().find((q) => q.start < t - 1.5); seekT(r ? r.start - 1 : 0); };
     $('.nextRally', root).onclick = () => { const r = res.rallies.find((q) => q.start > t + 0.5); if (r) seekT(r.start - 1); };
     // Quitar a una persona que no es jugador: se toca sobre ella; ese sitio queda descartado y se rehace el análisis
@@ -4300,7 +4385,7 @@ BM.load({"about":"Clasificador de tipo de golpe (bosque aleatorio) entrenado con
     tl.addEventListener('pointerdown', (e) => { tl.setPointerCapture(e.pointerId); tlSeek(e); tl.onpointermove = tlSeek; });
     tl.addEventListener('pointerup', () => (tl.onpointermove = null));
     if (video) video.addEventListener('loadeddata', draw, { once: true });
-    setTimeout(() => seekT(demo ? Math.max(0, res.hits.length ? res.hits[0].t - 1 : 0) : 0), 50);
+    setTimeout(() => { const t0 = S.replayT; S.replayT = null; seekT(t0 != null ? t0 : demo ? Math.max(0, res.hits.length ? res.hits[0].t - 1 : 0) : 0); }, 50);
     return { pause, play, time: () => t, seek: (x) => { seekT(x); stage.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, destroy() { pause(); ro.disconnect(); if (video) video.remove(); }, redraw: draw };
   }
   // Pantalla completa: la del navegador si existe; si no (iPhone), una capa fija que ocupa toda la pantalla
@@ -4428,6 +4513,13 @@ BM.load({"about":"Clasificador de tipo de golpe (bosque aleatorio) entrenado con
   function ramp(v) { const st = [[0, [255, 236, 160]], [0.45, [245, 170, 60]], [0.75, [235, 90, 50]], [1, [200, 30, 60]]]; for (let i = 1; i < st.length; i++) if (v <= st[i][0]) { const [a, ca] = st[i - 1], [b, cb] = st[i], u = (v - a) / (b - a); return ca.map((x, j) => Math.round(x + (cb[j] - x) * u)); } return st[st.length - 1][1]; }
 
   /* ---------- Resultados ---------- */
+  // Cabecera de cada sección del informe: número, título y cómo leerla (más explicación plegada)
+  const SECS = [['res', 'Resumen'], ['inf', 'Informe del jugador'], ['rep', 'Repetición'], ['gol', 'Golpes'], ['pis', 'Pista y movimiento'], ['tec', 'Técnica'], ['pun', 'Puntos']];
+  function secH(id, sub, more) {
+    const n = SECS.findIndex((x) => x[0] === id) + 1, title = SECS[n - 1][1];
+    return `<div class="sec-h" id="sec-${id}"><span class="sec-n">${n}</span><div><h2>${title}</h2><p class="sec-sub">${sub}</p>${more ? `<details class="sec-more"><summary>Cómo leerlo</summary><p>${more}</p></details>` : ''}</div></div>`;
+  }
+  const secNav = () => `<nav class="sec-nav" aria-label="Secciones del análisis">${SECS.map(([id, t], i) => `<a href="#sec-${id}" data-sec="${id}"><span>${i + 1}</span>${t}</a>`).join('')}</nav>`;
   function renderResults() {
     const root = $('#v-resultados');
     if (S.res && S.res.mode === 'training') return renderTraining(root);
@@ -4452,8 +4544,10 @@ BM.load({"about":"Clasificador de tipo de golpe (bosque aleatorio) entrenado con
       <span class="small muted">Detección de golpes:</span><div class="seg" id="resSens" title="Sensibilidad para detectar golpes"><button data-v="low" aria-pressed="${res.sens === 'low'}">Baja</button><button data-v="normal" aria-pressed="${res.sens === 'normal'}">Normal</button><button data-v="high" aria-pressed="${res.sens === 'high'}">Alta</button></div></div></div>
     <div class="card fixbar"><details><summary><b>¿Algo mal detectado?</b> <span class="small muted">Cómo corregirlo</span></summary><span class="small muted">En "Golpes uno a uno" puedes cambiar el tipo de un golpe o quitarlo (la app aprende de tus correcciones de tipo y las tiene en cuenta en los golpes parecidos de los siguientes análisis${window.BM && BM.nUser ? `; lleva ${BM.nUser}` : ''}); con "+ Golpe" en la repetición añades uno que falte. En "Puntos jugados" puedes marcar si un peloteo es un punto o no: solo los puntos cuentan en las estadísticas. La sensibilidad (arriba) cambia cuántos golpes se detectan.${res.ignored ? ` Se han ignorado ${res.ignored} detecciones de personas fuera de su media pista o que no encajaban (por ejemplo, alguien pasando).` : ''}${res.noValid ? ' <b>No se ha reconocido ningún punto con saque: se usan todos los golpes.</b>' : ''}</span></details>${nMEdits(tr) ? `<button class="btn" id="undoEdits">Deshacer ${nMEdits(tr)} ${nMEdits(tr) === 1 ? 'corrección' : 'correcciones'}</button>` : ''}</div>
 
+    ${secNav()}
     ${doubtHTML(res, tr)}
 
+    <section class="res-sec s-res">${secH('res', 'Las cifras principales del partido de un vistazo.', 'La nota va de 0 a 100 y resume técnica, movimiento y juego. Toca «Comparar» arriba para ver a los dos jugadores juntos.')}
     <div class="board">
       <div class="row" style="gap:6px">${pls.map((m) => ring(m.overall, m.p === me ? '#e8962c' : '#9aa8ff', m.p === me ? 'Tu nota' : 'Nota del rival')).join('')}</div>
       <div class="tiles">
@@ -4466,10 +4560,14 @@ BM.load({"about":"Clasificador de tipo de golpe (bosque aleatorio) entrenado con
       </div>
     </div>
 
+    </section>
+    <section class="res-sec s-inf">${secH('inf', 'Puntos fuertes, débiles, patrones de juego y cómo jugarle.', 'Cada conclusión dice en cuántos golpes se basa y su fiabilidad (alta, media o baja). Con menos de 7 golpes, tómala como una pista. «Ver el análisis completo» abre los mapas y las tablas por zona.')}
     ${!G0.BR ? '' : `<div class="card scout" id="scoutCard">${scoutCard(tr, res, cmp ? me : sel)}</div>`}
     ${tr.stabBad > 0.2 ? `<p class="note small">La cámara se ha movido mucho o la imagen cambia demasiado en el ${Math.round(tr.stabBad * 100)} % del vídeo: en esos momentos la pista puede no cuadrar. Graba con el móvil bien sujeto o en un trípode.</p>` : ''}
     ${S.scoutE && S.scoutE.swaps ? `<p class="note small">Los jugadores cambian de campo durante el vídeo. El informe sigue a cada uno por el color de la ropa; el resto de cifras y gráficas van por mitad de pista. Para cifras exactas de cada jugador, analiza cada juego por separado.</p>` : ''}
 
+    </section>
+    <section class="res-sec s-rep">${secH('rep', 'El vídeo con cada golpe señalado.', 'Al golpear aparece el tipo de golpe encima del jugador y se dibuja la trayectoria del volante con el color de su tipo (rojo ataque, naranja neutral, azul defensa, gris saque). Debajo del vídeo va la secuencia del punto: toca un golpe para saltar a él. En «Capas y opciones» puedes ocultar elementos, parar en cada golpe o saltar los ratos entre puntos.')}
     <div class="card" id="replayCard">
       <div class="card-h"><h3>Repetición</h3><div class="legend"><span><i class="sw" style="background:#e8962c"></i>Tú</span><span><i class="sw" style="background:#8592ff"></i>Rival</span>${tr.demo ? '<span class="pill">Vídeo simulado</span>' : ''}</div></div>
       <div class="replay">
@@ -4477,6 +4575,7 @@ BM.load({"about":"Clasificador de tipo de golpe (bosque aleatorio) entrenado con
           <div class="stage"><canvas class="ov"></canvas><span class="badge">${tr.demo ? 'Demostración' : 'Tu vídeo'}</span><span class="shot-pop"></span></div>
           <svg class="timeline diagram" viewBox="0 0 1000 64" preserveAspectRatio="none" role="img" aria-label="Línea de tiempo de golpes; toca para saltar">${timelineSVG()}</svg>
           <div class="rally-seq" aria-live="polite"></div>
+          ${tr.demo ? '' : `<div class="row seq-tools"><button class="chip seq-edit" type="button" aria-pressed="${!!S.seqEdit}" title="Corrige los tipos de los golpes de este punto tocando cada uno">✎ Corregir tipos del punto</button></div>`}
           <div class="ctrls">
             <button class="btn prevRally" type="button" title="Punto anterior">◀ Punto</button>
             <button class="icon-btn prevHit" aria-label="Golpe anterior"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
@@ -4485,7 +4584,7 @@ BM.load({"about":"Clasificador de tipo de golpe (bosque aleatorio) entrenado con
             <button class="btn nextRally" type="button" title="Punto siguiente">Punto ▶</button>
             <span class="num small tm">0:00</span><span style="flex:1"></span>
             <div class="seg"><button data-rate="0.25" aria-pressed="false">¼×</button><button data-rate="0.5" aria-pressed="false">½×</button><button data-rate="1" aria-pressed="true">1×</button></div>
-            ${tr.demo ? '' : '<button class="chip" data-opt="skel" aria-pressed="true">Esqueletos</button><button class="chip" data-opt="court" aria-pressed="true">Pista</button>'}<button class="chip" data-opt="trail" aria-pressed="true">Rastro</button><button class="chip" data-opt="tags" aria-pressed="true" title="Nombre del golpe junto al jugador">Etiquetas</button><button class="chip" data-opt="path" aria-pressed="true" title="Trayectoria de cada golpe">Trayectorias</button><button class="chip" data-opt="hold" aria-pressed="false" title="Se para un momento en cada golpe">Pausa en golpes</button><button class="chip" data-opt="skip" aria-pressed="false" title="Salta los ratos entre puntos">Solo puntos</button><button class="chip" data-opt="mini" aria-pressed="true" title="Vista de la pista desde arriba">Vista de arriba</button>${tr.demo ? '' : '<button class="chip" data-act="excl" aria-pressed="false" title="Toca a una persona que no es jugador (marcador, juez...) para quitarla">Quitar persona</button>'}${res.shuttle ? '<button class="chip" data-opt="shuttle" aria-pressed="true">Volante (beta)</button>' : ''}<button class="btn addHit" type="button" data-p="${me}">+ Golpe tuyo</button><button class="btn addHit" type="button" data-p="${op}">+ Golpe rival</button>${FS_BTN}
+            <details class="layers"><summary class="chip">Capas y opciones</summary><div class="layers-b">${tr.demo ? '' : '<button class="chip" data-opt="skel" aria-pressed="true">Esqueletos</button><button class="chip" data-opt="court" aria-pressed="true">Pista</button>'}<button class="chip" data-opt="trail" aria-pressed="true">Rastro</button><button class="chip" data-opt="tags" aria-pressed="true" title="Nombre del golpe junto al jugador">Etiquetas</button><button class="chip" data-opt="path" aria-pressed="true" title="Trayectoria de cada golpe">Trayectorias</button><button class="chip" data-opt="hold" aria-pressed="false" title="Se para un momento en cada golpe">Pausa en golpes</button><button class="chip" data-opt="skip" aria-pressed="false" title="Salta los ratos entre puntos">Solo puntos</button><button class="chip" data-opt="mini" aria-pressed="true" title="Vista de la pista desde arriba">Vista de arriba</button>${tr.demo ? '' : '<button class="chip" data-act="excl" aria-pressed="false" title="Toca a una persona que no es jugador (marcador, juez...) para quitarla">Quitar persona</button>'}${res.shuttle ? '<button class="chip" data-opt="shuttle" aria-pressed="true">Volante (beta)</button>' : ''}</div></details><button class="btn addHit" type="button" data-p="${me}">+ Golpe tuyo</button><button class="btn addHit" type="button" data-p="${op}">+ Golpe rival</button>${FS_BTN}
           </div>
         </div>
         <div class="mini-wrap"><div class="mini"><canvas width="180" height="380"></canvas></div><p class="small muted" style="margin-top:8px">Vista desde arriba. La línea discontinua es el golpe en vuelo, con el color de su tipo.</p></div>
@@ -4493,6 +4592,8 @@ BM.load({"about":"Clasificador de tipo de golpe (bosque aleatorio) entrenado con
       <div class="legend" style="margin-top:8px"><span><i class="sw" style="background:var(--atk)"></i>Ataque</span><span><i class="sw" style="background:var(--neu)"></i>Neutral</span><span><i class="sw" style="background:var(--def)"></i>Defensa</span><span><i class="sw" style="background:var(--srv)"></i>Saque</span><span>Círculos arriba: rival · abajo: tú</span></div>
     </div>
 
+    </section>
+    <section class="res-sec s-gol">${secH('gol', 'Qué golpes da, a qué altura, con qué fuerza y cada golpe uno a uno.', 'Ataque son los remates y drives; defensa, los lobs, bloqueos y defensas largas. En «Golpes uno a uno» puedes corregir el tipo de cualquier golpe: la app aprende de tus correcciones.')}
     <div class="grid2">
       <div class="card"><div class="card-h"><h3>Perfil de juego</h3><p>Puntuación de 0 a 100 en cada aspecto</p></div>${radar(cmp ? pls : [M])}
         <div class="legend" style="justify-content:center">${pls.map((m) => `<span><i class="sw" style="background:${pcol(m.p)}"></i>${m.p === me ? 'Tú' : 'Rival'} · ${m.overall}</span>`).join('')}</div></div>
@@ -4516,6 +4617,8 @@ BM.load({"about":"Clasificador de tipo de golpe (bosque aleatorio) entrenado con
         <div class="overflow">${speedChart(myHits)}</div><p class="small muted">Se calcula con la distancia y el tiempo entre golpes y un modelo de frenado del volante en el aire. Es una aproximación.</p></div>
     </div>
 
+    </section>
+    <section class="res-sec s-pis">${secH('pis', 'Por dónde se mueve, cuánto corre y a qué velocidad.', 'En el mapa de calor, rojo es donde más está. «Zonas» reparte su media pista en nueve partes; «Dónde golpea» y «Trayectorias» muestran los golpes; «Cobertura», la parte de la pista que pisa.')}
     <div class="grid2">
       <div class="card"><div class="card-h"><h3>Pista</h3><div class="seg" id="heatSeg"><button data-v="heat">Calor</button><button data-v="zones">Zonas</button><button data-v="contacts">Dónde golpea</button><button data-v="shots">Trayectorias</button><button data-v="hull">Cobertura</button></div></div>
         <div style="display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:16px;align-items:start" class="heat-grid"><canvas id="heatCv" width="300" height="620" style="width:100%;height:auto"></canvas><div id="heatTxt" class="small"></div></div></div>
@@ -4528,9 +4631,13 @@ BM.load({"about":"Clasificador de tipo de golpe (bosque aleatorio) entrenado con
         <div class="overflow">${lineChart(pls.map((m) => { const d = downsample(res.series.t, res.series.spd[m.p].map((v) => v * 3.6), Math.max(1, Math.round(0.5 / res.dt))); return { ...d, col: pcol(m.p) }; }), tr.duration, res.rallies, 'km/h')}</div></div>
     </div>
 
+    </section>
+    <section class="res-sec s-tec">${secH('tec', 'Gestos y desplazamientos comparados con lo que recomiendan los entrenadores.', 'Verde: bien. Naranja: a mejorar. Rojo: aviso. Son medidas aproximadas de la postura en el vídeo: úsalas para ver tendencias.')}
     <div class="card"><div class="card-h"><h3>Técnica y desplazamientos</h3><p>Comparado con lo que recomiendan los entrenadores</p></div>
       <div class="metrics">${techMetrics(pls, me)}</div></div>
 
+    </section>
+    <section class="res-sec s-pun">${secH('pun', 'Cada punto del partido y la resistencia a lo largo del vídeo.', 'Solo los puntos marcados con ✓ cuentan en las estadísticas. Puedes cambiarlo tocando el botón de cada punto (por ejemplo, si un pase entre puntos se ha tomado como punto).')}
     <div class="grid2">
       <div class="card"><div class="card-h"><h3>Puntos jugados</h3><p>Toca un punto para verlo</p></div><div class="rallies">${res.rallies.map((r, i) => `<div class="rally-row${r.valid ? '' : ' off'}"><button class="rally" data-seek="${r.start - 1}"><span class="num small">${mmss(r.start)}</span><span class="dots">${r.hits.map((h) => `<i class="${h.p === me ? '' : 'p1'}" style="background:${css(ROLE_COL[h.role])}" title="${tr.names[h.p]}: ${esc(h.type)}"></i>`).join('')}</span><span class="small muted" style="text-align:right">${r.n} golpes · ${fmt(r.dur, 0)} s</span></button><button class="chip rally-tog" type="button" data-k="${r.key}" data-v="${r.valid ? 0 : 1}" title="${r.valid ? 'Cuenta como punto' : esc(r.reason || 'No cuenta como punto')}">${r.valid ? '✓ Punto' : '✗ ' + esc(r.reason || 'No es punto')}${r.manual ? ' ✎' : ''}</button></div>`).join('')}</div>
         <p class="small muted" style="margin-top:8px">Círculos: tus golpes · cuadrados: los del rival.</p></div>
@@ -4538,10 +4645,17 @@ BM.load({"about":"Clasificador de tipo de golpe (bosque aleatorio) entrenado con
         <div class="overflow">${fatigueChart(pls)}</div>
         <p class="small muted">Si la línea baja hacia el final, te estás cansando.</p></div>
     </div>
+    </section>
     <p class="small muted">Todas las medidas son estimaciones a partir de la postura detectada en el vídeo. Úsalas para ver tendencias y comparar partidos grabados igual.</p>`;
     root.dataset.built = String(S.sel);
+    $$('.sec-nav a', root).forEach((a) => (a.onclick = (e) => { e.preventDefault(); const el = $('#sec-' + a.dataset.sec, root); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }));
     $$('#resSens button').forEach((b) => (b.onclick = () => { tr.sens = b.dataset.v; reMatch(); }));
-    if ($('#undoEdits')) $('#undoEdits').onclick = () => { tr.edits = { add: [], del: [], type: {}, rally: {}, ok: [] }; reMatch(); };
+    if ($('#undoEdits')) $('#undoEdits').onclick = () => { tr.edits = { add: [], del: [], type: {}, rally: {}, ok: [], noMiss: [] }; tr.excl = []; reMatch(); };
+    $$('#missGrid [data-miss]', root).forEach((b) => (b.onclick = (e) => {
+      e.stopPropagation(); const m = (res.missing || [])[+b.dataset.m]; if (!m) return; const E = mEdits(tr);
+      if (b.dataset.miss === 'add') E.add.push({ p: m.p, i: m.i }); else { E.noMiss = E.noMiss || []; E.noMiss.push({ p: m.p, i: m.i }); }
+      reMatch();
+    }));
     $$('#doubtGrid [data-act]', root).forEach((b) => (b.onclick = (e) => {
       e.stopPropagation(); const h = res.hits[+b.dataset.k]; if (!h) return; const E = mEdits(tr), act = b.dataset.act;
       if (act === 'ok') E.ok.push({ p: h.p, i: h.i });
@@ -4668,8 +4782,8 @@ BM.load({"about":"Clasificador de tipo de golpe (bosque aleatorio) entrenado con
       catch (e) { const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); msg.textContent = 'Copiado.'; } catch (e2) {} ta.remove(); }
     };
   }
-  const mEdits = (tr) => { tr.edits = tr.edits || {}; ['add', 'del', 'ok'].forEach((k) => (tr.edits[k] = tr.edits[k] || [])); tr.edits.type = tr.edits.type || {}; tr.edits.rally = tr.edits.rally || {}; return tr.edits; };
-  const nMEdits = (tr) => { const e = mEdits(tr); return e.add.length + e.del.length + e.ok.length + Object.keys(e.type).length + Object.keys(e.rally).length; };
+  const mEdits = (tr) => { tr.edits = tr.edits || {}; ['add', 'del', 'ok', 'noMiss'].forEach((k) => (tr.edits[k] = tr.edits[k] || [])); tr.edits.type = tr.edits.type || {}; tr.edits.rally = tr.edits.rally || {}; return tr.edits; };
+  const nMEdits = (tr) => { const e = mEdits(tr); return e.add.length + e.del.length + e.ok.length + e.noMiss.length + Object.keys(e.type).length + Object.keys(e.rally).length; };
   function reMatch() {
     const y = window.scrollY, root = $('#v-resultados');
     S.res = analyze(S.track); saveAnalysis();
@@ -4688,19 +4802,22 @@ BM.load({"about":"Clasificador de tipo de golpe (bosque aleatorio) entrenado con
   (async () => { try { const L = await DB.get('job', 'learn'); if (L && window.BM) BM.setUser(L); } catch (e) {} })();
   // Repaso opcional: los golpes de los que la app está menos segura, para confirmarlos o quitarlos con un toque
   const doubtList = (res) => res.hits.map((h, k) => ({ h, k })).filter(({ h }) => h.conf !== undefined && h.conf < 0.7 && !h.confirmed).sort((a, b) => a.h.conf - b.h.conf).slice(0, 6).sort((a, b) => a.h.t - b.h.t);
+  const thumbHit = (cv) => (cv.dataset.m !== undefined ? (S.res.missing || [])[+cv.dataset.m] : S.res.hits[+cv.dataset.k]);
   function doubtHTML(res, tr) {
     if (tr.demo || !tr.precise) return '';
-    const L = doubtList(res); if (!L.length) return '';
+    const L = doubtList(res), MS = res.missing || []; if (!L.length && !MS.length) return '';
+    const msHTML = MS.length ? `<h4 style="margin-top:14px">¿Falta algún golpe?</h4><p class="small muted">Aquí un jugador hace el gesto de golpear en mitad de un punto, pero el volante no se ve (borroso o tapado) y no se ha contado ningún golpe.</p><div class="reps-grid" id="missGrid">${MS.map((m, j) => `<div class="rep-card"><button class="rep-img" data-seek="${m.t - 1.2}" aria-label="Ver este momento en la repetición"><canvas data-m="${j}" width="300" height="225"></canvas></button><div class="b"><b>${esc(tr.names[m.p])}</b><span class="small muted">${mmss(m.t)}</span><div class="row doubt-acts"><button class="btn" type="button" data-miss="add" data-m="${j}">Sí, falta este golpe</button><button class="btn" type="button" data-miss="no" data-m="${j}">No</button></div></div></div>`).join('')}</div>` : '';
+    if (!L.length) return `<div class="card" id="doubtCard"><div class="card-h"><h3>Repaso rápido (opcional)</h3></div>${msHTML}</div>`;
     const n = res.hits.filter((h) => h.conf !== undefined && h.conf < 0.7 && !h.confirmed).length;
     return `<div class="card" id="doubtCard"><div class="card-h"><h3>Repaso rápido (opcional)</h3><p>${n === 1 ? 'Hay 1 golpe' : `Hay ${n} golpes`} de ${n === 1 ? 'cuya' : 'cuyos'} datos la app no está segura${n > L.length ? `; aquí van los ${L.length} más dudosos` : ''}. Toca la imagen para verlo en la repetición y dinos qué pasó: el informe se recalcula al momento.</p></div>
       <div class="reps-grid" id="doubtGrid">${L.map(({ h, k }) => `<div class="rep-card"><button class="rep-img" data-seek="${h.t - 1.2}" aria-label="Ver este golpe en la repetición"><canvas data-k="${k}" width="300" height="225"></canvas></button><div class="b"><b>${esc(tr.names[h.p])} · ${esc(h.type)}</b><span class="small muted">${mmss(h.t)} · seguridad ${Math.round(h.conf * 100)}&nbsp;%</span>
-        <div class="row doubt-acts"><button class="btn" type="button" data-act="ok" data-k="${k}">Sí, es golpe</button><button class="btn" type="button" data-act="swap" data-k="${k}">Lo dio ${esc(tr.names[1 - h.p])}</button><button class="btn" type="button" data-act="del" data-k="${k}">No es golpe</button></div></div></div>`).join('')}</div></div>`;
+        <div class="row doubt-acts"><button class="btn" type="button" data-act="ok" data-k="${k}">Sí, es golpe</button><button class="btn" type="button" data-act="swap" data-k="${k}">Lo dio ${esc(tr.names[1 - h.p])}</button><button class="btn" type="button" data-act="del" data-k="${k}">No es golpe</button></div></div></div>`).join('')}</div>${msHTML}</div>`;
   }
   function renderShots() {
     const res = S.res, tr = S.track, grid = $('#shotGrid'); if (!grid) return;
     const cmp = S.sel === 'cmp', list = res.hits.map((h, k) => ({ h, k })).filter(({ h }) => (cmp || h.p === +S.sel) && (S.shotAll || h.valid) && (!S.shotType || h.type === S.shotType) && (!S.shotFails || (h.checks || []).some((c) => !c.pass)));
     const N = S.shotN || 24, show = list.slice(0, N);
-    grid.innerHTML = show.map(({ h, k }) => `<div class="rep-card${h.valid ? '' : ' off'}"><button class="rep-img" data-seek="${h.t - 0.8}" aria-label="Ver este golpe en la repetición"><canvas data-k="${k}" width="300" height="225"></canvas></button><div class="b"><div class="row" style="justify-content:space-between"><b>${esc(tr.names[h.p])} · ${esc(h.type)}${h.edited || h.manual ? ' <span class="pill" title="Corregido a mano">✎</span>' : ''}</b>${h.score !== null && h.score !== undefined ? `<span class="state ${h.score >= 80 ? 'good' : h.score >= 50 ? 'warn' : 'bad'}">${h.score}</span>` : ''}</div>
+    grid.innerHTML = show.map(({ h, k }) => `<div class="rep-card${h.valid ? '' : ' off'}"><button class="rep-img" data-seek="${h.t - 0.8}" aria-label="Ver este golpe en la repetición"><canvas data-k="${k}" width="300" height="225"></canvas></button><div class="b"><div class="row" style="justify-content:space-between"><b>${esc(tr.names[h.p])} · ${esc(h.type)}${h.edited || h.manual ? ' <span class="pill" title="Corregido a mano">✎</span>' : ''}${h.typeAlt && !h.edited ? ` <span class="small muted" title="La app duda entre los dos">¿o ${esc(h.typeAlt.toLowerCase())}?</span>` : ''}</b>${h.score !== null && h.score !== undefined ? `<span class="state ${h.score >= 80 ? 'good' : h.score >= 50 ? 'warn' : 'bad'}">${h.score}</span>` : ''}</div>
       <span class="small muted">${mmss(h.t)} · ${fmt(h.h, 2)} m${h.v0 ? ` · ${Math.round(h.v0 * 3.6)} km/h` : ''}${h.jump ? ` · salto ${h.jump} cm` : ''}</span>
       <span><span class="pill"><i class="sw" style="background:var(${FORCE_C[h.force]})"></i>${h.force}</span></span>
       ${(h.checks || []).filter((c) => !c.pass).slice(0, 2).map((c) => `<span class="small" style="color:var(--bad)">✗ ${esc(c.n)}</span>`).join('')}
@@ -4709,17 +4826,22 @@ BM.load({"about":"Clasificador de tipo de golpe (bosque aleatorio) entrenado con
     $$('.m-edit', grid).forEach((sel) => (sel.onchange = () => { const E = mEdits(tr), p = +sel.dataset.p, i = +sel.dataset.i; if (sel.value === '__del') E.del.push({ p, i }); else { E.type[`${p}:${i}`] = sel.value; learnFrom(p, i, sel.value); } reMatch(); }));
     drawShotThumbs();
   }
+  // Salto exacto: tras «seeked», espera a que el fotograma esté de verdad pintado (requestVideoFrameCallback si existe)
+  async function seekExact(v, tt) {
+    await seek(v, tt);
+    await new Promise((ok) => { let done = false; const fin = () => { if (!done) { done = true; ok(); } }; if (v.requestVideoFrameCallback) { try { v.requestVideoFrameCallback(() => fin()); } catch (e) { fin(); } } else requestAnimationFrame(() => requestAnimationFrame(fin)); setTimeout(fin, 400); });
+  }
   // Imagen del contacto: en la demo se dibuja la escena; con vídeo real se busca el fotograma en un vídeo oculto
   let thumbVid = null, thumbBusy = false; const thumbQ = [];
   function drawShotThumbs() {
     thumbQ.length = 0;
-    $$('#doubtGrid canvas, #shotGrid canvas').forEach((cv) => thumbQ.push(cv));
+    $$('#doubtGrid canvas, #missGrid canvas, #shotGrid canvas').forEach((cv) => thumbQ.push(cv));
     if (S.demo) { thumbQ.splice(0).forEach(paintThumb); return; }
     pumpThumbs();
   }
   function hitBox(h) { const pl = S.track.frames[h.i] && S.track.frames[h.i].p[h.p]; if (!pl) return null; let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (let k = 0; k < NK; k++) { x0 = Math.min(x0, pl.img[k * 3]); x1 = Math.max(x1, pl.img[k * 3]); y0 = Math.min(y0, pl.img[k * 3 + 1]); y1 = Math.max(y1, pl.img[k * 3 + 1]); } const hh = Math.max(y1 - y0, 40) * 1.5, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2 - (y1 - y0) * 0.1; return { pl, cx, cy, hh }; }
   function paintThumb(cv, src) {
-    const h = S.res.hits[+cv.dataset.k]; if (!h) return; const c = cv.getContext('2d'), W = cv.width, H = cv.height, b = hitBox(h); if (!b) return;
+    const h = thumbHit(cv); if (!h) return; const c = cv.getContext('2d'), W = cv.width, H = cv.height, b = hitBox(h); if (!b) return;
     const s = H / b.hh, ox = W / 2 - b.cx * s, oy = H / 2 - b.cy * s;
     c.fillStyle = '#0a1511'; c.fillRect(0, 0, W, H);
     if (S.demo) { c.save(); c.translate(ox, oy); c.scale(s, s); paintDemoMatch(c, S.track.width, S.track.height, h.t); c.restore(); drawSkeleton(c, S.demo.skeletonAt(h.p, h.t).img, s, h.p === S.me ? '#e8962c' : '#8592ff', Math.max(2.5, 4 * s), ox, oy); }
@@ -4729,7 +4851,14 @@ BM.load({"about":"Clasificador de tipo de golpe (bosque aleatorio) entrenado con
     if (thumbBusy || !S.url) return; thumbBusy = true;
     if (!thumbVid) { thumbVid = document.createElement('video'); thumbVid.muted = true; thumbVid.playsInline = true; thumbVid.preload = 'auto'; }
     if (thumbVid.src !== S.url) { thumbVid.src = S.url; await new Promise((ok) => { thumbVid.onloadeddata = ok; setTimeout(ok, 3000); }); }
-    while (thumbQ.length) { const cv = thumbQ.shift(); if (!cv.isConnected) continue; const h = S.res.hits[+cv.dataset.k]; if (!h) continue; await seek(thumbVid, h.t + (S.track.offset || 0)); paintThumb(cv, thumbVid); }
+    while (thumbQ.length) {
+      const cv = thumbQ.shift(); if (!cv.isConnected) continue; const h = thumbHit(cv); if (!h) continue;
+      // el fotograma exacto de la postura que se dibuja encima (no el instante del golpe según el volante), y esperar a
+      // que el vídeo lo tenga pintado: si no, en muchos móviles sale un fotograma cercano y el esqueleto queda desplazado
+      const fr = S.track.frames[h.i], target = (fr ? fr.t : h.t) + (S.track.offset || 0);
+      for (let a = 0; a < 3; a++) { await seekExact(thumbVid, target); if (Math.abs(thumbVid.currentTime - target) < 0.04) break; }
+      paintThumb(cv, thumbVid);
+    }
     thumbBusy = false;
   }
   function metric(l, v, h, state) { return `<div class="metric"><span class="l">${l}</span><span class="v">${v}</span><span class="h">${h}</span>${state ? `<span><span class="state ${state[0]}">${state[1]}</span></span>` : ''}</div>`; }
