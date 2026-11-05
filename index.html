@@ -510,7 +510,7 @@ body.noscroll { overflow: hidden; }
       </div>
     </div>
   </div>
-  <p class="small muted" style="text-align:center">Versión 22 · 2 de noviembre de 2026</p>
+  <p class="small muted" style="text-align:center">Versión 23 · 4 de noviembre de 2026</p>
   <p class="small muted" style="text-align:center">El clasificador de golpes está entrenado con ShuttleSet22 (CoachAI, Wang et al., 2023), publicado con licencia MIT · Copyright (c) 2022 Wei-Yao Wang.</p>
 </section>
 
@@ -1631,6 +1631,16 @@ body.noscroll { overflow: hidden; }
     let sxx = 0, sxy = 0, d = 0; for (const i of idx) { const x = A[i][0] - ax, y = A[i][1] - ay, u = B[i][0] - bx, v = B[i][1] - by; sxx += x * u + y * v; sxy += x * v - y * u; d += x * x + y * y; }
     const a = sxx / d, b = sxy / d; return [a, -b, bx - a * ax + b * ay, b, a, by - b * ax - a * ay];
   }
+  // Afín general que lleva a -> b (6 parámetros: también la inclinación del suelo vista en perspectiva)
+  function affFit(A, B, idx) {
+    let n = 0, mx = 0, my = 0, ux = 0, uy = 0; for (const i of idx) { mx += A[i][0]; my += A[i][1]; ux += B[i][0]; uy += B[i][1]; n++; }
+    mx /= n; my /= n; ux /= n; uy /= n;
+    let sxx = 0, sxy = 0, syy = 0, xu = 0, yu = 0, xv = 0, yv = 0;
+    for (const i of idx) { const x = A[i][0] - mx, y = A[i][1] - my, u = B[i][0] - ux, v = B[i][1] - uy; sxx += x * x; sxy += x * y; syy += y * y; xu += x * u; yu += y * u; xv += x * v; yv += y * v; }
+    const det = sxx * syy - sxy * sxy; if (Math.abs(det) < 1e-6) return null;
+    const a = (xu * syy - yu * sxy) / det, b = (yu * sxx - xu * sxy) / det, c = (xv * syy - yv * sxy) / det, d = (yv * sxx - xv * sxy) / det;
+    return [a, b, ux - a * mx - b * my, c, d, uy - c * mx - d * my];
+  }
   const ap = (T, x, y) => [T[0] * x + T[1] * y + T[2], T[3] * x + T[4] * y + T[5]];
   const inv = (T) => { const det = T[0] * T[4] - T[1] * T[3], a = T[4] / det, b = -T[1] / det, c = -T[3] / det, d = T[0] / det; return [a, b, -(a * T[2] + b * T[5]), c, d, -(c * T[2] + d * T[5])]; };
 
@@ -1689,6 +1699,48 @@ body.noscroll { overflow: hidden; }
       const v2 = vote(C2, l2, 4, li, v3.d, 3, 4); const d = v2 ? v2.d : v3.d;
       return fine(g, li, d[0], d[1]);
     }
+    // Suelo de la pista: lo que de verdad tiene que cuadrar. Si se graba con el móvil en la mano, la grada, el techo y el
+    // suelo se mueven distinto (perspectiva), así que el encaje fino se hace solo con puntos del suelo.
+    const FL = opts.floor ? features(ref, w, h, 90, 12, (x, y) => !opts.floor(x, y)).map(([x, y]) => ({ x, y, P: patch(ref, w, x, y, 5) })) : [];
+    let lastF = null;
+    function floorFit(g, base, R) {
+      const li = inv(base), A = [], B = [];
+      for (const f of FL) {
+        const [px, py] = ap(li, f.x, f.y), cx = Math.round(px), cy = Math.round(py);
+        let best = 1e9, bx = 0, by = 0; const S = {};
+        for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) { const v = zsad(f.P, g, w, h, cx + dx, cy + dy, 5); S[dx + ',' + dy] = v; if (v < best) { best = v; bx = dx; by = dy; } }
+        if (best >= 1e9 || Math.abs(bx) === R || Math.abs(by) === R || best / f.P.length > 14) continue;
+        const sub = (a, c, b) => { const d = a - 2 * c + b; return d > 0 ? 0.5 * (a - b) / d : 0; };
+        A.push([cx + bx + sub(S[(bx - 1) + ',' + by], best, S[(bx + 1) + ',' + by]), cy + by + sub(S[bx + ',' + (by - 1)], best, S[bx + ',' + (by + 1)])]); B.push([f.x, f.y]);
+      }
+      const n = A.length; if (n < 12) return null;
+      let bestIn = []; let seed = 777; const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+      for (let it = 0; it < 200; it++) {
+        const i = Math.floor(rnd() * n), j = Math.floor(rnd() * n), k = Math.floor(rnd() * n); if (i === j || j === k || i === k) continue;
+        const ar = Math.abs((A[j][0] - A[i][0]) * (A[k][1] - A[i][1]) - (A[k][0] - A[i][0]) * (A[j][1] - A[i][1])); if (ar < 800) continue; // tres puntos bien separados
+        const T = affFit(A, B, [i, j, k]); if (!T) continue; const inl = [];
+        for (let q = 0; q < n; q++) { const z = ap(T, A[q][0], A[q][1]); if (Math.hypot(z[0] - B[q][0], z[1] - B[q][1]) < 1.6) inl.push(q); }
+        if (inl.length > bestIn.length) bestIn = inl;
+      }
+      if (bestIn.length < Math.max(12, n * 0.35)) return null;
+      let T = affFit(A, B, bestIn); if (!T) return null;
+      const in2 = []; for (let q = 0; q < n; q++) { const z = ap(T, A[q][0], A[q][1]); if (Math.hypot(z[0] - B[q][0], z[1] - B[q][1]) < 1.2) in2.push(q); }
+      if (in2.length >= 12) T = affFit(A, B, in2) || T;
+      // forma razonable: sin estirones ni giros raros (si no, mejor quedarse con el encaje general)
+      const sx = Math.hypot(T[0], T[3]), sy = Math.hypot(T[1], T[4]), sh = Math.abs(T[0] * T[1] + T[3] * T[4]) / (sx * sy);
+      if (sx < 0.7 || sx > 1.4 || sy < 0.7 || sy > 1.4 || sx / sy > 1.25 || sy / sx > 1.25 || sh > 0.2) return null;
+      return { T, inl: in2.length };
+    }
+    function refine(g, Tc) {
+      if (FL.length < 25) return Tc;
+      let r = lastF ? floorFit(g, lastF, 4) : null;
+      if (!r) r = floorFit(g, Tc, 14);
+      if (!r) { lastF = null; return Tc; }
+      // no debe alejarse mucho del encaje general en la zona del suelo
+      let dm = 0; for (let i = 0; i < FL.length; i += 7) { const f = FL[i], a = ap(inv(Tc), f.x, f.y), b = ap(r.T, a[0], a[1]); dm = Math.max(dm, Math.hypot(b[0] - f.x, b[1] - f.y)); }
+      if (dm > 0.09 * w) { lastF = null; return Tc; }
+      lastF = r.T; return r.T;
+    }
     let lost = 0;
     function estimate(g) {
       const l1 = down2(g, w, h), l2 = down2(l1.g, l1.w, l1.h), l3 = down2(l2.g, l2.w, l2.h);
@@ -1709,9 +1761,9 @@ body.noscroll { overflow: hidden; }
       }
       if (!r) { lost++; return { T: last, ok: false, inl: 0, n: F.length }; }
       lost = 0; last = r.T;
-      return { T: r.T, ok: true, inl: r.inl, n: F.length };
+      return { T: FL.length ? refine(g, r.T) : r.T, ok: true, inl: r.inl, n: F.length };
     }
-    return { estimate, nFeatures: F.length };
+    return { estimate, nFeatures: F.length, nFloor: FL.length };
   }
   // T calculada a escala de la imagen pequeña (sk = ancho real / ancho pequeño) -> escala real
   const scaleT = (T, sk) => [T[0], T[1], T[2] * sk, T[3], T[4], T[5] * sk];
@@ -3730,7 +3782,15 @@ BM.load({"about":"Clasificador de tipo de golpe (bosque aleatorio) entrenado con
     const stabCv = document.createElement('canvas'); stabCv.width = SW; stabCv.height = SH; const stx = stabCv.getContext('2d', { willReadFrequently: true });
     const rawGray = () => { stx.drawImage(v, 0, 0, SW, SH); const d = stx.getImageData(0, 0, SW, SH).data, g = new Uint8Array(SW * SH); for (let j = 0; j < g.length; j++) g[j] = (d[j * 4] * 3 + d[j * 4 + 1] * 5 + d[j * 4 + 2] * 2) / 10; return g; };
     await seek(v, cfg.calibT || 0);
-    const STAB = BS.create(rawGray(), SW, SH); let stabBad = resume && resume.stabBad || 0;
+    // Zona del suelo alrededor de la pista (2,5 m de margen): el encaje fino de la imagen se hace con ella
+    const floorPoly = (() => {
+      const H9 = court2img, wOf = (x, y) => H9[6] * x + H9[7] * y + H9[8], w0 = wOf(COURT.W / 2, COURT.L / 2), m = 2.5;
+      const cs = [[-m, -m], [COURT.W + m, -m], [COURT.W + m, COURT.L + m], [-m, COURT.L + m]];
+      if (cs.some(([x, y]) => !(wOf(x, y) * w0 > 0))) return null;
+      const q = cs.map(([x, y]) => applyH(court2img, x, y).map((v) => v / sk)); return q.every((v) => v.every(Number.isFinite)) ? q : null;
+    })();
+    const onFloor = floorPoly && ((x, y) => { let c = false; for (let i = 0, j = 3; i < 4; j = i++) { const [xi, yi] = floorPoly[i], [xj, yj] = floorPoly[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; });
+    const STAB = BS.create(rawGray(), SW, SH, onFloor ? { floor: onFloor } : {}); let stabBad = resume && resume.stabBad || 0;
     const a = cfg.a, b = cfg.b; const step = 1 / q.fps; const times = []; for (let t = a; t <= b; t += step) times.push(t);
     const frames = resume ? resume.frames : [], i0 = resume ? resume.next : 0; const t0 = performance.now(); let found = resume ? resume.found : [0, 0];
     $('#runTitle').textContent = 'Analizando jugadas…';
@@ -3795,7 +3855,13 @@ BM.load({"about":"Clasificador de tipo de golpe (bosque aleatorio) entrenado con
           const col = colAt(img), why = gate(p, { img, w }, col, fr.t);
           if (window.__plWhy) { const k3 = p + ':' + (why || 'ok') + (c0 === tcrop[p] ? ':track' : ':scan'); window.__plWhy[k3] = (window.__plWhy[k3] || 0) + 1; }
           if (!why) { fr.p[p] = { img, w }; fr.col[p] = col; found[p]++; boxes[p] = boxOf(img); boxT[p] = fr.t; lastImg[p] = img; done = true; }
-          else { const bx = boxOf(img); if ((why === 'fuera' || why === 'sentado' || why === 'ropa' || why === 'quieto') && !overlap(bx, boxes[p])) ignore.push({ box: bx, until: fr.t + 3 }); if (c0 === tcrop[p]) c0.fresh = true; }
+          else {
+            const bx = boxOf(img);
+            // Descartado por la ropa pero de pie dentro de su media pista: puede ser el propio jugador con los colores mal
+            // medidos (recorte que le corta). No se tapa, para no perderle varios segundos.
+            const fa = applyH(img2court, (img[K.lan * 3] + img[K.ran * 3]) / 2, Math.max(img[K.lan * 3 + 1], img[K.ran * 3 + 1]));
+            const inOwn = fa[0] > 0 && fa[0] < COURT.W && (p === 0 ? fa[1] > 0 && fa[1] < COURT.NET : fa[1] > COURT.NET && fa[1] < COURT.L);
+            if ((why === 'fuera' || why === 'sentado' || (why === 'ropa' && !inOwn) || why === 'quieto') && !overlap(bx, boxes[p])) ignore.push({ box: bx, until: fr.t + 3 }); if (c0 === tcrop[p]) c0.fresh = true; }
         }
       }
       frames.push(fr);
@@ -4300,8 +4366,8 @@ BM.load({"about":"Clasificador de tipo de golpe (bosque aleatorio) entrenado con
       const key = near ? `${res.rallies.indexOf(near)}:${cur}` : ''; if (key === seqKey) return; seqKey = key;
       if (!near) { seqEl.innerHTML = ''; return; }
       if (S.seqEdit && !demo) { // modo corrección: cada golpe del punto con su desplegable
-        seqEl.innerHTML = near.hits.map((q, j) => { const k = hs.indexOf(q); return `<label class="seq-chip${k === cur ? ' on' : ''}${q.p === S.me ? '' : ' p1'}"><span class="n">${j + 1}</span><select data-k="${k}" aria-label="Tipo del golpe ${j + 1}">${EDIT_TYPES.map((x) => `<option ${x === q.type ? 'selected' : ''}>${x}</option>`).join('')}${EDIT_TYPES.includes(q.type) ? '' : `<option selected>${esc(q.type)}</option>`}</select></label>`; }).join('<span class="seq-arrow">→</span>');
-        $$('select', seqEl).forEach((sel) => (sel.onchange = () => { const q = hs[+sel.dataset.k]; const E = mEdits(track); E.type[`${q.p}:${q.i}`] = sel.value; learnFrom(q.p, q.i, sel.value); S.replayT = t; reMatch(); }));
+        seqEl.innerHTML = near.hits.map((q, j) => { const k = hs.indexOf(q); return `<label class="seq-chip${k === cur ? ' on' : ''}${q.p === S.me ? '' : ' p1'}"><span class="n">${j + 1}</span><select data-k="${k}" aria-label="Tipo del golpe ${j + 1}">${EDIT_TYPES.map((x) => `<option ${x === q.type ? 'selected' : ''}>${x}</option>`).join('')}${EDIT_TYPES.includes(q.type) ? '' : `<option selected>${esc(q.type)}</option>`}<option value="__del">✗ No es un golpe</option></select></label>`; }).join('<span class="seq-arrow">→</span>');
+        $$('select', seqEl).forEach((sel) => (sel.onchange = () => { const q = hs[+sel.dataset.k]; const E = mEdits(track); if (sel.value === '__del') E.del.push({ p: q.p, i: q.i }); else { E.type[`${q.p}:${q.i}`] = sel.value; learnFrom(q.p, q.i, sel.value); } S.replayT = t; reMatch(); }));
         return;
       }
       seqEl.innerHTML = near.hits.map((q, j) => { const k = hs.indexOf(q); return `<button type="button" class="seq-chip${k === cur ? ' on' : ''}${q.p === S.me ? '' : ' p1'}" data-k="${k}" title="${esc(track.names[q.p])}"><span class="n">${j + 1}</span>${esc(q.type)}</button>`; }).join('<span class="seq-arrow">→</span>');
